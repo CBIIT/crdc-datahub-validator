@@ -1,0 +1,3 @@
+[submodule "src/bento"]
+	path = src/bento
+	url = https://github.com/CBIIT/bento-common.git

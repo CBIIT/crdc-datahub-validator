@@ -1,0 +1,12 @@
+Config:
+    mongo:
+    # DB host
+    host: localhost
+    port: 27017
+    # username
+    user: test
+    # password
+    password: test
+    # connection string
+    connection-str: mongodb+srv://test:test@localhost:27017/crdc-datahub
+   

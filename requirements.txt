@@ -1,0 +1,8 @@
+pyyaml
+boto3
+requests
+tqdm
+requests_aws4auth
+pymongo
+python-dateutil
+pandas
