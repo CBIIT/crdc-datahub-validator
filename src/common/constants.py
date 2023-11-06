@@ -46,6 +46,8 @@ RELATION_PARENT_NODE ="parent_nodes"
 NODE_LABEL = "node"
 IDS = "id_fields"
 NODE_PROPERTIES = "properties"
+PROP_REQUIRED="required"
+TYPE ="type"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"

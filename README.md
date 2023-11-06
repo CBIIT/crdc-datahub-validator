@@ -1,75 +1,47 @@
 # crdc-datahub-validator
 
-CRDC datahub Validator is a linux service application for metadata essential validating and lod data to Mongo DB.
+CRDC datahub Validator is a linux service application for validating metadata and loading valid data to Mongo DB.
 
-The application is programmed purely with python v3.11.  It depends on bento common module, http, json, aws boto3 and so on. All required python modules is listed in the file, requirements.txt, and .gitsubmodules.
+The application is programmed purely with python v3.11.  It depends on bento common module, http, json, aws boto3 and so on. All required python modules is listed in the file, requirements.txt, and .gitmodules.
 
-The application is consist of multiple python modules/classes to support mutiple functions listed below:
+The application is consist of multiple python modules/classes to support multiple functions listed below:
 
-1) Validate local and remote files by verifying md5 and size of files.
-2) Create uploading batch via crdc-datahub backend API.
-3) Create AWS STS temp credential for uploading files to s3 bucket.
-4) Upload both files and metadata files to S3 bucket.
-5) Update uploading batch via crdc-datahub backend API.
-6) Create uploading report.
-7) Log info, error and exceptions.
+1) A Linux service that keeps poll crdc databub batch message in a specific AWS SQS queue by utilizing bento SQS utils.
+2) Metadata model factory that stores model yaml files for different data commons after the service started.
+3) Metadata model reader that is called by the metadata model factory to parse data model yaml files.
+4) Mongo database access layer for the service to retrieve batch detail, loafing metadata into DB anf update batch after validation and data loading.
+5) File downloader that get file objects from S3 bucket based on batch.
+6) Essential validator to validate file contents.
+7) Data loader that update or insert validated data in tsv file into Mongo database.
+8) Log info, error and exceptions.
 
 Major implemented modules/classes in src dir:
 
-1) uploader.py
-    This is the entry point of the command line interface.  It controls the workflow and dispatchs different requests to designated modules/classes.
+1) validator.py
+    This is the entry point of the command line interface.  It controls the workflow and dispatches different requests to designated modules/classes.
 
-2) upload_config.py
+2) config.py
     This class manages request arguments and configurations.  It receives user's arguments, validate these arguments and store them in a dictionary.
 
-3) file_validator.py
-    This class validates 1) files by checking file size and md5; 2) metadata files by checking if file existing in the data folder defined by user.
-    During the validation, it also constracts a dictionary to record file path, file size, validate result, validateion message for files.  For metadata files, it constructs a dictionary only with file path and file size.
+3) essential_validator.py
+    This class validates 1) if batch object contains all required fields; 2) check if files in the batch are metadata; 3) check if tsv file contents are valid. 4) if the batch matadata intention is new, verify no existing records are matched with ids of the data in the files.
 
-4) common/graphql_client.py
-    This class hosts three clients for three graphql APIs, createTempCredential, createBatch, updateBatch.
+4) data_loader.py
+    This class loads validated metadata into Mongo DB.
 
-5) common/s3util.py
-    This utility class is for access designated s3 bucket with temp AWS STS credetails, and upload files to the bucket designated by uploading batch.
+5) common/mongo_dao.py
+    This class is the Mongo DB access object that takes care DB connection, CRUD operations, and handle DB errors.
 
-6) file_uploader.py
-    This class manages a job queue for uploading valid files (big size) and metadata files (small size) from local to S3 bucket via copier.py.
-
-7) copier.py
-    This class processes each job passed by file-uploader.py, then either upload or put into s3 buket based on upload type, file|metadata, and size via S3util.py.
-
-8) common/utils.py
-    This module provides utility fuctions such as dumping dictionry to tsv file, extracting exception code and messages.
+6) common/utils.py
+    This module provides utility functions such as dumping dictionary to tsv file, json file, extracting exception code and messages.
 
 Usage of the CLI tool:
 
 1) Get helps command
     $ python src/uploader.py -h
-    ##Executing resullts:
+    ##Executing results:
     Command line arguments / configuration
-    -a --api-url, API endpoint URL, required
-    -k --token, API token string, required
-    -u --submission, submission ID, required
-    -t --type, valid value in [“file”, “metadata”], required
-    -d --data, folder that contains either data files (type = “file”) or metadata (TSV/TXT) files (type = “metadata”), required
-    -c --config, configuration file path, can potentially contain all above parameters, preferred
-    -r --retries, file uploading retries, integer, optional, default value is 3
-    Following arguments are needed to read important data from manifest, conditional required when type = “file”
 
-    -m --manifest, path to manifest file, conditional required when type = “file”
-    -n --name-field
-    -s --size-field
-    -m --md5-field
-    Following argument is needed when type = "metadata"
-
-    -i --intention, valid value in [“New”, “Update”, “Delete”], conditional required when type = “metadata”, default to “new”
-    CLI configuration module will validate and combine parameters from CLI and/or config file
-    If config_file is given, then everything else is potentially optional (if it’s included in config file)
-    Some arguments are only needed for type = “file” or type = “metadata”, e.g., —intention, —manifest
-
-2) Upload files command
-    $ python src/uploader.py -c configs/test-file-upload.yml
-
-3) Upload metadata command
-    $ python src/uploader.py -c configs/test-metadata-upload.yml
+2) Validate metadata command
+    $ python src/validator.py -c configs/validator-metadata-config.yml
 

@@ -4,6 +4,7 @@ import csv
 import os
 import shutil
 import json
+from common.constants import DATA_COMMON
 
 """ 
 clean_up_key_value(dict)
@@ -59,11 +60,11 @@ Dump list of dictionary to json file, caller needs handle exception.
 def dump_dict_to_json(dict_list, file_path):
     if not dict_list or len(dict_list) == 0:
         return False 
-    keys = dict_list[0].keys()
-    output_file = open(file_path, 'w', encoding='utf-8')
+    
     for dic in dict_list:
+        file_path = file_path.replace("data", dic[DATA_COMMON])
+        output_file = open(file_path, 'w', encoding='utf-8')
         json.dump(dic, output_file, default=set_default) 
-        output_file.write("\n")
     return True
 
 def set_default(obj):

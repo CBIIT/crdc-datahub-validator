@@ -5,7 +5,7 @@ import yaml
 from bento.common.utils import get_logger, MULTIPLIER, DEFAULT_MULTIPLIER, RELATIONSHIP_TYPE, get_uuid, \
     parse_date
 from common.constants import DATA_COMMON, VERSION, MODEL_SOURCE, NAME_PROP, DESC_PROP, ID_PROPERTY, VALUE_PROP, \
-    VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, RELATION_PARENT_NODE, NODE_LABEL, NODE_PROPERTIES
+    VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, TYPE, NODE_LABEL, NODE_PROPERTIES, PROP_REQUIRED
 
 from common.utils import case_insensitive_get
 
@@ -187,7 +187,7 @@ class Model:
             return
         
         node = self.nodes[name]
-        node[RELATIONSHIPS.lower()]={dest: {"dest_node": dest, PROP_TYPE: multiplier, RELATION_LABEL: relationship}}
+        node[RELATIONSHIPS.lower()]={dest: {"dest_node": dest, TYPE: multiplier, RELATION_LABEL: relationship}}
 
     def is_required_prop(self, name):
         if name in self.schema[PROP_DEFINITIONS]:
@@ -215,12 +215,12 @@ class Model:
         return DEFAULT_TYPE
 
     def get_prop_detail(self, name):
-        result = {NAME_PROP: name, DESC_PROP: None, PROP_TYPE: DEFAULT_TYPE, REQUIRED: False}
+        result = {NAME_PROP: name, DESC_PROP: None, TYPE: DEFAULT_TYPE, PROP_REQUIRED: False}
         if name in self.schema[PROP_DEFINITIONS]:
             prop = self.schema[PROP_DEFINITIONS][name]
             result[DESC_PROP] = case_insensitive_get(prop, DESCRIPTION, "").replace("'", "\'")
             required = str(case_insensitive_get(prop, REQUIRED, "") )
-            result[REQUIRED] = (required.lower()  == "true" or required.lower() == "yes")
+            result[PROP_REQUIRED] = (required.lower()  == "true" or required.lower() == "yes")
             key = None
             if PROP_TYPE in prop:
                 key = PROP_TYPE
@@ -231,10 +231,10 @@ class Model:
                 if isinstance(prop_desc, str):
                     if prop_desc not in valid_prop_types:
                         prop_desc = DEFAULT_TYPE
-                    result[PROP_TYPE] = prop_desc
+                    result[TYPE] = prop_desc
                 elif isinstance(prop_desc, dict):
                     if VALUE_TYPE in prop_desc:
-                        result[PROP_TYPE] = prop_desc[VALUE_TYPE]
+                        result[TYPE] = prop_desc[VALUE_TYPE]
                         if ITEM_TYPE in prop_desc:
                             item_type = self._get_item_type(prop_desc[ITEM_TYPE])
                             result[ITEM_TYPE] = item_type
@@ -268,14 +268,14 @@ class Model:
 
     def _get_item_type(self, item_type):
         if isinstance(item_type, str):
-            return {PROP_TYPE: item_type}
+            return item_type
         elif isinstance(item_type, list):
             enum = set()
             for t in item_type:
                 if not re.search(r'://', t):
                     enum.add(t)
             if len(enum) > 0:
-                return {PROP_TYPE: DEFAULT_TYPE, ENUM: enum}
+                return {TYPE: DEFAULT_TYPE, ENUM: enum}
             else:
                 return None
         else:
@@ -331,11 +331,11 @@ class Model:
                         if units:
                             enum = set(units)
                             unit_prop_name = self.get_unit_property_name(name)
-                            results[unit_prop_name] = {PROP_TYPE: DEFAULT_TYPE, ENUM: enum, DEFAULT_VALUE: units[0]}
+                            results[unit_prop_name] = {TYPE: DEFAULT_TYPE, ENUM: enum, DEFAULT_VALUE: units[0]}
                             org_prop_name = self.get_original_value_property_name(name)
                             org_unit_prop_name = self.get_unit_property_name(org_prop_name)
                             results[org_prop_name] = prop_type
-                            results[org_unit_prop_name] = {PROP_TYPE: DEFAULT_TYPE, ENUM: enum, DEFAULT_VALUE: units[0]}
+                            results[org_unit_prop_name] = {TYPE: DEFAULT_TYPE, ENUM: enum, DEFAULT_VALUE: units[0]}
         return results
 
     @staticmethod
