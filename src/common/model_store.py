@@ -1,8 +1,10 @@
 import os
+import json
 import glob
 from bento.common.utils import get_logger
 from common.model_reader import Model
-from common.constants import DATA_COMMON, IDS, MODEL_FILE_DIR
+from common.constants import DATA_COMMON, IDS, MODEL_FILE_DIR, MODELS_DEFINITION_FILE, TIER
+from common.utils import download_file_to_dict
 
 
 YML_FILE_EXT = ".yml"
@@ -12,24 +14,29 @@ class ModelFactory:
     def __init__(self, configs):
         self.log = get_logger('Models')
         self.models = []
-        # to do get props files
-        model_files = glob.glob('{}/*model.yml'.format(configs[MODEL_FILE_DIR]))
-        for file_name in model_files:
-            if file_name and os.path.isfile(file_name):
-                data_common = os.path.basename(file_name).split("-")[0].upper()
-                # populate model properties
-                props_file_name = f'{file_name.replace(YML_FILE_EXT, "")}-props{YML_FILE_EXT}'
-                props =[]
-                if not os.path.isfile(props_file_name):
-                    msg = f'Can NOT open model properties file: "{props_file_name}"'
-                    self.log.error(msg)
-                    raise Exception(msg)
-                model_reader = Model([file_name, props_file_name], data_common)
-                self.models.append({"model": model_reader.model, "id_fields": model_reader.id_fields})
-            else:
-                msg = f'Can NOT open model file: "{file_name}"'
-                self.log.error(msg)
-                raise Exception(msg)
+        msg = None
+        # get models definition file, content.json in models dir
+        models_def_file_path = os.path.join(configs[MODEL_FILE_DIR], MODELS_DEFINITION_FILE)
+        tier = sqs = os.environ.get(TIER)
+        if tier:
+            models_def_file_path = models_def_file_path.replace("/dev", f"/{tier}")
+        self.models_def = download_file_to_dict(models_def_file_path)
+
+        # to do check if  self.models_def is a dict
+        if not isinstance(self.models_def, dict):
+            msg = f'Invalid models definition at "{models_def_file_path}"!'
+            self.log.error(msg)
+            raise Exception(msg)
+        
+        for k, v in self.models_def.items():
+            data_common = k
+            version = v["current-version"]
+            model_dir = os.path.join(configs[MODEL_FILE_DIR], os.path.join(k, version))
+            #process model files for the data common
+            file_name= os.path.join(model_dir, v["model-file"])
+            props_file_name = os.path.join(model_dir, v["prop-file"])
+            model_reader = Model([file_name, props_file_name], data_common)
+            self.models.append({"model": model_reader.model, "id_fields": model_reader.id_fields})
             
     def get_model_by_data_common(self, data_common):
         return next((x for x in self.models if x['model'][DATA_COMMON] == data_common.upper()), None)

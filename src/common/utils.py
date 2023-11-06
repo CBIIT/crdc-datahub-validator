@@ -4,6 +4,8 @@ import csv
 import os
 import shutil
 import json
+import requests
+import yaml
 from common.constants import DATA_COMMON
 
 """ 
@@ -93,6 +95,25 @@ def case_insensitive_get(a, k, default_value):
     k = k.lower()
     result = [a[key] for key in a if key.lower() == k]
     return result[0] if result and len(result) > 0 else default_value
+
+"""
+download file from url and load into dict 
+:param: url string
+:return: value dict
+"""
+def download_file_to_dict(url):
+    # NOTE the stream=True parameter below
+    file_ext = url.split('.')[-1]
+    with requests.get(url) as r:
+        if file_ext == "json":
+            return r.json()
+        elif file_ext == "yml": 
+            return yaml.safe_load(r.content)
+        else:
+            raise Exception(f'File type is not supported: {file_ext}!')
+
+
+
 
     
 

@@ -48,6 +48,8 @@ IDS = "id_fields"
 NODE_PROPERTIES = "properties"
 PROP_REQUIRED="required"
 TYPE ="type"
+MODELS_DEFINITION_FILE = "content.json"
+TIER="tier"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"

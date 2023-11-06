@@ -78,15 +78,16 @@ class Config():
             self.log.critical(f'Metadata model files dir is required!')
             return False
         
-        sqs = self.data.get(SQS_NAME)
-        if sqs is None:
+        sqs = os.environ.get(LOADER_QUEUE)
+        if not sqs:
             #env LOADER_QUEUE
-            sqs = os.environ.get(LOADER_QUEUE)
+            sqs = self.data.get(SQS_NAME)
             if not sqs:
                 self.log.critical(f'AWS sqs name is required!')
+                return False
             else:
                 self.data[SQS_NAME] = sqs
-            return False
+            
 
         retry = self.data.get(RETRIES, 3) #default value is 3
         if isinstance(retry, str):

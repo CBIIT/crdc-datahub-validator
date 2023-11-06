@@ -1,12 +1,12 @@
 Config:
-    mongo:
-    # DB host
-    host: localhost
-    port: 27017
-    # username
-    user: test
-    # password
-    password: test
+Config:
+    # MongoDB configurations
     # connection string
-    connection-str: mongodb+srv://test:test@localhost:27017/crdc-datahub
+    connection-str: mongodb://xxx:xxx@localhost:27017/?authMechanism=DEFAULT
+    batch-db: crdc-datahub
+    matadata-db: data-commons
+    #sqs configuration
+    sqs: crdcdh-queue-pgu.fifo
+    models-dir:  https://github.com/CBIIT/crdc-datahub-models 
+
    
