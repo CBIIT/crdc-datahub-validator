@@ -63,21 +63,19 @@ def controller():
                     # Make sure job is in correct format
                     if data.get(BATCH_ID):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
-                        #3. call mongo_dao to get batch by batch_id
+                        #1 call mongo_dao to get batch by batch_id
                         batch = mongo_dao.get_batch(data[BATCH_ID], configs[BATCH_DB])
-                        #2. get file list from the batch anf filter tsv or txt file
+                        #2. validate batch and files.
                         result = validator.validate(batch)
                         if result and len(validator.data_frame_list) > 0:
-                            #4. call mongo_dao to load data
+                            #3. call mongo_dao to load data
                             data_loader = DataLoader(configs)
                             result = data_loader.load(validator.data_frame_list)
                             batch[BATCH_STATUS] = BATCH_STATUS_LOADED if result else BATCH_STATUS_REJECTED
                         else:
                             batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
-
-                        #4. load validated metadata
                        
-                        #5. update batch
+                        #4. update batch
                         result = mongo_dao.update_batch( batch, configs[BATCH_DB])
                     else:
                         log.error(f'Invalid message: {data}!')
