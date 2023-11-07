@@ -50,7 +50,7 @@ NODE_PROPERTIES = "properties"
 PROP_REQUIRED="required"
 TYPE ="type"
 MODELS_DEFINITION_FILE = "content.json"
-TIER="tier"
+TIER="DEV_TIER"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"

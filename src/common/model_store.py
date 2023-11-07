@@ -21,7 +21,7 @@ class ModelFactory:
         msg = None
         # get models definition file, content.json in models dir
         models_def_file_path = os.path.join(configs[MODEL_FILE_DIR], MODELS_DEFINITION_FILE)
-        tier = sqs = os.environ.get(TIER)
+        tier = os.environ.get(TIER)
         if tier:
             models_def_file_path = models_def_file_path.replace("/dev", f"/{tier}")
         self.models_def = download_file_to_dict(models_def_file_path)
