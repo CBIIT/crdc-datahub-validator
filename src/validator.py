@@ -1,15 +1,14 @@
 #!/usr/bin/env python3
 #########Uploader.py#########
-#The entry point of the cli, it control the workflows based on the upload type, file or metadata.
+#The entry point of the cli, it control the workflows.
 #############################
 import os
 import json
 from collections import deque
-
 from bento.common.utils import get_logger, LOG_PREFIX, get_time_stamp
 from bento.common.sqs import Queue, VisibilityExtender
 from common.constants import SQS_NAME, BATCH_ID, BATCH_DB, S3_DOWNLOAD_DIR, BATCH_STATUS, \
-    BATCH_STATUS_LOADED, BATCH_STATUS_REJECTED
+    BATCH_STATUS_LOADED, BATCH_STATUS_REJECTED, IDS, MODEL
 from common.utils import dump_dict_to_json, get_exception_msg, cleanup_s3_download_dir
 from common.mongo_dao import MongoDao
 from common.model_store import ModelFactory
@@ -42,7 +41,7 @@ def controller():
         mongo_dao = MongoDao(configs)
         model_store = ModelFactory(configs) 
         # dump models to json
-        dump_dict_to_json([model['model'] for model in model_store.models], f"tmp/data_models_dump.json")
+        dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
         validator = MetaDataValidator(configs, mongo_dao, model_store)
     except Exception as e:
         log.debug(e)
@@ -64,7 +63,7 @@ def controller():
                     # Make sure job is in correct format
                     if data.get(BATCH_ID):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
-                        #1. call mongo_dao to get batch by batch_id
+                        #3. call mongo_dao to get batch by batch_id
                         batch = mongo_dao.get_batch(data[BATCH_ID], configs[BATCH_DB])
                         #2. get file list from the batch anf filter tsv or txt file
                         result = validator.validate(batch)
@@ -75,6 +74,9 @@ def controller():
                             batch[BATCH_STATUS] = BATCH_STATUS_LOADED if result else BATCH_STATUS_REJECTED
                         else:
                             batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
+
+                        #4. load validated metadata
+                       
                         #5. update batch
                         result = mongo_dao.update_batch( batch, configs[BATCH_DB])
                     else:

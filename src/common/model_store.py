@@ -3,11 +3,15 @@ import json
 import glob
 from bento.common.utils import get_logger
 from common.model_reader import Model
-from common.constants import DATA_COMMON, IDS, MODEL_FILE_DIR, MODELS_DEFINITION_FILE, TIER
+from common.constants import DATA_COMMON, IDS, MODEL_FILE_DIR, MODELS_DEFINITION_FILE, TIER, MODEL
 from common.utils import download_file_to_dict
 
 
 YML_FILE_EXT = ".yml"
+DEF_VERSION = "current-version"
+DEF_MODEL_FILE = "model-file"
+DEF_MODEL_PROP_FILE = "prop-file"
+MODE_ID_FIELDS = "id_fields"
 
 class ModelFactory:
     
@@ -30,13 +34,13 @@ class ModelFactory:
         
         for k, v in self.models_def.items():
             data_common = k
-            version = v["current-version"]
+            version = v[DEF_VERSION]
             model_dir = os.path.join(configs[MODEL_FILE_DIR], os.path.join(k, version))
             #process model files for the data common
-            file_name= os.path.join(model_dir, v["model-file"])
-            props_file_name = os.path.join(model_dir, v["prop-file"])
+            file_name= os.path.join(model_dir, v[DEF_MODEL_FILE])
+            props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
             model_reader = Model([file_name, props_file_name], data_common)
-            self.models.append({"model": model_reader.model, "id_fields": model_reader.id_fields})
+            self.models.append({MODEL: model_reader.model, IDS: model_reader.id_fields})
             
     def get_model_by_data_common(self, data_common):
         return next((x for x in self.models if x['model'][DATA_COMMON] == data_common.upper()), None)

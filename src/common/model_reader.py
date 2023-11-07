@@ -1,9 +1,6 @@
 import os
 import re
-import sys
-import yaml
-from bento.common.utils import get_logger, MULTIPLIER, DEFAULT_MULTIPLIER, RELATIONSHIP_TYPE, get_uuid, \
-    parse_date
+from bento.common.utils import get_logger, MULTIPLIER, DEFAULT_MULTIPLIER
 from common.constants import DATA_COMMON, VERSION, MODEL_SOURCE, NAME_PROP, DESC_PROP, ID_PROPERTY, VALUE_PROP, \
     VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, TYPE, NODE_LABEL, NODE_PROPERTIES, PROP_REQUIRED
 from common.utils import download_file_to_dict, case_insensitive_get
@@ -12,7 +9,7 @@ NODES = 'Nodes'
 RELATIONSHIPS = 'Relationships'
 PROPERTIES = 'Props'
 PROP_DEFINITIONS = 'PropDefinitions'
-DEFAULT_TYPE = 'String'
+DEFAULT_TYPE = 'string'
 PROP_TYPE = 'Type'
 PROP_ENUM = 'Enum'
 END_POINTS = 'Ends'
@@ -213,10 +210,10 @@ class Model:
             node = self.nodes[node_type]
             if prop in node[PROPERTIES]:
                 return node[PROPERTIES][prop][PROP_TYPE]
-        return DEFAULT_TYPE.lower()
+        return DEFAULT_TYPE
 
     def get_prop_detail(self, name):
-        result = {NAME_PROP: name, DESC_PROP: None, TYPE: DEFAULT_TYPE.lower(), PROP_REQUIRED: False}
+        result = {NAME_PROP: name, DESC_PROP: None, TYPE: DEFAULT_TYPE, PROP_REQUIRED: False}
         if name in self.schema[PROP_DEFINITIONS]:
             prop = self.schema[PROP_DEFINITIONS][name]
             result[DESC_PROP] = case_insensitive_get(prop, DESCRIPTION, "").replace("'", "\'")
@@ -231,7 +228,7 @@ class Model:
                 prop_desc = prop[key]
                 if isinstance(prop_desc, str):
                     if prop_desc not in valid_prop_types:
-                        prop_desc = DEFAULT_TYPE.lower()
+                        prop_desc = DEFAULT_TYPE
                     result[TYPE] = prop_desc.lower()
                 elif isinstance(prop_desc, dict):
                     if VALUE_TYPE in prop_desc:
@@ -253,7 +250,7 @@ class Model:
                         result[ALLOWED_VALUES] = enum
                 else:
                     self.log.debug(
-                        'Property type: "{}" not supported, use default type: "{}"'.format(prop_desc, DEFAULT_TYPE.lower()))
+                        'Property type: "{}" not supported, use default type: "{}"'.format(prop_desc, DEFAULT_TYPE))
 
                 # Add value boundary support
                 if MIN in prop:
@@ -276,7 +273,7 @@ class Model:
                 if not re.search(r'://', t):
                     enum.add(t)
             if len(enum) > 0:
-                return {TYPE: DEFAULT_TYPE.lower(), ALLOWED_VALUES: enum}
+                return {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: enum}
             else:
                 return None
         else:
@@ -332,11 +329,11 @@ class Model:
                         if units:
                             enum = set(units)
                             unit_prop_name = self.get_unit_property_name(name)
-                            results[unit_prop_name] = {TYPE: DEFAULT_TYPE.lower(), ALLOWED_VALUES: enum, DEFAULT_VALUE: units[0]}
+                            results[unit_prop_name] = {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: enum, DEFAULT_VALUE: units[0]}
                             org_prop_name = self.get_original_value_property_name(name)
                             org_unit_prop_name = self.get_unit_property_name(org_prop_name)
                             results[org_prop_name] = prop_type
-                            results[org_unit_prop_name] = {TYPE: DEFAULT_TYPE.lower(), ALLOWED_VALUES: enum, DEFAULT_VALUE: units[0]}
+                            results[org_unit_prop_name] = {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: enum, DEFAULT_VALUE: units[0]}
         return results
 
     @staticmethod
