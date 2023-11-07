@@ -18,9 +18,6 @@ from data_loader import DataLoader
 
 VISIBILITY_TIMEOUT = 30
 
-if LOG_PREFIX not in os.environ:
-    os.environ[LOG_PREFIX] = 'Validator Main'
-
 log = get_logger('Validator')
 # public function to received args and dispatch to different modules for different uploading types, file or metadata
 def controller():
