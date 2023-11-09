@@ -1,12 +1,12 @@
 Config:
-Config:
+    # service type value in essential, file and metadata
+    service-type: essential
     # MongoDB configurations
     # connection string
     connection-str: mongodb://xxx:xxx@localhost:27017/?authMechanism=DEFAULT
-    batch-db: crdc-datahub
-    matadata-db: data-commons
+    db: crdc-datahub
     #sqs configuration
     sqs: crdcdh-queue-pgu.fifo
-    models-dir:  https://github.com/CBIIT/crdc-datahub-models 
+    models-loc:  https://github.com/CBIIT/crdc-datahub-models 
 
    

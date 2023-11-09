@@ -1,17 +1,17 @@
 # crdc-datahub-validator
 
-CRDC datahub Validator is a linux service application for validating metadata and loading valid data to Mongo DB.
+CRDC datahub Validator is a linux service application for validating metadata and file.
 
 The application is programmed purely with python v3.11.  It depends on bento common module, http, json, aws boto3 and so on. All required python modules is listed in the file, requirements.txt, and .gitmodules.
 
 The application is consist of multiple python modules/classes to support multiple functions listed below:
 
-1) A Linux service that keeps poll crdc databub batch message in a specific AWS SQS queue by utilizing bento SQS utils.
+1) A Linux service that keeps poll crdc databub message in a specific AWS SQS queue by utilizing bento SQS utils.
 2) Metadata model factory that stores model yaml files for different data commons after the service started.
 3) Metadata model reader that is called by the metadata model factory to parse data model yaml files.
 4) Mongo database access layer for the service to retrieve batch detail, loafing metadata into DB anf update batch after validation and data loading.
-5) File downloader that get file objects from S3 bucket based on batch.
-6) Essential validator to validate file contents.
+5) File downloader that get metadata file objects from S3 bucket based on batch.
+6) Essential validator, file validator and metadata validator to validate file contents.
 7) Data loader that update or insert validated data in tsv file into Mongo database.
 8) Log info, error and exceptions.
 

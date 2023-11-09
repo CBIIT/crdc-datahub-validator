@@ -15,16 +15,16 @@ from data_loader import DataLoader
 
 VISIBILITY_TIMEOUT = 30
 
-def essentialValidate(configs, job_queue, mongo_dao, model_store):
-    batches_processed = 0
-    log = get_logger('Essential Validation Service')
+def fileValidate(configs, job_queue, mongo_dao, model_store):
+    file_processed = 0
+    log = get_logger('File Validation Service')
     validator = MetaDataValidator(configs, mongo_dao, model_store)
 
     #step 3: run validator as a service
     while True:
         try:
             log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
-                            f'{batches_processed} batches have been processed so far')
+                            f'{batches_processed} file(s) have been processed so far')
             
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
@@ -83,11 +83,10 @@ class MetaDataValidator:
     def __init__(self, configs, mongo_dao, model_store):
         self.configs = configs
         self.fileList = [] #list of files object {file_name, file_path, file_size, invalid_reason}
-        self.log = get_logger('Essential Validator')
+        self.log = get_logger('Essential__Validator')
         self.mongo_dao = mongo_dao
         self.model_store = model_store
         self.data_frame_list = []
-        self.submission_id = None
 
     def validate(self,batch):
 
@@ -137,14 +136,13 @@ class MetaDataValidator:
             if not submission or not submission.get(DATA_COMMON_NAME):
                 self.log.error(f'Invalid batch, no datacommon found, {batch["_id"]}!')
                 return False
-            self.datacommon = submission.get(DATA_COMMON_NAME)
-            self.submission_id  = submission["_id"]
-            return True
+            self.datacommon = submission[DATA_COMMON_NAME]
+            return None
     
     def download_file(self, file_info):
-        key = os.path.join(self.batch['filePrefix'], file_info['fileName'])
+        key = f"{self.batch['filePrefix']}{file_info['fileName']}"
         # todo set download file 
-        download_file = os.path.join(S3_DOWNLOAD_DIR, file_info['fileName'])
+        download_file = f"{S3_DOWNLOAD_DIR}/{file_info['fileName']}"
         try:
             if self.bucket.file_exists_on_s3(key):
                 self.bucket.download_file(key, download_file)
@@ -208,7 +206,7 @@ class MetaDataValidator:
             # extract ids from df.
             ids = self.df[id_field].tolist()  
             # query db.         
-            if not self.mongo_dao.check_metadata_ids(type, ids, id_field, self.submission_id, self.configs[DB]):
+            if not self.mongo_dao.check_metadata_ids(type, ids, id_field, self.configs[DB]):
                 msg = f'Invalid metadata, identical data exists, {self.batch["_id"]}!'
                 self.log.error(msg)
                 file_info[ERRORS] = [msg]

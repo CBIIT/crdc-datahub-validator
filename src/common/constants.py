@@ -3,10 +3,17 @@
 MONGO_DB = "connection-str"
 SQS_NAME = "sqs"
 RETRIES = "retries"
-BATCH_DB = "batch-db"
-METADATA_DB = "matadata-db"
-MODEL_FILE_DIR = "models-dir"
+DB = "db"
+SERVICE_TYPE = "service-type"
+SERVICE_TYPE_ESSENTIAL = "essential"
+SERVICE_TYPE_FILE= "file"
+SERVICE_TYPE_METADATA= "metadata"
+SERVICE_TYPES = [SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA]
+
+MODEL_FILE_DIR = "models-loc"
 LOADER_QUEUE = "LOADER_QUEUE"
+FILE_QUEUE = "FILE_QUEUE"
+METADATA_QUEUE = "METADATA_QUEUE"
 #file validation 
 FILE_INVALID_REASON = "invalid_reason"
 
@@ -54,6 +61,8 @@ TIER="DEV_TIER"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
+
+DATA_COLlECTION = "DataRecords"
 
 
 
