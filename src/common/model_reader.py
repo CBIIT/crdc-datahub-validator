@@ -2,7 +2,8 @@ import os
 import re
 from bento.common.utils import get_logger, MULTIPLIER, DEFAULT_MULTIPLIER
 from common.constants import DATA_COMMON, VERSION, MODEL_SOURCE, NAME_PROP, DESC_PROP, ID_PROPERTY, VALUE_PROP, \
-    VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, TYPE, NODE_LABEL, NODE_PROPERTIES, PROP_REQUIRED
+    VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, TYPE, NODE_LABEL, NODE_PROPERTIES, PROP_REQUIRED, MD5, \
+        FILE_SIZE, FILE_NAME
 from common.utils import download_file_to_dict, case_insensitive_get
 
 NODES = 'Nodes'
@@ -86,6 +87,7 @@ class Model:
         self.nodes = {}
         self.relationships = {}
         self.relationship_props = {}
+        self.file_nodes = {}
 
         # check if model file contents are valid
         if NODES not in self.schema:
@@ -102,8 +104,10 @@ class Model:
             # Assume all keys start with '_' are not regular nodes
             if not key.startswith('_'):
                 self.process_node(key, value)
-        # insert nodes to model   
-        self.model.update({NODES: self.nodes})
+        
+        
+        # insert nodes and file-nodes to model   
+        self.model.update({NODES: self.nodes,  "file-nodes": self.file_nodes})
 
         self.log.debug("-------------processing nodes relationship-----------------")
         if RELATIONSHIPS in self.schema:
@@ -134,8 +138,18 @@ class Model:
         """
         props = {}
         keys = []
+        file_size_prop = None
+        file_name_prop = None
+        File_md5_prop = None
+
         if PROPERTIES in desc and desc[PROPERTIES] is not None:
             for prop in desc[PROPERTIES]:
+                if FILE_NAME in prop:
+                    file_name_prop = prop
+                elif FILE_SIZE in prop:
+                    file_size_prop = prop
+                elif MD5 in prop:
+                    File_md5_prop = prop
                 props[prop]  = self.get_prop_detail(prop)
                 value_unit_props = self.process_value_unit_type(prop, props[prop])
                 if value_unit_props:
@@ -145,6 +159,8 @@ class Model:
                         keys.append(prop)
         key_str = None if len(keys) == 0 else LIST_DELIMITER.join(map(str, keys)).strip(LIST_DELIMITER)
         self.id_fields.append({NODE_LABEL: name, KEY: key_str})
+        if file_size_prop and File_md5_prop:
+            self.file_nodes[name] = { "name-field": file_name_prop, "size-field": file_size_prop, "md5-field": File_md5_prop}
         return { NAME_PROP: name, DESC_PROP: DEFAULT_DESC, ID_PROPERTY: key_str, NODE_PROPERTIES: props, RELATIONSHIPS.lower(): {}}
 
     def process_relationship(self, name, desc):

@@ -1,0 +1,12 @@
+Config:
+    # service type value in essential, file and metadata
+    service-type: file
+    # MongoDB configurations
+    # connection string
+    connection-str: mongodb://xxx:xxx@localhost:27017/?authMechanism=DEFAULT
+    db: crdc-datahub
+    #sqs configuration
+    sqs: crdcdh-queue-pgu.fifo
+    models-loc:  https://github.com/CBIIT/crdc-datahub-models 
+
+   

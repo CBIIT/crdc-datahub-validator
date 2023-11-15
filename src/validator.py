@@ -24,8 +24,8 @@ def controller():
     #step 1: process args, configuration file
     config = Config()
     if not config.validate():
-        log.error("Failed to upload files: missing required valid parameter(s)!")
-        print("Failed to upload files: invalid parameter(s)!  Please check log file in tmp folder for details.")
+        log.error("Failed to start the service: missing required valid parameter(s)!")
+        print("Failed to start the service: invalid parameter(s)!  Please check log file in tmp folder for details.")
         return 1
     
     configs = config.data

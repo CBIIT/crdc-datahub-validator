@@ -27,6 +27,7 @@ BATCH_COLLECTION = "batch"
 BATCH_ID = "batchID"
 SUCCEEDED = "succeeded"
 ERRORS = "errors"
+WARNINGS = "warnings"
 BATCH_CREATED = "createdAt"
 BATCH_UPDATED = "updatedAt"
 BATCH_STATUS= "status"
@@ -37,6 +38,22 @@ SUBMISSION_COLLECTION="submissions"
 BATCH_TYPE_METADATA ="metadata"
 DATA_COMMON_NAME ="dataCommons"
 
+# file 
+FILE_ID = "fileID"
+S3_FILE_INFO = "S3FileInfo"
+ID = "_id"
+SIZE ="size"
+MD5 = "md5"
+DATA_COLlECTION = "dataRecords"
+FILE_NAME = "fileName"
+FILE_STATUS = "status"
+STATUS_ERROR = "Error"
+STATUS_WARNING = "Warning"
+STATUS_PASSED = "Passed"
+STATUS_NEW = "New"
+SUBMISSION_ID = "submissionID"
+NODE_ID = "nodeID"
+NODE_TYPE = "nodeType"
 
 #data model
 DATA_COMMON = "data_commons"
@@ -58,11 +75,13 @@ PROP_REQUIRED="required"
 TYPE ="type"
 MODELS_DEFINITION_FILE = "content.json"
 TIER="DEV_TIER"
+UPDATED_AT = "updatedAt"
+FILE_SIZE = "file_size"
+FILE_NAME = "file_name"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
 
-DATA_COLlECTION = "DataRecords"
 
 
 
