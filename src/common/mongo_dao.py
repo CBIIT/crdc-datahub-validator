@@ -71,7 +71,7 @@ class MongoDao:
         db = self.client[db]
         file_collection = db[DATA_COLlECTION]
         try:
-            return file_collection.find({SUBMISSION_ID: submissionID, S3_FILE_INFO: {"$nin": [None, ""]}})
+            return list(file_collection.find({SUBMISSION_ID: submissionID, S3_FILE_INFO: {"$nin": [None, ""]}}))
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to find file for the submission, {submissionID}: {get_exception_msg()}")

@@ -40,11 +40,11 @@ DATA_COMMON_NAME ="dataCommons"
 
 # file 
 FILE_ID = "fileID"
-S3_FILE_INFO = "S3FileInfo"
+S3_FILE_INFO = "s3FileInfo"
 ID = "_id"
 SIZE ="size"
 MD5 = "md5"
-DATA_COLlECTION = "dataRecords"
+DATA_COLlECTION = "DataRecords"
 FILE_NAME = "fileName"
 FILE_STATUS = "status"
 STATUS_ERROR = "Error"
@@ -77,7 +77,6 @@ MODELS_DEFINITION_FILE = "content.json"
 TIER="DEV_TIER"
 UPDATED_AT = "updatedAt"
 FILE_SIZE = "file_size"
-FILE_NAME = "file_name"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"

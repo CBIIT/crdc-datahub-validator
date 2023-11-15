@@ -12,7 +12,8 @@ DEF_MODEL_FILE = "model-file"
 DEF_MODEL_PROP_FILE = "prop-file"
 DEF_VERSION = "current-version"
 MODE_ID_FIELDS = "id_fields"
-
+DEF_SEMANTICS = "semantics"
+DEF_FILE_NODES = "file-nodes"
 class ModelFactory:
     
     def __init__(self, configs):
@@ -40,6 +41,7 @@ class ModelFactory:
             file_name= os.path.join(model_dir, v[DEF_MODEL_FILE])
             props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
             model_reader = Model([file_name, props_file_name], data_common, version)
+            model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES]})
             self.models.append({MODEL: model_reader.model, IDS: model_reader.id_fields})
             
     def get_model_by_data_common(self, data_common):

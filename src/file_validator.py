@@ -87,8 +87,8 @@ class FileValidator:
 
     def validate(self, fileRecord):
 
-        fileRecord[ERRORS] =  fileRecord.get(ERRORS, [])
-        fileRecord[WARNINGS] =  fileRecord.get(WARNINGS, [])
+        fileRecord[ERRORS] =  fileRecord[ERRORS] if fileRecord.get(ERRORS) else []
+        fileRecord[WARNINGS] =  fileRecord[WARNINGS] if fileRecord.get(WARNINGS) else []
 
         #check if the file record is valid
         if not self.validate_fileRecord(fileRecord):
@@ -124,15 +124,15 @@ class FileValidator:
             fileRecord[ERRORS].append(msg)
             return False
         else:
-            fileRecord[S3_FILE_INFO][ERRORS] =  fileRecord[S3_FILE_INFO].get(ERRORS,[])
-            fileRecord[S3_FILE_INFO][WARNINGS] =  fileRecord[S3_FILE_INFO].get(WARNINGS,[])
+            fileRecord[S3_FILE_INFO][ERRORS] =  fileRecord[S3_FILE_INFO][ERRORS] if fileRecord[S3_FILE_INFO].get(ERRORS) else []
+            fileRecord[S3_FILE_INFO][WARNINGS] =  fileRecord[S3_FILE_INFO][WARNINGS] if fileRecord[S3_FILE_INFO].get(WARNINGS) else []
             if fileRecord[S3_FILE_INFO][FILE_STATUS] == STATUS_PASSED:
                 msg = f'Invalid file object, invalid s3 file status, {fileRecord[ID]}/{fileRecord[S3_FILE_INFO][FILE_STATUS]}!'
                 self.log.error(msg)
                 fileRecord[ERRORS].append(msg)
                 return False
             elif not fileRecord[S3_FILE_INFO][FILE_NAME] or not fileRecord[S3_FILE_INFO][SIZE] \
-                    or fileRecord[S3_FILE_INFO][MD5]:
+                    or not fileRecord[S3_FILE_INFO][MD5]:
                 msg = f'Invalid file object, invalid s3 file info, {fileRecord[ID]}!'
                 self.log.error(msg)
                 fileRecord[S3_FILE_INFO][ERRORS].append(msg)
@@ -197,12 +197,12 @@ class FileValidator:
                 self.bucket.download_file_obj(key, f)
                 f.seek(0)
 
-            if org_size != os.path.getsize(file_download_to) or org_md5 == get_md5(file_download_to):
+            if org_size != os.path.getsize(file_download_to) or org_md5 != get_md5(file_download_to):
                 msg = f'The file in s3 bucket does not matched with the file record, {fileRecord[ID]}/{file_name}!'
                 return STATUS_ERROR, msg
             
             # check duplicates in manifest
-            manifest_info_list = self.mongo_dao.get_files_by_submission(fileRecord[SUBMISSION_ID])
+            manifest_info_list = self.mongo_dao.get_files_by_submission(fileRecord[SUBMISSION_ID], self.configs[DB])
             if not manifest_info_list or  len(manifest_info_list) == 0:
                 msg = f"No file records found for the submission, {SUBMISSION_ID}!"
                 self.log.error(msg)

@@ -3,7 +3,7 @@ import re
 from bento.common.utils import get_logger, MULTIPLIER, DEFAULT_MULTIPLIER
 from common.constants import DATA_COMMON, VERSION, MODEL_SOURCE, NAME_PROP, DESC_PROP, ID_PROPERTY, VALUE_PROP, \
     VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, TYPE, NODE_LABEL, NODE_PROPERTIES, PROP_REQUIRED, MD5, \
-        FILE_SIZE, FILE_NAME
+        FILE_SIZE
 from common.utils import download_file_to_dict, case_insensitive_get
 
 NODES = 'Nodes'
@@ -37,6 +37,7 @@ EX_MAX = 'exclusiveMaximum'
 RELATION_DELIMITER = 'S'
 DEFAULT_VERSION = "1.0.0"
 DEFAULT_DESC = ""
+FILE_NAME = "file_name"
 
 
 valid_prop_types = [
@@ -87,7 +88,7 @@ class Model:
         self.nodes = {}
         self.relationships = {}
         self.relationship_props = {}
-        self.file_nodes = {}
+        # self.file_nodes = {}
 
         # check if model file contents are valid
         if NODES not in self.schema:
@@ -107,7 +108,7 @@ class Model:
         
         
         # insert nodes and file-nodes to model   
-        self.model.update({NODES.lower(): self.nodes,  "file_nodes": self.file_nodes})
+        self.model.update({NODES.lower(): self.nodes})
 
         self.log.debug("-------------processing nodes relationship-----------------")
         if RELATIONSHIPS in self.schema:
@@ -138,9 +139,9 @@ class Model:
         """
         props = {}
         keys = []
-        file_size_prop = None
-        file_name_prop = None
-        File_md5_prop = None
+        # file_size_prop = None
+        # file_name_prop = None
+        # File_md5_prop = None
 
         if PROPERTIES in desc and desc[PROPERTIES] is not None:
             for prop in desc[PROPERTIES]:
@@ -159,8 +160,8 @@ class Model:
                         keys.append(prop)
         key_str = None if len(keys) == 0 else LIST_DELIMITER.join(map(str, keys)).strip(LIST_DELIMITER)
         self.id_fields.append({NODE_LABEL: name, KEY: key_str})
-        if file_size_prop and File_md5_prop:
-            self.file_nodes[name] = { "name_field": file_name_prop, "size_field": file_size_prop, "md5_field": File_md5_prop}
+        # if file_size_prop and File_md5_prop:
+        #     self.file_nodes[name] = { "name_field": file_name_prop, "size_field": file_size_prop, "md5_field": File_md5_prop}
         return { NAME_PROP: name, DESC_PROP: DEFAULT_DESC, ID_PROPERTY: key_str, NODE_PROPERTIES: props, RELATIONSHIPS.lower(): {}}
 
     def process_relationship(self, name, desc):

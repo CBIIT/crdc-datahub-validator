@@ -64,8 +64,8 @@ def dump_dict_to_json(dict_list, file_path):
         return False 
     
     for dic in dict_list:
-        file_path = file_path.replace("data", f'{dic[DATA_COMMON]}_{dic[VERSION]}')
-        output_file = open(file_path, 'w', encoding='utf-8')
+        path = file_path.replace("data", f'{dic[DATA_COMMON]}_{dic[VERSION]}')
+        output_file = open(path, 'w', encoding='utf-8')
         json.dump(dic, output_file, default=set_default) 
     return True
 
