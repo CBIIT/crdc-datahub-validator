@@ -11,7 +11,6 @@ from common.constants import SQS_NAME, MODEL, SERVICE_TYPE, SERVICE_TYPE_ESSENTI
     SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA
 from common.utils import dump_dict_to_json, get_exception_msg, cleanup_s3_download_dir
 from common.mongo_dao import MongoDao
-from common.model_store import ModelFactory
 from config import Config
 from essential_validator import essentialValidate
 from file_validator import fileValidate
@@ -36,10 +35,6 @@ def controller():
     try:
         job_queue = Queue(configs[SQS_NAME])
         mongo_dao = MongoDao(configs)
-        model_store = ModelFactory(configs) 
-        # dump models to json
-        dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
-        
     except Exception as e:
         log.debug(e)
         log.exception(f'Error occurred when initialize the application: {get_exception_msg()}')
@@ -47,11 +42,11 @@ def controller():
 
     #step 3: switch different validation types and call related validator.
     if configs[SERVICE_TYPE] == SERVICE_TYPE_ESSENTIAL:
-        essentialValidate(configs, job_queue, mongo_dao, model_store)
+        essentialValidate(configs, job_queue, mongo_dao)
     elif configs[SERVICE_TYPE] == SERVICE_TYPE_FILE:
-        fileValidate(configs, job_queue, mongo_dao, model_store)
+        fileValidate(configs, job_queue, mongo_dao)
     elif configs[SERVICE_TYPE] == SERVICE_TYPE_METADATA:
-        metadataValidate(configs, job_queue, mongo_dao, model_store)
+        metadataValidate(configs, job_queue, mongo_dao)
     else:
         log.error(f'Invalid service type: {configs[SERVICE_TYPE]}!')
         return 1

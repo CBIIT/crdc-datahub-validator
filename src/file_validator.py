@@ -13,10 +13,10 @@ from common.utils import cleanup_s3_download_dir, get_exception_msg
 
 VISIBILITY_TIMEOUT = 30
 
-def fileValidate(configs, job_queue, mongo_dao, model_store):
+def fileValidate(configs, job_queue, mongo_dao):
     file_processed = 0
     log = get_logger('File Validation Service')
-    validator = FileValidator(configs, mongo_dao, model_store)
+    validator = FileValidator(configs, mongo_dao)
 
     #step 3: run validator as a service
     while True:
@@ -75,12 +75,11 @@ Compose a list of files to be updated and their sizes (metadata or files)
 
 class FileValidator:
     
-    def __init__(self, configs, mongo_dao, model_store):
+    def __init__(self, configs, mongo_dao):
         self.configs = configs
         self.fileList = [] #list of files object {file_name, file_path, file_size, invalid_reason}
         self.log = get_logger('Essential__Validator')
         self.mongo_dao = mongo_dao
-        self.model_store = model_store
         self.fileRecord = None
         self.bucketName = None
         self.bucket = None

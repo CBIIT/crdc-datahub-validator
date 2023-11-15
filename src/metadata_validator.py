@@ -9,15 +9,24 @@ from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
     SUCCEEDED, ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, \
-    BATCH_STATUS_REJECTED 
-from common.utils import cleanup_s3_download_dir, get_exception_msg
+    BATCH_STATUS_REJECTED, MODEL
+from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
+from common.model_store import ModelFactory
 from data_loader import DataLoader
 
 VISIBILITY_TIMEOUT = 30
 
-def metadataValidate(configs, job_queue, mongo_dao, model_store):
+def metadataValidate(configs, job_queue, mongo_dao):
     batches_processed = 0
     log = get_logger('Metadata Validation Service')
+    try:
+        model_store = ModelFactory(configs) 
+        # dump models to json
+        dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
+    except Exception as e:
+        log.debug(e)
+        log.exception(f'Error occurred when initialize the application: {get_exception_msg()}')
+        return 1
     validator = MetaDataValidator(configs, mongo_dao, model_store)
 
     #step 3: run validator as a service
