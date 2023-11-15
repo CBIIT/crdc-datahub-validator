@@ -6,7 +6,7 @@ import shutil
 import json
 import requests
 import yaml
-from common.constants import DATA_COMMON
+from common.constants import DATA_COMMON, VERSION
 
 """ 
 clean_up_key_value(dict)
@@ -64,7 +64,7 @@ def dump_dict_to_json(dict_list, file_path):
         return False 
     
     for dic in dict_list:
-        file_path = file_path.replace("data", dic[DATA_COMMON])
+        file_path = file_path.replace("data", f'{dic[DATA_COMMON]}-{dic[VERSION]}')
         output_file = open(file_path, 'w', encoding='utf-8')
         json.dump(dic, output_file, default=set_default) 
     return True

@@ -107,7 +107,7 @@ class Model:
         
         
         # insert nodes and file-nodes to model   
-        self.model.update({NODES: self.nodes,  "file-nodes": self.file_nodes})
+        self.model.update({NODES.lower(): self.nodes,  "file_nodes": self.file_nodes})
 
         self.log.debug("-------------processing nodes relationship-----------------")
         if RELATIONSHIPS in self.schema:
@@ -160,7 +160,7 @@ class Model:
         key_str = None if len(keys) == 0 else LIST_DELIMITER.join(map(str, keys)).strip(LIST_DELIMITER)
         self.id_fields.append({NODE_LABEL: name, KEY: key_str})
         if file_size_prop and File_md5_prop:
-            self.file_nodes[name] = { "name-field": file_name_prop, "size-field": file_size_prop, "md5-field": File_md5_prop}
+            self.file_nodes[name] = { "name_field": file_name_prop, "size_field": file_size_prop, "md5_field": File_md5_prop}
         return { NAME_PROP: name, DESC_PROP: DEFAULT_DESC, ID_PROPERTY: key_str, NODE_PROPERTIES: props, RELATIONSHIPS.lower(): {}}
 
     def process_relationship(self, name, desc):

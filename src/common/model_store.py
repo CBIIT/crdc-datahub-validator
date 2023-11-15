@@ -8,9 +8,9 @@ from common.utils import download_file_to_dict
 
 
 YML_FILE_EXT = ".yml"
-DEF_VERSION = "current-version"
 DEF_MODEL_FILE = "model-file"
 DEF_MODEL_PROP_FILE = "prop-file"
+DEF_VERSION = "current-version"
 MODE_ID_FIELDS = "id_fields"
 
 class ModelFactory:
@@ -39,7 +39,7 @@ class ModelFactory:
             #process model files for the data common
             file_name= os.path.join(model_dir, v[DEF_MODEL_FILE])
             props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
-            model_reader = Model([file_name, props_file_name], data_common)
+            model_reader = Model([file_name, props_file_name], data_common, version)
             self.models.append({MODEL: model_reader.model, IDS: model_reader.id_fields})
             
     def get_model_by_data_common(self, data_common):
