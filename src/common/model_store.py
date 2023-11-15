@@ -21,12 +21,9 @@ class ModelFactory:
         self.models = []
         msg = None
         # get models definition file, content.json in models dir
+        configs[MODEL_FILE_DIR] = os.path.join(configs[MODEL_FILE_DIR], configs["tier"])
         models_def_file_path = os.path.join(configs[MODEL_FILE_DIR], MODELS_DEFINITION_FILE)
-        tier = os.environ.get(TIER)
-        if tier:
-            models_def_file_path = models_def_file_path.replace("/dev", f"/{tier}")
         self.models_def = download_file_to_dict(models_def_file_path)
-
         # to do check if  self.models_def is a dict
         if not isinstance(self.models_def, dict):
             msg = f'Invalid models definition at "{models_def_file_path}"!'

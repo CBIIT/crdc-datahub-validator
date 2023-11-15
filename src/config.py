@@ -3,7 +3,7 @@ import os
 import yaml
 from common.constants import MONGO_DB, SQS_NAME, RETRIES, DB, MODEL_FILE_DIR, \
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
-        SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE
+        SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER
 from bento.common.utils import get_logger
 from common.utils import clean_up_key_value
 
@@ -15,6 +15,7 @@ class Config():
         parser.add_argument('-c', '--mongo', help='Mongo database connection string, required')
         parser.add_argument('-d', '--db', help='Mongo database with batch collection, required')
         parser.add_argument('-p', '--models-loc', help='metadata models local, required')
+        parser.add_argument('-t', '--tier', help='current tier, optional')
         parser.add_argument('-q', '--sqs', help='aws sqs name, required')
         parser.add_argument('-r', '--retries', help='db connection, data loading, default value is 3, optional')
         
@@ -73,6 +74,14 @@ class Config():
             sqs = os.environ.get(METADATA_QUEUE)
         else:
             sqs = None
+
+        tier = os.environ.get(TIER, self.data.get("tier"))
+        if not tier:
+            self.log.critical(f'No tier is configured in both env and args!')
+            return False
+        else:
+            self.data["tier"] = tier
+            
         if not sqs:
             #env LOADER_QUEUE
             sqs = self.data.get(SQS_NAME)
