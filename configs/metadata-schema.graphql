@@ -1,0 +1,61 @@
+type DataRecord {
+    submissionID: ID
+    batchIDs: [ID] # all batch IDs, each time this record is reloaded in a new batch, append batchID here
+    status: String # [Loaded, Passed, Failed], Loaded is the initial state each time it's loaded
+    errors: [String]
+    warnings: [String]
+    createdAt: Date
+    updatedAt: Date
+    orginalFileName: String # holds original file name the data is read from
+    lineNumber: Int # line number in the original file
+    nodeType: String # type of the node, in "type" column of the file
+    IDPropertyName: String # ID of the node, IDPropertyName is a placeholder here, for example for "case" node, this property will be "case_id": "cds-case-99907"
+    props: Properties # properties of the node
+    parents: [ParentNode]
+    relationshipProps: [RelationshipProperty] # for future use
+    rawData: RawData
+    s3FileInfo: S3FileInfo # only for "file" types, should be null for other nodes
+}
+
+type S3FileInfo {
+    fileName: String
+    size: Int
+    md5: String
+    status: String # [Loaded, Passed, Failed]
+    errors: [String]
+    warnings: [String]
+    createdAt: Date
+    updatedAt: Date
+}
+
+# this type holds all the node properties in raw data (doesn't contain parent pointers and relationship properties)
+type Properties {
+    propertyName1: String # e.g, "gender": "Male"
+    propertyName2: Int # e.g, "age": 78
+    # ...
+}
+
+type ParentNode {
+    parentType: String # node type of the parent node, e.g. "study"
+    parentIDPropName: String # ID property name can be used to identify parent node, e.g., "study_id"
+    parentIDValue: String # Value for above ID property, e.g. "CDS-study-007"
+}
+
+# for future use
+type RelationshipProperty {
+    relationshipName: String # name of the relationship
+    relationshipPropName: String # property name of the relationship
+    value: String # or other types
+}
+
+# this type holds all data as is in a row in the file, including properties of the node,
+# parent pointers and relationship properties if any
+type RawData {
+    type: String # node type is required
+    # "study.study_id": "CDS-study-007"
+    # "case_id": "cds-case-99907"
+    # "gender": "Male"
+    # "age": 78
+    # ...
+}
+

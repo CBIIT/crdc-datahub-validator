@@ -65,4 +65,14 @@ S3_DOWNLOAD_DIR = "s3_download"
 DATA_COLlECTION = "DataRecords"
 
 
+# metadata
+UPLOAD_TYPE = ""
+INTENTION = ""
+SUBMISSION_ID = "submission"
+FILE_DIR = ""
+UPLOAD_TYPES = ["file", "metadata"]
+INTENTION = "intention"
+INTENTIONS = ["New", "Update", "Delete"]
+DATABASE = "crdc-datahub"
+
 
