@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import pandas as pd
 import json
 import os
@@ -9,25 +8,27 @@ from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
     SUCCEEDED, ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, \
-    BATCH_STATUS_REJECTED, MODEL
+    BATCH_STATUS_REJECTED, MODEL, ID, FILE_NAME, TYPE, STATUS_NEW, FILE_PREFIX
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
 
 VISIBILITY_TIMEOUT = 30
+SEPARATOR_CHAR = '\t'
+UTF8_ENCODE ='utf8'
 
 def essentialValidate(configs, job_queue, mongo_dao):
     batches_processed = 0
     log = get_logger('Essential Validation Service')
     try:
         model_store = ModelFactory(configs) 
-        # dump models to json
+        # dump models to json files
         dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
     except Exception as e:
         log.debug(e)
-        log.exception(f'Error occurred when initialize the application: {get_exception_msg()}')
+        log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
-    validator = MetaDataValidator(configs, mongo_dao, model_store)
+    validator = EssentialValidator(configs, mongo_dao, model_store)
 
     #step 3: run validator as a service
     while True:
@@ -81,13 +82,14 @@ def essentialValidate(configs, job_queue, mongo_dao):
             return
 
 
-""" Requirement for the ticket crdcdh-343
-For files: read manifest file and validate local files’ sizes and md5s
-For metadata: validate data folder contains TSV or TXT files
-Compose a list of files to be updated and their sizes (metadata or files)
+""" Requirement for the ticket crdcdh-496
+Non-conformed metadata file Format, only TSV (.tsv or .txt) files are allowed
+Metadata files must have a "type" column, values in the column must be a valid node type defined in the data model
+Metadata files must not have empty columns of empty rows
+Each row in a metadata file must have same number of columns as the header row
+When metadata intention is "New", all IDs must not exist in the database or current file being validated
 """
-
-class MetaDataValidator:
+class EssentialValidator:
     
     def __init__(self, configs, mongo_dao, model_store):
         self.configs = configs
@@ -122,20 +124,20 @@ class MetaDataValidator:
     def validate_batch(self, batch):
         msg = None
         #This service only processes metadata batches, if a file batch is passed, it should be ignored (output an error message in the log).
-        if batch.get("type") != BATCH_TYPE_METADATA:
-            msg = f'Invalid batch type, only metadata allowed, {batch["_id"]}!'
+        if batch.get(TYPE) != BATCH_TYPE_METADATA:
+            msg = f'Invalid batch type, only metadata allowed, {batch[ID]}!'
             self.log.error(msg)
             return False
 
         if not batch.get("files") or len(batch["files"]) == 0:
-            msg = f'Invalid batch, no files found, {batch["_id"]}!'
+            msg = f'Invalid batch, no files found, {batch[ID]}!'
             self.log.error(msg)
             return False
         
         #Non-conformed metadata file Format, only TSV (.tsv or .txt) files are allowed
-        file_info_list = [ file for file in batch["files"] if file.get("fileName") and file["fileName"].lower().endswith(".tsv") or file["fileName"].lower().endswith(".txt") ]
+        file_info_list = [ file for file in batch["files"] if file.get(FILE_NAME) and file[FILE_NAME].lower().endswith(".tsv") or file[FILE_NAME].lower().endswith(".txt") ]
         if not file_info_list or len(file_info_list) == 0:
-            msg = f'Invalid batch, no metadata files found, {batch["_id"]}!'
+            msg = f'Invalid batch, no metadata files found, {batch[ID]}!'
             self.log.error(msg)
             return False
         else:
@@ -144,21 +146,21 @@ class MetaDataValidator:
             # get data common from submission
             submission = self.mongo_dao.get_submission(batch.get("submissionID"), self.configs[DB])
             if not submission or not submission.get(DATA_COMMON_NAME):
-                self.log.error(f'Invalid batch, no datacommon found, {batch["_id"]}!')
+                self.log.error(f'Invalid batch, no datacommon found, {batch[ID]}!')
                 return False
             self.datacommon = submission.get(DATA_COMMON_NAME)
-            self.submission_id  = submission["_id"]
+            self.submission_id  = submission[ID]
             return True
     
     def download_file(self, file_info):
-        key = os.path.join(self.batch['filePrefix'], file_info['fileName'])
+        key = os.path.join(self.batch[FILE_PREFIX], file_info[FILE_NAME])
         # todo set download file 
-        download_file = os.path.join(S3_DOWNLOAD_DIR, file_info['fileName'])
+        download_file = os.path.join(S3_DOWNLOAD_DIR, file_info[FILE_NAME])
         try:
             if self.bucket.file_exists_on_s3(key):
                 self.bucket.download_file(key, download_file)
                 if os.path.isfile(download_file):
-                    df = pd.read_csv(download_file, sep='\t', header=0, encoding='utf8')
+                    df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
                 self.df = df
                 self.data_frame_list.append(df)
                 return True
@@ -184,8 +186,8 @@ class MetaDataValidator:
         """
         msg = None
         # check if missing "type" column
-        if not 'type' in self.df.columns:
-            msg = f'Invalid metadata, missing "type" column, {self.batch["_id"]}!'
+        if not TYPE in self.df.columns:
+            msg = f'Invalid metadata, missing "type" column, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS] = [msg]
             return False
@@ -193,23 +195,23 @@ class MetaDataValidator:
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
-            msg = f'Invalid metadata, contains empty rows, {self.batch["_id"]}!'
+            msg = f'Invalid metadata, contains empty rows, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS] = [msg]
             return False
         
         # Each row in a metadata file must have same number of columns as the header row
         if '' in self.df.columns:
-            msg = f'Invalid metadata, headers are match row columns, {self.batch["_id"]}!'
+            msg = f'Invalid metadata, headers are match row columns, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS] = [msg]
             return False
         
         # When metadata intention is "New", all IDs must not exist in the database
-        if self.batch['metadataIntention'] == "New":
+        if self.batch['metadataIntention'] == STATUS_NEW:
             # verify if ids in the df in the mongo db.
             # get node type
-            type = self.df['type'][0]
+            type = self.df[TYPE][0]
 
             # get id data fields for the type, the domain for mvp2/m3 is cds.
             id_field = self.model_store.get_node_id(self.datacommon , type)
@@ -218,7 +220,7 @@ class MetaDataValidator:
             ids = self.df[id_field].tolist()  
             # query db.         
             if not self.mongo_dao.check_metadata_ids(type, ids, id_field, self.submission_id, self.configs[DB]):
-                msg = f'Invalid metadata, identical data exists, {self.batch["_id"]}!'
+                msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'
                 self.log.error(msg)
                 file_info[ERRORS] = [msg]
                 return False

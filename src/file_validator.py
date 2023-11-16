@@ -37,10 +37,13 @@ def fileValidate(configs, job_queue, mongo_dao):
                         #1 call mongo_dao to get batch by batch_id
                         fileRecord = mongo_dao.get_file(data[FILE_ID], configs[DB])
                         #2. validate batch and files.
-                        if not validator.validate(fileRecord):
+                        status = validator.validate(fileRecord)
+                        if status == STATUS_ERROR:
                             log.error(f'The file record is invalid, {data[FILE_ID]}!')
+                        elif status == STATUS_WARNING:
+                            log.error(f'The file record is valid but with warning, {data[FILE_ID]}!')
                         else:
-                            log.info(f'The file record passed validation,{data[FILE_ID]}.')
+                            log.info(f'The file record passed validation, {data[FILE_ID]}.')
                         #4. update batch
                         if not mongo_dao.update_file( fileRecord, configs[DB]):
                             log.error(f'Failed to update file record, {data[FILE_ID]}!')
@@ -67,12 +70,16 @@ def fileValidate(configs, job_queue, mongo_dao):
             return
 
 
-""" Requirement for the ticket crdcdh-343
-For files: read manifest file and validate local files’ sizes and md5s
-For metadata: validate data folder contains TSV or TXT files
-Compose a list of files to be updated and their sizes (metadata or files)
+""" Requirement for the ticket crdcdh-539
+Missing File, validate if a file specified in a manifest exist in files folder of the submission (error)
+File integrity check, file size and md5 will be validated based on the information in the manifest(s) (error)
+Extra files, validate if there are files in files folder of the submission that are not specified in any manifests of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload the manifest. (error) included in total count.
+Duplication (Warning): 
+Same MD5 checksum and same filename 
+Same MD5 checksum but different filenames
+Same filename  but different MD5 checksum
+If the old file was in an earlier batch or submission, and If the submitter indicates this file is NEW, this should trigger an Error.  If the submitter has indicated this is a replacement, there's no error or warning. If this is part of the same batch, then the new file just overwrites the old file and is flagged as NEW.
 """
-
 class FileValidator:
     
     def __init__(self, configs, mongo_dao):
@@ -103,17 +110,15 @@ class FileValidator:
             fileRecord[FILE_STATUS] = STATUS_ERROR
             fileRecord[S3_FILE_INFO][ERRORS].append(errors)
             fileRecord[S3_FILE_INFO][FILE_STATUS] = STATUS_ERROR
-            return False
         elif status == STATUS_WARNING:
             fileRecord[WARNINGS].append(errors)
             fileRecord[FILE_STATUS] = STATUS_WARNING
             fileRecord[S3_FILE_INFO][WARNINGS].append(errors)
             fileRecord[S3_FILE_INFO][FILE_STATUS] = STATUS_WARNING
-            return True
         else:
             fileRecord[FILE_STATUS] = STATUS_PASSED
             fileRecord[S3_FILE_INFO][FILE_STATUS] = STATUS_PASSED
-            return True
+        return status
     
     def validate_fileRecord(self, fileRecord):
         msg = None

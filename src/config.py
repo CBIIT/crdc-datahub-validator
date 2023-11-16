@@ -14,7 +14,7 @@ class Config():
         parser.add_argument('-s', '--service-type', type=str, choices=["essential", "file", "metadata"], help='validation type, required')
         parser.add_argument('-c', '--mongo', help='Mongo database connection string, required')
         parser.add_argument('-d', '--db', help='Mongo database with batch collection, required')
-        parser.add_argument('-p', '--models-loc', help='metadata models local, required')
+        parser.add_argument('-p', '--models-loc', help='metadata models local, only required for essential and metadata service types')
         parser.add_argument('-t', '--tier', help='current tier, optional')
         parser.add_argument('-q', '--sqs', help='aws sqs name, required')
         parser.add_argument('-r', '--retries', help='db connection, data loading, default value is 3, optional')
@@ -63,9 +63,11 @@ class Config():
             return False
         
         models_loc= self.data.get(MODEL_FILE_DIR)
-        if models_loc is None:
+        if models_loc is None and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE:
             self.log.critical(f'Metadata models location is required!')
             return False
+        
+        #  try to get sqs setting from env.
         if self.data[SERVICE_TYPE] == SERVICE_TYPE_ESSENTIAL:
             sqs = os.environ.get(LOADER_QUEUE)
         elif self.data[SERVICE_TYPE] == SERVICE_TYPE_FILE:
@@ -74,23 +76,22 @@ class Config():
             sqs = os.environ.get(METADATA_QUEUE)
         else:
             sqs = None
-
-        tier = os.environ.get(TIER, self.data.get("tier"))
-        if not tier:
-            self.log.critical(f'No tier is configured in both env and args!')
-            return False
-        else:
-            self.data["tier"] = tier
-            
+        
+        # if no env set got sqs, check config/arg
         if not sqs:
-            #env LOADER_QUEUE
             sqs = self.data.get(SQS_NAME)
             if not sqs:
                 self.log.critical(f'AWS sqs name is required!')
                 return False
             else:
                 self.data[SQS_NAME] = sqs
-            
+
+        tier = os.environ.get(TIER, self.data.get("tier"))
+        if not tier and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE:
+            self.log.critical(f'No tier is configured in both env and args!')
+            return False
+        else:
+            self.data["tier"] = tier
 
         retry = self.data.get(RETRIES, 3) #default value is 3
         if isinstance(retry, str):
