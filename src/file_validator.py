@@ -71,21 +71,21 @@ def fileValidate(configs, job_queue, mongo_dao):
 
 
 """ Requirement for the ticket crdcdh-539
-Missing File, validate if a file specified in a manifest exist in files folder of the submission (error)
-File integrity check, file size and md5 will be validated based on the information in the manifest(s) (error)
-Extra files, validate if there are files in files folder of the submission that are not specified in any manifests of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload the manifest. (error) included in total count.
-Duplication (Warning): 
-Same MD5 checksum and same filename 
-Same MD5 checksum but different filenames
-Same filename  but different MD5 checksum
-If the old file was in an earlier batch or submission, and If the submitter indicates this file is NEW, this should trigger an Error.  If the submitter has indicated this is a replacement, there's no error or warning. If this is part of the same batch, then the new file just overwrites the old file and is flagged as NEW.
+1. Missing File, validate if a file specified in a manifest exist in files folder of the submission (error)
+2. File integrity check, file size and md5 will be validated based on the information in the manifest(s) (error)
+3. Extra files, validate if there are files in files folder of the submission that are not specified in any manifests of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload the manifest. (error) included in total count.
+4. Duplication (Warning): 
+4-1. Same MD5 checksum and same filename 
+4-2. Same MD5 checksum but different filenames
+4-3. Same filename  but different MD5 checksum
+4-4. If the old file was in an earlier batch or submission, and If the submitter indicates this file is NEW, this should trigger an Error.  If the submitter has indicated this is a replacement, there's no error or warning. If this is part of the same batch, then the new file just overwrites the old file and is flagged as NEW.
 """
 class FileValidator:
     
     def __init__(self, configs, mongo_dao):
         self.configs = configs
         self.fileList = [] #list of files object {file_name, file_path, file_size, invalid_reason}
-        self.log = get_logger('Essential__Validator')
+        self.log = get_logger('File Validation Service')
         self.mongo_dao = mongo_dao
         self.fileRecord = None
         self.bucketName = None

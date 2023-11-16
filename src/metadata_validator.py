@@ -25,7 +25,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
         dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
     except Exception as e:
         log.debug(e)
-        log.exception(f'Error occurred when initialize the application: {get_exception_msg()}')
+        log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
     validator = MetaDataValidator(configs, mongo_dao, model_store)
 
