@@ -46,7 +46,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     if data.get(BATCH_ID):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         #1 call mongo_dao to get batch by batch_id
-                        batch = mongo_dao.get_batch(data[BATCH_ID], configs[BATCH_DB])
+                        batch = mongo_dao.get_batch(data[BATCH_ID], configs[DB])
                         #2. validate batch and files.
                         
                         result = validator.validate(batch)
@@ -59,7 +59,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                             batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
                        
                         #4. update batch
-                        result = mongo_dao.update_batch( batch, configs[BATCH_DB])
+                        result = mongo_dao.update_batch( batch, configs[DB])
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -92,7 +92,7 @@ class MetaDataValidator:
     def __init__(self, configs, mongo_dao, model_store):
         self.configs = configs
         self.fileList = [] #list of files object {file_name, file_path, file_size, invalid_reason}
-        self.log = get_logger('Essential__Validator')
+        self.log = get_logger('MetaData Validator')
         self.mongo_dao = mongo_dao
         self.model_store = model_store
         self.data_frame_list = []
@@ -174,53 +174,6 @@ class MetaDataValidator:
             return False
     
     def validate_data(self, file_info):
-        """
-        Metadata files must have a "type" column
-        Metadata files must not have empty columns of empty rows
-        Each row in a metadata file must have same number of columns as the header row
-        When metadata intention is "New", all IDs must not exist in the database
-        """
-        msg = None
-        # check if missing "type" column
-        if not 'type' in self.df.columns:
-            msg = f'Invalid metadata, missing "type" column, {self.batch["_id"]}!'
-            self.log.error(msg)
-            file_info[ERRORS] = [msg]
-            return False
-        
-        # check if empty row.
-        idx = self.df.index[self.df.isnull().all(1)]
-        if not idx.empty: 
-            msg = f'Invalid metadata, contains empty rows, {self.batch["_id"]}!'
-            self.log.error(msg)
-            file_info[ERRORS] = [msg]
-            return False
-        
-        # Each row in a metadata file must have same number of columns as the header row
-        if '' in self.df.columns:
-            msg = f'Invalid metadata, headers are match row columns, {self.batch["_id"]}!'
-            self.log.error(msg)
-            file_info[ERRORS] = [msg]
-            return False
-        
-        # When metadata intention is "New", all IDs must not exist in the database
-        if self.batch['metadataIntention'] == "New":
-            # verify if ids in the df in the mongo db.
-            # get node type
-            type = self.df['type'][0]
-
-            # get id data fields for the type, the domain for mvp2/m3 is cds.
-            id_field = self.model_store.get_node_id(self.datacommon , type)
-            if not id_field: return True
-            # extract ids from df.
-            ids = self.df[id_field].tolist()  
-            # query db.         
-            if not self.mongo_dao.check_metadata_ids(type, ids, id_field, self.configs[METADATA_DB]):
-                msg = f'Invalid metadata, identical data exists, {self.batch["_id"]}!'
-                self.log.error(msg)
-                file_info[ERRORS] = [msg]
-                return False
-
-            return True
+        return True
 
 

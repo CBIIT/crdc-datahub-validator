@@ -17,13 +17,18 @@ VISIBILITY_TIMEOUT = 30
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 
+"""
+Interface for essential validation of metadata via SQS
+"""
+
 def essentialValidate(configs, job_queue, mongo_dao):
     batches_processed = 0
     log = get_logger('Essential Validation Service')
     try:
         model_store = ModelFactory(configs) 
         # dump models to json files
-        dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
+        # dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
+        dump_dict_to_json(model_store.models, f"tmp/data_models_dump.json")
     except Exception as e:
         log.debug(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')

@@ -12,7 +12,9 @@ from common.constants import ERRORS, WARNINGS, DB, FILE_STATUS, STATUS_NEW, S3_F
 from common.utils import cleanup_s3_download_dir, get_exception_msg
 
 VISIBILITY_TIMEOUT = 30
-
+"""
+Interface for validate files via SQS
+"""
 def fileValidate(configs, job_queue, mongo_dao):
     file_processed = 0
     log = get_logger('File Validation Service')
@@ -70,22 +72,25 @@ def fileValidate(configs, job_queue, mongo_dao):
             return
 
 
-""" Requirement for the ticket crdcdh-539
+"""
+ Requirement for the ticket crdcdh-539
 1. Missing File, validate if a file specified in a manifest exist in files folder of the submission (error)
 2. File integrity check, file size and md5 will be validated based on the information in the manifest(s) (error)
-3. Extra files, validate if there are files in files folder of the submission that are not specified in any manifests of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload the manifest. (error) included in total count.
+3. Extra files, validate if there are files in files folder of the submission that are not specified in any manifests 
+    of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload the manifest. (error) included in total count.
+    * this requirement needs to validate all files in a submission, it is implemented in check_duplicates_in_submission(self, submissionId)
 4. Duplication (Warning): 
-4-1. Same MD5 checksum and same filename 
-4-2. Same MD5 checksum but different filenames
-4-3. Same filename  but different MD5 checksum
-4-4. If the old file was in an earlier batch or submission, and If the submitter indicates this file is NEW, this should trigger an Error.  If the submitter has indicated this is a replacement, there's no error or warning. If this is part of the same batch, then the new file just overwrites the old file and is flagged as NEW.
+    4-1. Same MD5 checksum and same filename 
+    4-2. Same MD5 checksum but different filenames
+    4-3. Same filename  but different MD5 checksum
+    4-4. If the old file was in an earlier batch or submission, and If the submitter indicates this file is NEW, this should trigger an Error.  If the submitter has indicated this is a replacement, there's no error or warning. If this is part of the same batch, then the new file just overwrites the old file and is flagged as NEW.
 """
 class FileValidator:
     
     def __init__(self, configs, mongo_dao):
         self.configs = configs
         self.fileList = [] #list of files object {file_name, file_path, file_size, invalid_reason}
-        self.log = get_logger('File Validation Service')
+        self.log = get_logger('File Validator')
         self.mongo_dao = mongo_dao
         self.fileRecord = None
         self.bucketName = None
@@ -179,7 +184,7 @@ class FileValidator:
         return True
     
     """
-    This function is designed for data file in big size
+    This function is designed for validate data files in big size and uploaded in multi-parts
     """
     def validate_file(self, fileRecord):
         msg = None
@@ -310,6 +315,15 @@ class FileValidator:
             msg = f"File validating file failed! {get_exception_msg()}."
             return STATUS_ERROR, msg
     
+    """
+    Validate all file in a submission:
+    3. Extra files, validate if there are files in files folder of the submission that are not specified in any manifests of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload the manifest. (error) included in total count.
+    4. Duplication (Warning): 
+        4-1. Same MD5 checksum and same filename 
+        4-2. Same MD5 checksum but different filenames
+        4-3. Same filename  but different MD5 checksum
+        4-4. If the old file was in an earlier batch or submission, and If the submitter indicates this file is NEW, this should trigger an Error.  If the submitter has indicat
+    """
     def check_duplicates_in_submission(self, submissionId):
         msg = None
         key = os.path.join(self.rootPath, f"file/")
@@ -341,22 +355,44 @@ class FileValidator:
             the_same_MD5_file_name_List = []
 
             # 2.  check if same MD5 checksum and same filename
-            temp = all(i[FILE_NAME] == manifest_file_list[0][FILE_NAME] and i[MD5] == manifest_file_list[0][MD5] for i in manifest_file_list)
-            if temp:
+            unique= set()
+            f_m_duplicates = []
+            name_md5_list = [f'{dict[FILE_NAME]}-{dict[MD5]}' for dict in manifest_file_list]
+            for temp in name_md5_list:
+                if temp not in unique:
+                    unique.add[temp]
+                else:
+                    f_m_duplicates.append(temp)                  
+
+            if len(f_m_duplicates) > 0:
                 msg = f"The same file name and md5 duplicates are found, {submissionId}!"
                 self.log.warn(msg)
                 return STATUS_WARNING, msg
                 
             # 3. check if Same MD5 checksum but different filenames
-            temp = all(i[FILE_NAME] != manifest_file_list[0][FILE_NAME] and i[MD5] == manifest_file_list[0][MD5] for i in manifest_file_list)
-            if temp:
+            unique= set()
+            duplicates = []
+            name_md5_list = [dict[MD5] for dict in manifest_file_list]
+            for temp in name_md5_list:
+                if temp not in unique:
+                    unique.add[temp]
+                else:
+                    duplicates.append(temp)     
+            if len(duplicates) > len(f_m_duplicates):
                 msg = f"The same md5 but different file name duplicates are found, {submissionId}!"
                 self.log.warn(msg)
                 return STATUS_WARNING, msg
                     
             # 4. Same filename but different MD5 checksum
-            temp = all(i[FILE_NAME] == manifest_file_list[0][FILE_NAME] and i[MD5] != manifest_file_list[0][MD5] for i in manifest_file_list)
-            if temp:
+            unique= set()
+            duplicates = []
+            name_md5_list = [dict[FILE_NAME] for dict in manifest_file_list]
+            for temp in name_md5_list:
+                if temp not in unique:
+                    unique.add[temp]
+                else:
+                    duplicates.append(temp)     
+            if len(duplicates) > len(f_m_duplicates):
                 msg = f"The same file name but different md5 duplicates are found, {submissionId}!"
                 self.log.warn(msg)
                 return STATUS_WARNING, msg
@@ -375,5 +411,7 @@ class FileValidator:
         
 
         return None, None
+    
+
 
 
