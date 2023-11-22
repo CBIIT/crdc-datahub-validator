@@ -56,10 +56,12 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         #2. validate batch and files.
                         
                         result = validator.validate(batch)
+                        # set data in memory to None to reduce memory usage.
+                        validator.data_frame_list = None
                         if result and len(validator.data_frame_list) > 0:
                             #3. call mongo_dao to load data
                             data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), mongo_dao)
-                            result = data_loader.load_data(validator.data_frame_list)
+                            result = data_loader.load_data(validator.file_info_list)
                             batch[BATCH_STATUS] = BATCH_STATUS_LOADED if result else BATCH_STATUS_REJECTED
                         else:
                             batch[BATCH_STATUS] = BATCH_STATUS_REJECTED

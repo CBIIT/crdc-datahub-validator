@@ -10,5 +10,8 @@ class DataLoader:
         self.model = model
         self.mongo_dao =mongo_dao
 
-    def load_data(self, data_frame_list):
+    """
+    param: file_info_list in a batch
+    """
+    def load_data(self, file_info_list):
         return True
