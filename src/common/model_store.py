@@ -3,7 +3,7 @@ import json
 import glob
 from bento.common.utils import get_logger
 from common.model_reader import Model
-from common.constants import DATA_COMMON, IDS, MODEL_FILE_DIR, MODELS_DEFINITION_FILE, TIER, MODEL
+from common.constants import DATA_COMMON, IDS, MODEL_FILE_DIR, MODELS_DEFINITION_FILE, TIER_CONFIG, MODEL
 from common.utils import download_file_to_dict
 
 
@@ -21,7 +21,7 @@ class ModelFactory:
         self.models = []
         msg = None
         # get models definition file, content.json in models dir
-        configs[MODEL_FILE_DIR] = os.path.join(configs[MODEL_FILE_DIR], configs["tier"])
+        configs[MODEL_FILE_DIR] = os.path.join(configs[MODEL_FILE_DIR], configs[TIER_CONFIG])
         models_def_file_path = os.path.join(configs[MODEL_FILE_DIR], MODELS_DEFINITION_FILE)
         self.models_def = download_file_to_dict(models_def_file_path)
         # to do check if  self.models_def is a dict

@@ -39,7 +39,7 @@ BATCH_TYPE_METADATA ="metadata"
 DATA_COMMON_NAME ="dataCommons"
 
 # file 
-FILE_ID = "fileID"
+FILE_ID = "dataRecordID"
 S3_FILE_INFO = "s3FileInfo"
 ID = "_id"
 SIZE ="size"
@@ -54,6 +54,7 @@ STATUS_NEW = "New"
 SUBMISSION_ID = "submissionID"
 NODE_ID = "nodeID"
 NODE_TYPE = "nodeType"
+S3_BUCKET_DIR = "s3_bucket_drive"
 
 #data model
 DATA_COMMON = "data_commons"
@@ -74,7 +75,8 @@ NODE_PROPERTIES = "properties"
 PROP_REQUIRED="required"
 TYPE ="type"
 MODELS_DEFINITION_FILE = "content.json"
-TIER="DEV_TIER"
+TIER = "DEV_TIER"
+TIER_CONFIG = "tier"
 UPDATED_AT = "updatedAt"
 FILE_SIZE = "file_size"
 

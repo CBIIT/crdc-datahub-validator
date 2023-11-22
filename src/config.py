@@ -3,7 +3,7 @@ import os
 import yaml
 from common.constants import MONGO_DB, SQS_NAME, RETRIES, DB, MODEL_FILE_DIR, \
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
-        SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER
+        SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, S3_BUCKET_DIR, TIER_CONFIG
 from bento.common.utils import get_logger
 from common.utils import clean_up_key_value
 
@@ -86,12 +86,20 @@ class Config():
             else:
                 self.data[SQS_NAME] = sqs
 
-        tier = os.environ.get(TIER, self.data.get("tier"))
+        tier = os.environ.get(TIER, self.data.get(TIER_CONFIG))
         if not tier and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE:
             self.log.critical(f'No tier is configured in both env and args!')
             return False
         else:
-            self.data["tier"] = tier
+            self.data[TIER_CONFIG] = tier
+
+        s3_bucket_drive = self.data.get(S3_BUCKET_DIR)
+        if not s3_bucket_drive and self.data[SERVICE_TYPE] == SERVICE_TYPE_FILE:
+            self.log.critical(f'No s3 bucket drive configured!')
+            return False
+        else:
+            self.data[S3_BUCKET_DIR] = s3_bucket_drive
+
 
         retry = self.data.get(RETRIES, 3) #default value is 3
         if isinstance(retry, str):
