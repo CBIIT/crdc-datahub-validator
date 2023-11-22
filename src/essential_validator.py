@@ -56,12 +56,10 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         #2. validate batch and files.
                         
                         result = validator.validate(batch)
-                        # set data in memory to None to reduce memory usage.
-                        validator.data_frame_list = None
-                        if result and len(validator.data_frame_list) > 0:
+                        if result and len(validator.download_file_list) > 0:
                             #3. call mongo_dao to load data
                             data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), mongo_dao)
-                            result = data_loader.load_data(validator.file_info_list)
+                            result = data_loader.load_data(validator.download_file_list)
                             batch[BATCH_STATUS] = BATCH_STATUS_LOADED if result else BATCH_STATUS_REJECTED
                         else:
                             batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
@@ -78,7 +76,12 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
-                    msg.delete()
+                    try:
+                        msg.delete()
+                    except:
+                        log.debug(e)
+                        log.critical(
+                        f'Something wrong happened while delete sqs message! Check debug log for details.')
                     if extender:
                         extender.stop()
                         extender = None
@@ -104,12 +107,10 @@ class EssentialValidator:
         self.log = get_logger('Essential Validator')
         self.mongo_dao = mongo_dao
         self.model_store = model_store
-        self.data_frame_list = []
         self.submission_id = None
+        self.download_file_list= []
 
     def validate(self,batch):
-
-        self.data_frame_list = []
 
         self.bucket = S3Bucket(batch.get("bucketName"))
 
@@ -168,9 +169,10 @@ class EssentialValidator:
                 self.bucket.download_file(key, download_file)
                 if os.path.isfile(download_file):
                     df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
-                self.df = df
-                self.data_frame_list.append(df)
-                return True
+                    self.df = df
+                    self.download_file_list.append(download_file)
+
+                return True # if no exception
         except ClientError as ce:
             self.df = None
             self.log.debug(ce)

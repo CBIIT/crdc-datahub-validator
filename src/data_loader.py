@@ -11,7 +11,7 @@ class DataLoader:
         self.mongo_dao =mongo_dao
 
     """
-    param: file_info_list in a batch
+    param: file_path_list downloaded from s3 bucket
     """
-    def load_data(self, file_info_list):
+    def load_data(self, file_path_list):
         return True
