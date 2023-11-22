@@ -39,7 +39,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                         if data[FILE_ID] :
                             #1 call mongo_dao to get batch by batch_id
                             fileRecord = mongo_dao.get_file(data[FILE_ID], configs[DB])
-                            #2. validate batch and files.
+                            #2. validate file.
                             status = validator.validate(fileRecord)
                             if status == STATUS_ERROR:
                                 log.error(f'The file record is invalid, {data[FILE_ID]}!')
@@ -47,20 +47,20 @@ def fileValidate(configs, job_queue, mongo_dao):
                                 log.error(f'The file record is valid but with warning, {data[FILE_ID]}!')
                             else:
                                 log.info(f'The file record passed validation, {data[FILE_ID]}.')
-                            #4. update batch
+                            #4. update dataRecords
                             if not mongo_dao.update_file( fileRecord, configs[DB]):
                                 log.error(f'Failed to update file record, {data[FILE_ID]}!')
                             else:
                                 log.info(f'The file record is updated,{data[FILE_ID]}.')
                         else:
-                            status = validator.validate_all_files(data[SUBMISSION_ID])
+                            status, msg = validator.validate_all_files(data[SUBMISSION_ID])
                             if status and status == STATUS_ERROR:
                                 # todo update submission
-                                a = "todo"
+                                mongo_dao.set_submission_error(data[SUBMISSION_ID], msg, configs[DB])
                             else:
                                 if len(validator.invalid_file_list) > 0:
                                     # todo update files.
-                                    b = "todo"
+                                    mongo_dao.update_files(validator.invalid_file_list, configs[DB])
 
                     else:
                         log.error(f'Invalid message: {data}!')
@@ -339,7 +339,7 @@ class FileValidator:
                 self.log.warn(msg)
                 name_duplicates = filter(lambda i: i not in f_m_duplicates, name_duplicates)
                 self.process_invalid_files(self, manifest_file_list, md5_duplicates, msg3)
-                
+
         except ClientError as ce:
             self.df = None
             self.log.debug(ce)
@@ -357,6 +357,7 @@ class FileValidator:
     def process_invalid_files(self, manifest_file_list, invalid_file_ids, msg, check_new = False):
         temp_list =  list(filter(lambda f: f.get(ID) in invalid_file_ids, manifest_file_list))
         for record in temp_list:
+            record[UPDATED_AT] = record[S3_FILE_INFO][UPDATED_AT] = datetime.now
             if check_new and record[FILE_STATUS] == STATUS_NEW:
                 record[FILE_STATUS] = STATUS_ERROR
                 record[ERRORS] = record[ERRORS].append(msg) if record[ERRORS] and isinstance(record[ERRORS], list) else [msg]

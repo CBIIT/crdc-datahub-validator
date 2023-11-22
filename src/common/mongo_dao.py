@@ -1,8 +1,8 @@
-from pymongo import MongoClient, errors
+from pymongo import MongoClient, errors, ReplaceOne
 from datetime import datetime
 from bento.common.utils import get_logger
 from common.constants import MONGO_DB, BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
-    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO
+    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, ERRORS
 from common.utils import get_exception_msg
 
 class MongoDao:
@@ -129,7 +129,49 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
-            return False    
+            return False  
+        
+    def set_submission_error(self, submissionID, msg, db):
+        db = self.client[db]
+        file_collection = db[SUBMISSION_COLLECTION]
+        submission = self.get_submission(submissionID, db)
+        if not submission:
+            self.log.debug(e)
+            self.log.exception(f"Failed to find submission to update {submissionID}!")
+            return False 
+         
+        submission[ERRORS] =  submission[ERRORS].append(msg) if submission[ERRORS] and isinstance(submission[ERRORS], list) else [msg]
+        submission[UPDATED_AT] = datetime.now() 
+
+        try:
+            result = file_collection.replace_one({ID : submissionID}, submission, False)
+            return result.matched_count > 0 
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to update submission, {submissionID}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to update file, {submissionID}: {get_exception_msg()}")
+            return False  
+
+    def update_files (self, file_records, db):
+        db = self.client[db]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            result = file_collection.bulk_write([
+                ReplaceOne( { ID: m[ID] },  m,  upsert=True)
+                    for m in file_records
+                ])
+            return result.matched_count > 0 
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            return False  
 
 
 
