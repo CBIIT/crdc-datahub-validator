@@ -6,6 +6,7 @@ import shutil
 import json
 import requests
 import yaml
+from datetime import datetime
 from common.constants import DATA_COMMON, VERSION
 
 """ 
@@ -111,7 +112,11 @@ def download_file_to_dict(url):
             return yaml.safe_load(r.content)
         else:
             raise Exception(f'File type is not supported: {file_ext}!')
-
+"""
+get current datetime string
+"""
+def current_datetime_str():
+    return datetime.now(tz = datetime.now().astimezone().tzinfo).isoformat(timespec='milliseconds')
 
 
 

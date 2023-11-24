@@ -44,7 +44,7 @@ S3_FILE_INFO = "s3FileInfo"
 ID = "_id"
 SIZE ="size"
 MD5 = "md5"
-DATA_COLlECTION = "DataRecords"
+DATA_COLlECTION = "dataRecords"
 FILE_NAME = "fileName"
 FILE_STATUS = "status"
 STATUS_ERROR = "Error"
@@ -82,6 +82,8 @@ FILE_SIZE = "file_size"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
+
+DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
 
 
 

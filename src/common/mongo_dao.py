@@ -1,9 +1,8 @@
 from pymongo import MongoClient, errors, ReplaceOne
-from datetime import datetime
 from bento.common.utils import get_logger
 from common.constants import MONGO_DB, BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, ERRORS
-from common.utils import get_exception_msg
+from common.utils import get_exception_msg, current_datetime_str
 
 class MongoDao:
     def __init__(self, configs):
@@ -85,7 +84,7 @@ class MongoDao:
         db = self.client[batch_db]
         batch_collection = db[BATCH_COLLECTION]
         #update the batch 
-        batch[UPDATED_AT] = datetime.now()
+        batch[UPDATED_AT] = current_datetime_str()
         # Using update_one() method for single updating.
         try:
             result = batch_collection.replace_one({ID : batch[ID]}, batch, False) 
@@ -131,28 +130,21 @@ class MongoDao:
             self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
             return False  
         
-    def set_submission_error(self, submissionID, msg, db):
+    def set_submission_error(self, submission, msgs, db):
         db = self.client[db]
         file_collection = db[SUBMISSION_COLLECTION]
-        submission = self.get_submission(submissionID, db)
-        if not submission:
-            self.log.debug(e)
-            self.log.exception(f"Failed to find submission to update {submissionID}!")
-            return False 
-         
-        submission[ERRORS] =  submission[ERRORS].append(msg) if submission[ERRORS] and isinstance(submission[ERRORS], list) else [msg]
-        submission[UPDATED_AT] = datetime.now() 
-
         try:
-            result = file_collection.replace_one({ID : submissionID}, submission, False)
+            submission[ERRORS] =  list(submission[ERRORS]).extend(msgs) if submission.get(ERRORS) and isinstance(submission[ERRORS], list) else msgs
+            submission[UPDATED_AT] = current_datetime_str()
+            result = file_collection.replace_one({ID : submission[SUBMISSION_ID]}, submission, False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to update submission, {submissionID}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update submission, {submission[SUBMISSION_ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to update file, {submissionID}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update file, {submission[SUBMISSION_ID]}: {get_exception_msg()}")
             return False  
 
     def update_files (self, file_records, db):
@@ -160,17 +152,19 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                ReplaceOne( { ID: m[ID] },  m,  upsert=True)
-                    for m in file_records
+                ReplaceOne( { ID: m[ID] },  m,  False)
+                    for m in list(file_records)
                 ])
+            # for record in file_records:
+            #     result = file_collection.replace_one({ ID: record[ID] },  record,  False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update file records for the submission, {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update file records for the submission, {get_exception_msg()}")
             return False  
 
 
