@@ -136,15 +136,15 @@ class MongoDao:
         try:
             submission[ERRORS] =  list(submission[ERRORS]).extend(msgs) if submission.get(ERRORS) and isinstance(submission[ERRORS], list) else msgs
             submission[UPDATED_AT] = current_datetime_str()
-            result = file_collection.replace_one({ID : submission[SUBMISSION_ID]}, submission, False)
+            result = file_collection.replace_one({ID : submission[ID]}, submission, False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to update submission, {submission[SUBMISSION_ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update submission, {submission[ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to update file, {submission[SUBMISSION_ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update file, {submission[ID]}: {get_exception_msg()}")
             return False  
 
     def update_files (self, file_records, db):

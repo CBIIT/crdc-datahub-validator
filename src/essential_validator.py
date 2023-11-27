@@ -8,12 +8,12 @@ from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
     SUCCEEDED, ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, \
-    BATCH_STATUS_REJECTED, MODEL, ID, FILE_NAME, TYPE, STATUS_NEW, FILE_PREFIX
+    BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, STATUS_NEW, FILE_PREFIX
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
 
-VISIBILITY_TIMEOUT = 25
+VISIBILITY_TIMEOUT = 20
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 

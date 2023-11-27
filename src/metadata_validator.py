@@ -14,7 +14,7 @@ from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_t
 from common.model_store import ModelFactory
 from data_loader import DataLoader
 
-VISIBILITY_TIMEOUT = 30
+VISIBILITY_TIMEOUT = 20
 
 def metadataValidate(configs, job_queue, mongo_dao):
     batches_processed = 0

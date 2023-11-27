@@ -2,15 +2,13 @@
 
 import json
 import os
-from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, get_md5
-from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, DB, FILE_STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, S3_DOWNLOAD_DIR, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, S3_BUCKET_DIR
 from common.utils import cleanup_s3_download_dir, get_exception_msg, current_datetime_str
 
-VISIBILITY_TIMEOUT = 25
+VISIBILITY_TIMEOUT = 20
 """
 Interface for validate files via SQS
 """
@@ -98,7 +96,6 @@ def fileValidate(configs, job_queue, mongo_dao):
     4-3. Same filename  but different MD5 checksum
     4-4. If the old file was in an earlier batch or submission, and If the submitter indicates this file is NEW, this should trigger an Error.  If the submitter has indicated this is a replacement, there's no error or warning. If this is part of the same batch, then the new file just overwrites the old file and is flagged as NEW.
 """
-error = {"title": None, "description": None}
 class FileValidator:
     
     def __init__(self, configs, mongo_dao):
@@ -124,68 +121,40 @@ class FileValidator:
             return False
         
         # validate individual file
-        status, errors = self.validate_file(fileRecord)
-        fileRecord[UPDATED_AT] = fileRecord[S3_FILE_INFO][UPDATED_AT] = get_current_datetime_str()
-        if status == STATUS_ERROR:
-            fileRecord[ERRORS].append(errors)
-            fileRecord[FILE_STATUS] = STATUS_ERROR
-            fileRecord[S3_FILE_INFO][ERRORS].append(errors)
-            fileRecord[S3_FILE_INFO][FILE_STATUS] = STATUS_ERROR
-        elif status == STATUS_WARNING:
-            fileRecord[WARNINGS].append(errors)
-            fileRecord[FILE_STATUS] = STATUS_WARNING
-            fileRecord[S3_FILE_INFO][WARNINGS].append(errors)
-            fileRecord[S3_FILE_INFO][FILE_STATUS] = STATUS_WARNING
-        else:
-            fileRecord[FILE_STATUS] = STATUS_PASSED
-            fileRecord[S3_FILE_INFO][FILE_STATUS] = STATUS_PASSED
+        status, error = self.validate_file(fileRecord)
+        self.set_status(fileRecord, status, error)
         return status
     
     def validate_fileRecord(self, fileRecord):
-        msg = None
         #This service only processes metadata batches, if a file batch is passed, it should be ignored (output an error message in the log).
         if not fileRecord.get(S3_FILE_INFO):
             msg = f'Invalid file object, no s3 file info, {fileRecord[ID]}!'
             self.log.error(msg)
-            error["title"] = "Invalid dataRecord"
-            error["description"] = msg
+            error = {"title": "Invalid dataRecord", "description": msg}
             fileRecord[ERRORS].append({error})
+            fileRecord[FILE_STATUS] = STATUS_ERROR
             return False
         else:
-            fileRecord[S3_FILE_INFO][ERRORS] =  fileRecord[S3_FILE_INFO][ERRORS] if fileRecord[S3_FILE_INFO].get(ERRORS) else []
-            fileRecord[S3_FILE_INFO][WARNINGS] =  fileRecord[S3_FILE_INFO][WARNINGS] if fileRecord[S3_FILE_INFO].get(WARNINGS) else []
-            if fileRecord[S3_FILE_INFO][FILE_STATUS] == STATUS_PASSED:
-                msg = f'Invalid file object, invalid s3 file status, {fileRecord[ID]}/{fileRecord[S3_FILE_INFO][FILE_STATUS]}!'
-                self.log.error(msg)
-                error["title"] = "Invalid file status"
-                error["description"] = msg
-                fileRecord[ERRORS].append({error})
-                return False
-            elif not fileRecord[S3_FILE_INFO][FILE_NAME] or not fileRecord[S3_FILE_INFO][SIZE] \
+            if not fileRecord[S3_FILE_INFO][FILE_NAME] or not fileRecord[S3_FILE_INFO][SIZE] \
                     or not fileRecord[S3_FILE_INFO][MD5]:
                 msg = f'Invalid file object, invalid s3 file info, {fileRecord[ID]}!'
                 self.log.error(msg)
-                error["title"] = "Invalid file info"
-                error["description"] = msg
-                fileRecord[S3_FILE_INFO][ERRORS].append(error)
-                fileRecord[S3_FILE_INFO][FILE_STATUS] = STATUS_ERROR
-                fileRecord[ERRORS].append(error)
+                error = {"title": "Invalid file info", "description": msg}
+                self.set_status(fileRecord, STATUS_ERROR, error)
                 return False
 
         if not fileRecord.get(SUBMISSION_ID):
             msg = f'Invalid file object, no submission Id found, {fileRecord[ID]}!'
             self.log.error(msg)
-            error["title"] = "Invalid submission Id"
-            error["description"] = msg
-            fileRecord[ERRORS].append(error)
+            error = {"title": "Invalid submission Id", "description": msg}
+            self.set_status(fileRecord, STATUS_ERROR, error)
             return False
         
         if not self.get_root_path(fileRecord[SUBMISSION_ID]):
             msg = f'Invalid submission object, no rootPath found, {fileRecord[ID]}/{fileRecord[SUBMISSION_ID]}!'
             self.log.error(msg)
-            error["title"] = "Invalid submission"
-            error["description"] = msg
-            fileRecord[ERRORS].append(error)
+            error = {"title": "Invalid submission", "description": msg}
+            self.set_status(fileRecord, STATUS_ERROR, error)
             return False
 
         self.fileRecord = fileRecord
@@ -206,31 +175,31 @@ class FileValidator:
         
         self.rootPath= submission["rootPath"]
         return True
+    
     """
     This function is designed for validate individual file in s3 bucket that is mounted to /s3_bucket dir
     """
     def validate_file(self, fileRecord):
-        msg = None
+
         file_info = fileRecord[S3_FILE_INFO]
         key = os.path.join(self.bucketDir, os.path.join(self.rootPath, f"file/{file_info[FILE_NAME]}"))
         org_size = file_info[SIZE]
         org_md5 = file_info[MD5]
         file_name = file_info[FILE_NAME]
+
         try:
             # 1. check if exists
             if not os.path.isfile(key):
                 msg = f'The file does not exist in s3 bucket, {fileRecord[ID]}/{file_name}!'
                 self.log.error(msg)
-                error["title"] = "The file does not exist in s3 bucket"
-                error["description"] = msg
+                error = {"title": "The file does not exist in s3 bucket", "description": msg}
                 return STATUS_ERROR, error
             
             # 2. check file integrity
             if org_size != os.path.getsize(key) or org_md5 != get_md5(key):
                 msg = f'The file in s3 bucket does not matched with the file record, {fileRecord[ID]}/{file_name}!'
                 self.log.error(msg)
-                error["title"] = "File is not integrity"
-                error["description"] = msg
+                error = {"title": "File is not integrity", "description": msg}
                 return STATUS_ERROR, error
             
             # check duplicates in manifest
@@ -238,8 +207,7 @@ class FileValidator:
             if not manifest_info_list or  len(manifest_info_list) == 0:
                 msg = f"No file records found for the submission, {SUBMISSION_ID}!"
                 self.log.error(msg)
-                error["title"] = "No file records found"
-                error["description"] = msg
+                error = {"title": "No file records found", "description": msg}
                 return STATUS_ERROR, error
             
             # 3. check if Same MD5 checksum and same filename 
@@ -247,8 +215,7 @@ class FileValidator:
             if len(temp_list) > 1:
                 msg = f'Duplicate files with the same name and md5 exist, {fileRecord[ID]}/{file_name}/{org_md5}!'
                 self.log.warning(msg)
-                error["title"] = "Duplicate files with the same name and md5"
-                error["description"] = msg
+                error = {"title": "Duplicate files with the same name and but different md5", "description": msg}
                 return STATUS_WARNING, error 
             
             # 4. check if Same filename but different MD5 checksum 
@@ -256,16 +223,14 @@ class FileValidator:
             if len(temp_list) > 0:
                 msg = f'Duplicate files with the same name but different md5 exist, {fileRecord[ID]}/{file_name}/{org_md5}!'
                 self.log.warning(msg)
-                error["title"] = "Duplicate files with the same name and but different md5"
-                error["description"] = msg
+                error = {"title": "Duplicate files with the same name and but different md5", "description": msg}
                 return STATUS_WARNING, error
             
             # 5. check if Same MD5 checksum but different filename
             temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] != file_name and file[S3_FILE_INFO][MD5] == org_md5]
             if len(temp_list) > 0:
                 msg = f'Duplicate files with the same md5 but different name exist in s3 bucket, {fileRecord[ID]}/{file_name}/{org_md5}!'
-                error["title"] = "Duplicate files with the same md5 but different name"
-                error["description"] = msg
+                error = {"title": "Duplicate files with the same md5 but different name", "description": msg}
                 if fileRecord[FILE_STATUS] == STATUS_NEW:
                     self.log.error(msg)
                     return STATUS_ERROR, error
@@ -274,21 +239,12 @@ class FileValidator:
               
             return STATUS_PASSED, None
         
-        except ClientError as ce:
-            self.df = None
-            self.log.debug(ce)
-            self.log.exception(f"Failed downloading file,{file_info.fileName} to {self.batch.bucketName}! {get_exception_msg()}.")
-            msg = f'File validating failed with S3 client error! {get_exception_msg()}.'
-            error["title"] = "Exception"
-            error["description"] = msg
-            return STATUS_ERROR, error
         except Exception as e:
             self.df = None
             self.log.debug(e)
             self.log.exception('Downloading file failed! Check debug log for detailed information.')
             msg = f"File validating file failed! {get_exception_msg()}."
-            error["title"] = "Exception"
-            error["description"] = msg
+            error = {"title": "Exception", "description": msg}
             return STATUS_ERROR, error
     
     """
@@ -303,7 +259,6 @@ class FileValidator:
     """
     def validate_all_files(self, submissionId):
         errors = []
-        error = {"title": None, "description": None}
         missing_count = 0
         key = os.path.join(self.bucketDir, os.path.join(self.rootPath, f"file/"))
         invalid_ids = []
@@ -313,8 +268,7 @@ class FileValidator:
             if not manifest_info_list or  len(manifest_info_list) == 0:
                 msg = f"No file records found for the submission, {submissionId}!"
                 self.log.error(msg)
-                error["title"] = "No file records found for the submission"
-                error["description"] = msg
+                error = {"title": "No file records found for the submission", "description": msg}
                 return STATUS_ERROR, [error]
             
             # 1: check if Extra files, validate if there are files in files folder of the submission that are not specified 
@@ -323,23 +277,16 @@ class FileValidator:
             manifest_file_list = [{ID: manifest_info[ID], S3_FILE_INFO: manifest_info[S3_FILE_INFO]} for manifest_info in manifest_info_list]
             manifest_file_names = [manifest_info[S3_FILE_INFO][FILE_NAME] for manifest_info in manifest_info_list]
 
-            # get file objects info in ths s3 bucket base on key
-            # s3_fileList = self.bucket.bucket.objects.filter(Prefix=key)
-            # s3_fileList = os.listdir(key)
-            s3_fileList = []
-            w = os.walk(key)
-            for (dirpath, dirnames, filenames) in w:
-                s3_fileList.extend(filenames)
-                break
-            for file_name in s3_fileList:
+            # get file objects info in mounted s3 bucket base on key
+            root, dirs, files = next(os.walk(key))
+            for file_name in files:
                 if file_name.startswith('.'):
                     continue
                 file = os.path.join(key, file_name)
                 if os.path.isfile(file) and file_name not in manifest_file_names:
                     msg = f"File, {file_name}, in s3 bucket is not specified by the manifests in the submission, {submissionId}!"
                     self.log.error(msg)
-                    error["title"] = "No file records found for the submission"
-                    error["description"] = msg
+                    error = {"title": "No file records found for the submission", "description": msg}
                     errors.append(error)
                     missing_count += 1
                 else:
@@ -348,14 +295,8 @@ class FileValidator:
                     if record[S3_FILE_INFO][SIZE] != os.path.getsize(file) or record[S3_FILE_INFO][MD5] != get_md5(file):
                         msg = f"The file failed integrity checking, {record[ID]}"
                         self.log.error(msg)
-                        error["title"] = "No integrity"
-                        error["description"] = msg
-                        record[FILE_STATUS] = STATUS_ERROR
-                        record[ERRORS] = record[ERRORS].append(error) if record[ERRORS] and isinstance(record[ERRORS], list) else [error]
-                        record[S3_FILE_INFO][FILE_STATUS] = STATUS_ERROR
-                        record[S3_FILE_INFO][ERRORS] = record[S3_FILE_INFO][ERRORS].append(error) if record[S3_FILE_INFO][ERRORS] \
-                            and isinstance(record[S3_FILE_INFO][ERRORS], list) else [error]
-                        record[UPDATED_AT] = record[S3_FILE_INFO][UPDATED_AT] = current_datetime_str()
+                        error = {"title": "Not integrity", "description": msg}
+                        self.set_status(record, STATUS_ERROR, error)
                         invalid_ids.append(record[ID])
                         self.update_file_list.append(record)
 
@@ -417,21 +358,12 @@ class FileValidator:
             # process passed files
             self.process_passed_files(manifest_info_list, invalid_ids)
 
-        except ClientError as ce:
-            self.df = None
-            self.log.debug(ce)
-            self.log.exception(f"Failed get file info from bucket, {self.batch.bucketName}! {get_exception_msg()}!")
-            msg = f'File validating failed with S3 client error! {get_exception_msg()}.'
-            error["title"] = "Exception"
-            error["description"] = msg
-            return STATUS_ERROR, error
         except Exception as e:
             self.df = None
             self.log.debug(e)
             self.log.exception(f"Failed get file info from bucket, {self.batch.bucketName}! {get_exception_msg()}!")
             msg = f"Failed get file info from bucket, {self.batch.bucketName}! {get_exception_msg()}!"
-            error["title"] = "Exception"
-            error["description"] = msg
+            error = {"title": "Exception", "description": msg}
             return STATUS_ERROR, error
         
         if missing_count > 0 and len(errors) > 0:
@@ -441,32 +373,39 @@ class FileValidator:
     def process_passed_files(self, manifest_info_list, invalid_file_ids):
         temp_list =  list(filter(lambda f: f.get(ID) not in invalid_file_ids, manifest_info_list))
         for record in temp_list:
-            record[UPDATED_AT] = record[S3_FILE_INFO][UPDATED_AT] = current_datetime_str()
-            record[FILE_STATUS] = STATUS_PASSED
-            record[S3_FILE_INFO][FILE_STATUS] = STATUS_PASSED
+            self.set_status(record, STATUS_PASSED, None)
             self.update_file_list.append(record)
     
     def process_invalid_files(self, manifest_info_list, invalid_file_ids, title, msg, check_new = False):
         temp_list =  list(filter(lambda f: f.get(ID) in invalid_file_ids, manifest_info_list))
-        error["title"] = title
-        error["description"] = msg
+        error = {"title": title, "description": msg}
         for record in temp_list:
-            record[UPDATED_AT] = record[S3_FILE_INFO][UPDATED_AT] = current_datetime_str()
             if check_new and record[FILE_STATUS] == STATUS_NEW:
-                record[FILE_STATUS] = STATUS_ERROR
-                record[ERRORS] = record[ERRORS].append(error) if record[ERRORS] and isinstance(record[ERRORS], list) else [error]
-                record[S3_FILE_INFO][FILE_STATUS] = STATUS_ERROR
-                record[S3_FILE_INFO][ERRORS] = record[S3_FILE_INFO][ERRORS].append(error) if record[S3_FILE_INFO][ERRORS] \
-                    and isinstance(record[S3_FILE_INFO][ERRORS], list) else [error]
-                self.update_file_list.append(record)
+                self.set_status(record, STATUS_ERROR, error)
             else:
-                record[FILE_STATUS] = STATUS_WARNING
-                record[WARNINGS] = record[WARNINGS].append(error) if record[WARNINGS] and isinstance(record[WARNINGS], list) else [error]
-                record[S3_FILE_INFO][FILE_STATUS] = STATUS_WARNING
-                record[S3_FILE_INFO][WARNINGS] = record[S3_FILE_INFO][WARNINGS].append(error) if record[S3_FILE_INFO][WARNINGS] \
-                    and isinstance(record[S3_FILE_INFO][WARNINGS], list) else [error]
-                self.update_file_list.append(record)
-        
+                self.set_status(record, STATUS_WARNING, error)
+                
+            self.update_file_list.append(record)
+
+    def set_status(self, record, status, error):
+        record[UPDATED_AT] = record[S3_FILE_INFO][UPDATED_AT] = current_datetime_str()
+        if status == STATUS_ERROR:
+            record[FILE_STATUS] = STATUS_ERROR
+            record[ERRORS] = record[ERRORS].append(error) if record[ERRORS] and isinstance(record[ERRORS], list) else [error]
+            record[S3_FILE_INFO][FILE_STATUS] = STATUS_ERROR
+            record[S3_FILE_INFO][ERRORS] = record[S3_FILE_INFO][ERRORS].append(error) if record[S3_FILE_INFO][ERRORS] \
+                and isinstance(record[S3_FILE_INFO][ERRORS], list) else [error]
+            
+        elif status == STATUS_WARNING: 
+            record[FILE_STATUS] = STATUS_WARNING
+            record[WARNINGS] = record[WARNINGS].append(error) if record[WARNINGS] and isinstance(record[WARNINGS], list) else [error]
+            record[S3_FILE_INFO][FILE_STATUS] = STATUS_WARNING
+            record[S3_FILE_INFO][WARNINGS] = record[S3_FILE_INFO][WARNINGS].append(error) if record[S3_FILE_INFO][WARNINGS] \
+                and isinstance(record[S3_FILE_INFO][WARNINGS], list) else [error]
+            
+        else:
+            record[FILE_STATUS] = STATUS_PASSED
+            record[S3_FILE_INFO][FILE_STATUS] = STATUS_PASSED
 
 
 

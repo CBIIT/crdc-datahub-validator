@@ -42,7 +42,7 @@ class ModelFactory:
             self.models.append({MODEL: model_reader.model, IDS: model_reader.id_fields})
             
     def get_model_by_data_common(self, data_common):
-        return next((x for x in self.models if x['model'][DATA_COMMON] == data_common.upper()), None)
+        return next((x for x in self.models if x[MODEL][DATA_COMMON] == data_common.upper()), None)
         
     def get_model_ids_by_data_common(self, data_common):       
         model = self.get_model_by_data_common(data_common)
