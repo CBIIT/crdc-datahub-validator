@@ -143,3 +143,5 @@ backup/
 #config files for testing
 **/configs/models
 **/configs/*config.yml
+**localtest**
+file/test**

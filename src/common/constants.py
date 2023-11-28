@@ -14,6 +14,15 @@ MODEL_FILE_DIR = "models-loc"
 LOADER_QUEUE = "LOADER_QUEUE"
 FILE_QUEUE = "FILE_QUEUE"
 METADATA_QUEUE = "METADATA_QUEUE"
+# metadata
+UPLOAD_TYPE = ""
+INTENTION = ""
+SUBMISSION_ID = "submission"
+FILE_DIR = ""
+UPLOAD_TYPES = ["file", "metadata"]
+INTENTION = "intention"
+INTENTIONS = ["New", "Update", "Delete"]
+DATABASE = "crdc-datahub"
 #file validation 
 FILE_INVALID_REASON = "invalid_reason"
 
