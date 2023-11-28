@@ -155,9 +155,12 @@ class Model:
                 value_unit_props = self.process_value_unit_type(prop, props[prop])
                 if value_unit_props:
                     props.update(value_unit_props)
-                if self.is_required_prop(prop):
-                    if self.is_key_prop(prop): 
-                        keys.append(prop)
+                isRequired = self.is_required_prop(prop)
+                if self.is_key_prop(prop): 
+                    keys.append(prop)
+                    if not isRequired:
+                        self.log.warning(f'The key property must be required, {prop}!')
+       
         key_str = None if len(keys) == 0 else LIST_DELIMITER.join(map(str, keys)).strip(LIST_DELIMITER)
         self.id_fields.append({NODE_LABEL: name, KEY: key_str})
         # if file_size_prop and File_md5_prop:
