@@ -19,9 +19,6 @@ class DataLoader:
         self.configs = configs
         self.model = model
         self.mongo_dao =mongo_dao
-    
-    def get_time_stamp():
-        return datetime.now()
 
     """
     param: file_path_list downloaded from s3 bucket
@@ -44,14 +41,13 @@ class DataLoader:
 
         real_import = [
             {
-                # "submissionID":str(uuid.uuid5(uuid.NAMESPACE_URL, 'submissionID')),
                 "submissionID":config.data['submission'],
                 "batchIDs":config.data['batch'],
-                "status":"Loaded",
+                "status":"New",
                 "errors": None,
                 "warnings":None,
-                "createdAt":self.get_time_stamp(),
-                "updatedAt":self.get_time_stamp(),
+                "createdAt":datetime.now(),
+                "updatedAt":datetime.now(),
                 "orginalFileName":file_name,
                 "lineNumber":row_num,
                 "nodeType":"",
@@ -64,7 +60,4 @@ class DataLoader:
             }
         ]
 
-        print('test the world')
-        print(config.data)
-        print(real_import)
         return True
