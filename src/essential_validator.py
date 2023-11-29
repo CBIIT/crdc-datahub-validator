@@ -121,11 +121,11 @@ class EssentialValidator:
         for file_info in self.file_info_list: 
             #1. download the file in s3 and load tsv file into dataframe
             if not self.download_file(file_info):
-                file_info[SUCCEEDED] = False
+                file_info[BATCH_STATUS] = "failed"
                 return False
             #2. validate meatadata in self.df
             if not self.validate_data(file_info):
-                file_info[SUCCEEDED] = False
+                file_info[BATCH_STATUS] = "failed"
                 return False
         return True
 
@@ -195,12 +195,15 @@ class EssentialValidator:
         When metadata intention is "New", all IDs must not exist in the database
         """
         msg = None
-        file_info[ERRORS] = [] if not file_info[ERRORS] else file_info[ERRORS] 
+        self.batch[ERRORS] = [] if not self.batch.get(ERRORS) else self.batch[ERRORS] 
+        file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
         # check if missing "type" column
         if not TYPE in self.df.columns:
             msg = f'Invalid metadata, missing "type" column, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
+            
+            self.batch[ERRORS].append(msg)
             return False
         
         # check if empty row.
@@ -216,6 +219,7 @@ class EssentialValidator:
             msg = f'Invalid metadata, headers are match row columns, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
             return False
         
         # When metadata intention is "New", all IDs must not exist in the database
@@ -234,6 +238,7 @@ class EssentialValidator:
                 msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
                 return False
 
             return True

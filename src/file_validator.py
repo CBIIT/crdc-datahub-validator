@@ -72,7 +72,12 @@ def fileValidate(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
-                    msg.delete()
+                    try:
+                        msg.delete()
+                    except:
+                        log.debug(e)
+                        log.critical(
+                        f'Something wrong happened while delete sqs message! Check debug log for details.')
                     if extender:
                         extender.stop()
                         extender = None
