@@ -132,15 +132,18 @@ class EssentialValidator:
     
     def validate_batch(self, batch):
         msg = None
+        batch[ERRORS] = [] if not batch.get(ERRORS) else batch[ERRORS] 
         #This service only processes metadata batches, if a file batch is passed, it should be ignored (output an error message in the log).
         if batch.get(TYPE) != BATCH_TYPE_METADATA:
             msg = f'Invalid batch type, only metadata allowed, {batch[ID]}!'
             self.log.error(msg)
+            batch[ERRORS].append(msg)
             return False
 
         if not batch.get("files") or len(batch["files"]) == 0:
             msg = f'Invalid batch, no files found, {batch[ID]}!'
             self.log.error(msg)
+            batch[ERRORS].append(msg)
             return False
         
         #Non-conformed metadata file Format, only TSV (.tsv or .txt) files are allowed
@@ -148,6 +151,7 @@ class EssentialValidator:
         if not file_info_list or len(file_info_list) == 0:
             msg = f'Invalid batch, no metadata files found, {batch[ID]}!'
             self.log.error(msg)
+            batch[ERRORS].append(msg)
             return False
         else:
             self.file_info_list = file_info_list
@@ -155,7 +159,9 @@ class EssentialValidator:
             # get data common from submission
             submission = self.mongo_dao.get_submission(batch.get("submissionID"), self.configs[DB])
             if not submission or not submission.get(DATA_COMMON_NAME):
-                self.log.error(f'Invalid batch, no datacommon found, {batch[ID]}!')
+                msg = f'Invalid batch, no datacommon found, {batch[ID]}!'
+                self.log.error(msg)
+                batch[ERRORS].append(msg)
                 return False
             self.datacommon = submission.get(DATA_COMMON_NAME)
             self.submission_id  = submission[ID]
@@ -195,14 +201,12 @@ class EssentialValidator:
         When metadata intention is "New", all IDs must not exist in the database
         """
         msg = None
-        self.batch[ERRORS] = [] if not self.batch.get(ERRORS) else self.batch[ERRORS] 
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
         # check if missing "type" column
         if not TYPE in self.df.columns:
             msg = f'Invalid metadata, missing "type" column, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
-            
             self.batch[ERRORS].append(msg)
             return False
         
