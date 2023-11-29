@@ -60,7 +60,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             #3. call mongo_dao to load data
                             data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), mongo_dao)
                             result = data_loader.load_data(validator.download_file_list)
-                            batch[BATCH_STATUS] = BATCH_STATUS_LOADED if result else BATCH_STATUS_REJECTED
+                            if result:
+                                batch[BATCH_STATUS] = BATCH_STATUS_LOADED
                         else:
                             batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
                        
