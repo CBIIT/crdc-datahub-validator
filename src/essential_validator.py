@@ -195,11 +195,12 @@ class EssentialValidator:
         When metadata intention is "New", all IDs must not exist in the database
         """
         msg = None
+        file_info[ERRORS] = [] if not file_info[ERRORS] else file_info[ERRORS] 
         # check if missing "type" column
         if not TYPE in self.df.columns:
             msg = f'Invalid metadata, missing "type" column, {self.batch[ID]}!'
             self.log.error(msg)
-            file_info[ERRORS] = [msg]
+            file_info[ERRORS].append(msg)
             return False
         
         # check if empty row.
@@ -207,14 +208,14 @@ class EssentialValidator:
         if not idx.empty: 
             msg = f'Invalid metadata, contains empty rows, {self.batch[ID]}!'
             self.log.error(msg)
-            file_info[ERRORS] = [msg]
+            file_info[ERRORS].append(msg)
             return False
         
         # Each row in a metadata file must have same number of columns as the header row
         if '' in self.df.columns:
             msg = f'Invalid metadata, headers are match row columns, {self.batch[ID]}!'
             self.log.error(msg)
-            file_info[ERRORS] = [msg]
+            file_info[ERRORS].append(msg)
             return False
         
         # When metadata intention is "New", all IDs must not exist in the database
@@ -232,7 +233,7 @@ class EssentialValidator:
             if not self.mongo_dao.check_metadata_ids(type, ids, id_field, self.submission_id, self.configs[DB]):
                 msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'
                 self.log.error(msg)
-                file_info[ERRORS] = [msg]
+                file_info[ERRORS].append(msg)
                 return False
 
             return True
