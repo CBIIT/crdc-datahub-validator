@@ -15,3 +15,6 @@ class DataLoader:
     """
     def load_data(self, file_path_list):
         return True
+    
+    def delete_data(self, batch):
+        return True

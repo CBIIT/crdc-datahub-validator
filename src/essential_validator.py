@@ -7,8 +7,8 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
-    SUCCEEDED, ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, \
-    BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, STATUS_NEW, FILE_PREFIX
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, \
+    BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, STATUS_NEW, FILE_PREFIX, BATCH_INTENTION
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -53,17 +53,21 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         #1 call mongo_dao to get batch by batch_id
                         batch = mongo_dao.get_batch(data[BATCH_ID], configs[DB])
+                        intention = batch.get(BATCH_INTENTION, STATUS_NEW)
                         #2. validate batch and files.
-                        
-                        result = validator.validate(batch)
-                        if result and len(validator.download_file_list) > 0:
-                            #3. call mongo_dao to load data
-                            data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), mongo_dao)
-                            result = data_loader.load_data(validator.download_file_list)
-                            if result:
-                                batch[BATCH_STATUS] = BATCH_STATUS_LOADED
+                        if intention != "delete":
+                            result = validator.validate(batch)
+                            if result and len(validator.download_file_list) > 0:
+                                #3. call mongo_dao to load data
+                                data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), mongo_dao)
+                                result = data_loader.load_data(validator.download_file_list)
+                                if result:
+                                    batch[BATCH_STATUS] = BATCH_STATUS_LOADED
+                            else:
+                                batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
                         else:
-                            batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
+                            data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), mongo_dao)
+                            data_loader.delete_data(batch)
                        
                         #4. update batch
                         result = mongo_dao.update_batch( batch, configs[DB])
@@ -108,6 +112,7 @@ class EssentialValidator:
         self.log = get_logger('Essential Validator')
         self.mongo_dao = mongo_dao
         self.model_store = model_store
+        self.datacommon = None
         self.submission_id = None
         self.download_file_list= []
 
@@ -227,7 +232,7 @@ class EssentialValidator:
             return False
         
         # When metadata intention is "New", all IDs must not exist in the database
-        if self.batch['metadataIntention'] == STATUS_NEW:
+        if self.batch[BATCH_INTENTION] == STATUS_NEW:
             # verify if ids in the df in the mongo db.
             # get node type
             type = self.df[TYPE][0]

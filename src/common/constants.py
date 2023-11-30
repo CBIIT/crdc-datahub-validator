@@ -37,6 +37,7 @@ BATCH_STATUS_LOADED = "loaded"
 SUBMISSION_COLLECTION="submissions"
 BATCH_TYPE_METADATA ="metadata"
 DATA_COMMON_NAME ="dataCommons"
+BATCH_INTENTION = "metadataIntention"
 
 # file 
 FILE_ID = "dataRecordID"
@@ -82,8 +83,8 @@ FILE_SIZE = "file_size"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
-
-DATETIME_FORMAT = "%Y-%m-%dT%H:%M:%S%z"
+# sqs message
+SCOPE = "scope"
 
 
 
