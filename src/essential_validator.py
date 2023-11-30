@@ -55,20 +55,16 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         batch = mongo_dao.get_batch(data[BATCH_ID], configs[DB])
                         intention = batch.get(BATCH_INTENTION, STATUS_NEW)
                         #2. validate batch and files.
-                        if intention != "delete":
-                            result = validator.validate(batch)
-                            if result and len(validator.download_file_list) > 0:
-                                #3. call mongo_dao to load data
-                                data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), mongo_dao)
-                                result = data_loader.load_data(validator.download_file_list)
-                                if result:
-                                    batch[BATCH_STATUS] = BATCH_STATUS_LOADED
-                            else:
-                                batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
-                        else:
+                        result = validator.validate(batch)
+                        if result and len(validator.download_file_list) > 0:
+                            #3. call mongo_dao to load data
                             data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), mongo_dao)
-                            data_loader.delete_data(batch)
-                       
+                            result = data_loader.load_data(validator.download_file_list)
+                            if result:
+                                batch[BATCH_STATUS] = BATCH_STATUS_LOADED
+                        else:
+                            batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
+
                         #4. update batch
                         result = mongo_dao.update_batch( batch, configs[DB])
                     else:
