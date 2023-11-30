@@ -86,6 +86,8 @@ S3_DOWNLOAD_DIR = "s3_download"
 # sqs message
 SCOPE = "scope"
 
-
-
+# validation status
+PASSED = "Passed"
+ERROR = "Error"
+WARNING = "Warning"
 

@@ -114,12 +114,32 @@ class MetaDataValidator:
 
     
     def validateNode(self, dataRecord, model):
-        
+        self.validate_required_props(dataRecord, model)
         return None
-    
-    def validate_required_props(self, dataRecord, model):
-        return None
-    
+
+    def validate_required_props(self, data_record, node_definition):
+
+        result = {"result": ERROR, "errors": [], "warnings": []}
+
+
+        nodes = node_definition["model"]["nodes"]
+        # extract a node from the data record
+        if data_record["nodeType"] not in nodes.keys():
+            result["errors"].append(f"Required property '{data_record['nodeType']}' is missing or empty.")
+        else:
+            anode = nodes[data_record["nodeType"]]
+
+        if data_record["nodeType"] in nodes.keys():
+            for key, value in data_record["rawData"].items():
+                if 'properties' not in anode:
+                    key_not_exist = key not in anode.properties
+                    value_invalid = not value.strip()
+                    if key_not_exist or value_invalid:
+                        result["errors"].append(f"Required property '{key}' is missing or empty.")
+
+        result["result"] = ERROR if result["errors"] else PASSED
+        return result
+
     def validate_prop_value(self, dataRecord, model):
         return None
     
