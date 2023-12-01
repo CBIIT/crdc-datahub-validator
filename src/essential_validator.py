@@ -53,15 +53,18 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         #1 call mongo_dao to get batch by batch_id
                         batch = mongo_dao.get_batch(data[BATCH_ID], configs[DB])
-                        intention = batch.get(BATCH_INTENTION, STATUS_NEW)
                         #2. validate batch and files.
                         result = validator.validate(batch)
                         if result and len(validator.download_file_list) > 0:
                             #3. call mongo_dao to load data
-                            data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), mongo_dao)
+                            data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao)
                             result = data_loader.load_data(validator.download_file_list)
                             if result:
                                 batch[BATCH_STATUS] = BATCH_STATUS_LOADED
+                            else:
+                                msg = f'Failed to load data into or delete data from database!'
+                                batch[ERRORS] = batch[ERRORS].append(msg) if batch[ERRORS] else [msg]
+                                batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
                         else:
                             batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
 
@@ -239,7 +242,7 @@ class EssentialValidator:
             # extract ids from df.
             ids = self.df[id_field].tolist()  
             # query db.         
-            if not self.mongo_dao.check_metadata_ids(type, ids, id_field, self.submission_id, self.configs[DB]):
+            if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id, self.configs[DB]):
                 msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)

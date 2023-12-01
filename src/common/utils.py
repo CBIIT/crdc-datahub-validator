@@ -7,6 +7,8 @@ import json
 import requests
 import yaml
 from datetime import datetime
+#from bento.common.utils import get_uuid
+import uuid
 from common.constants import DATA_COMMON, VERSION
 
 """ 
@@ -113,12 +115,17 @@ def download_file_to_dict(url):
         else:
             raise Exception(f'File type is not supported: {file_ext}!')
 """
-get current datetime string
+get current datetime string in iso format
 """
 def current_datetime_str():
     return datetime.now(tz = datetime.now().astimezone().tzinfo).isoformat(timespec='milliseconds')
 
 
+"""
+get uuid v5
+"""
+def get_uuid_str(datacommon, type):
+    return str(uuid.uuid4())
 
     
 
