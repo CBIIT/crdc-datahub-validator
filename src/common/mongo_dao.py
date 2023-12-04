@@ -4,6 +4,8 @@ from common.constants import MONGO_DB, BATCH_COLLECTION, SUBMISSION_COLLECTION, 
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, ERRORS
 from common.utils import get_exception_msg, current_datetime_str
 
+MAX_SIZE = 10000
+
 class MongoDao:
     def __init__(self, configs):
       self.log = get_logger("Mongo DAO")
@@ -190,9 +192,17 @@ class MongoDao:
     def delete_data_records_by_node_ids(self, node_ids, db):
         db = self.client[db]
         file_collection = db[DATA_COLlECTION]
+        delete_count = 0
+        if len(node_ids) > MAX_SIZE:
+            sub_list = [node_ids[x:x+MAX_SIZE]for x in range(0, len(node_ids), MAX_SIZE)]
+        else: 
+            sub_list = [node_ids]
         try:
-            result = file_collection.delete_many({'nodeID': {'$in':node_ids}})
-            return result.deleted_count > 0
+            for list in sub_list:
+                result = file_collection.delete_many({'nodeID': {'$in':list}})
+                delete_count += result.deleted_count 
+            self.log.info(f'Total {delete_count} dataRecords are deleted!')
+            return delete_count > 0
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to delete file records, {get_exception_msg()}")
@@ -209,7 +219,9 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.insert_many(file_records)
-            return len(result.inserted_ids) > 0 
+            count = len(result.inserted_ids)
+            self.log.info(f'Total {count} dataRecords are inserted!')
+            return count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to insert data records, {get_exception_msg()}")

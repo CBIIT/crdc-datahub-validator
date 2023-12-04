@@ -5,7 +5,7 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime_str, get_exception_msg
 from common.constants import MODEL, IDS, TYPE, ID, SUBMISSION_ID, BATCH_ID, FILE_STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, BATCH_CREATED, UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, FILE_SIZE, \
-    MD5, DB, DATA_COMMON, NODE_LABEL
+    MD5, DB, DATA_COMMON, NODE_LABEL, INTENTION_NEW, INTENTION_DELETE
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -19,7 +19,6 @@ class DataLoader:
         self.model = model
         self.mongo_dao =mongo_dao
         self.batch = batch
-        self.records = None
         self.file_nodes = model[MODEL].get("file-nodes", {})
 
     """
@@ -29,12 +28,11 @@ class DataLoader:
         returnVal = True
         data_common = self.model[MODEL][DATA_COMMON]
         intention = self.batch.get(BATCH_INTENTION, STATUS_NEW)
-        file_types = None if intention == "delete" else [k for (k,v) in self.file_nodes.items()]
-        deleted_ids = [] if intention == "delete" else None
-        failed_at = 1
-        
+        file_types = None if intention == INTENTION_DELETE else [k for (k,v) in self.file_nodes.items()]
+        deleted_ids = [] if intention == INTENTION_DELETE else None
         for file in file_path_list:
-            self.records = [] if intention != "delete" else None
+            records = [] if intention != INTENTION_DELETE else None
+            failed_at = 1
             # 1. read file to dataframe
             if not os.path.isfile(file):
                 continue
@@ -45,7 +43,7 @@ class DataLoader:
                 
                 for index, row in df.iterrows():
                     type = row[TYPE]
-                    if intention == "delete":
+                    if intention == INTENTION_DELETE:
                         deleted_ids.append(self.get_node_id(type, row))
                         continue
                     # 2. construct dataRecord
@@ -72,8 +70,12 @@ class DataLoader:
                     }
                     if type in file_types:
                         dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
-                    self.records.append(dataRecord)
+                    records.append(dataRecord)
                     failed_at += 1
+
+                # 3-1. insert data in a tsv file into mongo DB
+                if intention == INTENTION_NEW:
+                    returnVal = returnVal and self.mongo_dao.insert_data_records(records, self.configs[DB])
                 
             except Exception as e:
                     df = None
@@ -82,14 +84,9 @@ class DataLoader:
                     self.log.exception(msg)
                     self.batch[ERRORS] = self.batch[ERRORS].append(msg) if self.batch[ERRORS] else [msg]
                     return False
-            # 3-1. insert data in a tsv file into mongo DB
-            if intention != "delete":
-                returnVal = returnVal and self.mongo_dao.insert_data_records(self.records, self.configs[DB])
-
         #3-2. delete all records in deleted_ids
-        if intention == "delete":
-            returnVal = returnVal and self.mongo_dao.delete_data_records_by_node_ids(deleted_ids, self.configs[DB])
-
+        if intention == INTENTION_DELETE:
+            returnVal = returnVal and self.mongo_dao.delete_data_records_by_node_ids(deleted_ids, self.configs[DB])             
         return returnVal
     
     """.
