@@ -30,10 +30,9 @@ def fileValidate(configs, job_queue, mongo_dao):
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
-                    if data.get(FILE_ID) or :
-                        extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                     # Make sure job is in correct format
                     if data.get(FILE_ID):
+                        extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         #1 call mongo_dao to get batch by batch_id
                         fileRecord = mongo_dao.get_file(data[FILE_ID], configs[DB])
                         #2. validate file.
@@ -51,6 +50,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                             log.info(f'The file record is updated,{data[FILE_ID]}.')
 
                     elif data.get(SUBMISSION_ID):
+                        extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         submissionID = data[SUBMISSION_ID]
                         if not validator.get_root_path(submissionID):
                             log.error(f'Invalid submission, {submissionID}!')
