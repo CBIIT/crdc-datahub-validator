@@ -104,7 +104,7 @@ class MetaDataValidator:
             return False
         self.submission = submission
         self.datacommon = submission.get(DATA_COMMON_NAME)
-        #1. cal mongo_dao to get dataRecords based on submissionID and scope
+        #1. call mongo_dao to get dataRecords based on submissionID and scope
 
         #2. loop through all records and call validateNode
 

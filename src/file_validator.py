@@ -366,8 +366,8 @@ class FileValidator:
         except Exception as e:
             self.df = None
             self.log.debug(e)
-            self.log.exception(f"Failed get file info from bucket, {self.batch.bucketName}! {get_exception_msg()}!")
-            msg = f"Failed get file info from bucket, {self.batch.bucketName}! {get_exception_msg()}!"
+            self.log.exception(f"Failed get file info from mounted bucket! {get_exception_msg()}!")
+            msg = f"Failed get file info from mounted bucket! {get_exception_msg()}!"
             error = {"title": "Exception", "description": msg}
             return STATUS_ERROR, error
         
