@@ -31,18 +31,18 @@ class DataLoader:
         intention = self.batch.get(BATCH_INTENTION, STATUS_NEW)
         file_types = None if intention == "delete" else [k for (k,v) in self.file_nodes.items()]
         deleted_ids = [] if intention == "delete" else None
-
+        failed_at = 1
+        
         for file in file_path_list:
-            self.records = []
+            self.records = [] if intention != "delete" else None
             # 1. read file to dataframe
             if not os.path.isfile(file):
                 continue
-            df = pd.read_csv(file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
-            df = df.reset_index()  # make sure indexes pair with number of rows
-            col_names =list(df.columns)
-            failed_at = 1
             try:
-
+                df = pd.read_csv(file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
+                df = df.reset_index()  # make sure indexes pair with number of rows
+                col_names =list(df.columns)
+                
                 for index, row in df.iterrows():
                     type = row[TYPE]
                     if intention == "delete":
@@ -74,19 +74,25 @@ class DataLoader:
                         dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
                     self.records.append(dataRecord)
                     failed_at += 1
+                
             except Exception as e:
-                df = None
-                self.log.debug(e)
-                self.log.exception(f"Failed to load data in file,{file} at line {failed_at + 1}! {get_exception_msg()}.")
-                return False
-            # 3. insert into or delete from mongo DB
-            if intention == "delete":
-                returnVal = returnVal and self.mongo_dao.delete_data_records_by_node_ids(deleted_ids, self.configs[DB])
-            else:
+                    df = None
+                    self.log.debug(e)
+                    msg = f"Failed to load data in file, {file} at {failed_at + 1}! {get_exception_msg()}."
+                    self.log.exception(msg)
+                    self.batch[ERRORS] = self.batch[ERRORS].append(msg) if self.batch[ERRORS] else [msg]
+                    return False
+            # 3-1. insert data in a tsv file into mongo DB
+            if intention != "delete":
                 returnVal = returnVal and self.mongo_dao.insert_data_records(self.records, self.configs[DB])
+
+        #3-2. delete all records in deleted_ids
+        if intention == "delete":
+            returnVal = returnVal and self.mongo_dao.delete_data_records_by_node_ids(deleted_ids, self.configs[DB])
+
         return returnVal
     
-    """
+    """.
     get node id defined in model dict
     """
     def get_node_id(self, type, row):

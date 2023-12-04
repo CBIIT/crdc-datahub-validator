@@ -191,7 +191,7 @@ class MongoDao:
         db = self.client[db]
         file_collection = db[DATA_COLlECTION]
         try:
-            result = file_collection.delete_many({'nodeID':{'$in':node_ids}})
+            result = file_collection.delete_many({'nodeID': {'$in':node_ids}})
             return result.deleted_count > 0
         except errors.PyMongoError as pe:
             self.log.debug(pe)
