@@ -112,7 +112,7 @@ class EssentialValidator:
         self.model_store = model_store
         self.datacommon = None
         self.submission_id = None
-        self.download_file_list= []
+        self.download_file_list = None
 
     def validate(self,batch):
 
@@ -168,6 +168,7 @@ class EssentialValidator:
                 return False
             self.datacommon = submission.get(DATA_COMMON_NAME)
             self.submission_id  = submission[ID]
+            self.download_file_list = []
             return True
     
     def download_file(self, file_info):

@@ -42,6 +42,7 @@ class DataLoader:
                 col_names =list(df.columns)
                 
                 for index, row in df.iterrows():
+                    
                     type = row[TYPE]
                     if intention == INTENTION_DELETE:
                         deleted_ids.append(self.get_node_id(type, row))

@@ -17,7 +17,7 @@ def fileValidate(configs, job_queue, mongo_dao):
     log = get_logger('File Validation Service')
     validator = FileValidator(configs, mongo_dao)
 
-    #step 3: run validator as a service
+    #run file validator as a service
     while True:
         try:
             log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
