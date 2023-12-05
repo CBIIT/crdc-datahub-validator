@@ -46,8 +46,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         scope = data[SUBMISSION_ID]
                         submissionID = data[SUBMISSION_ID]
-                        result = validator.validate(submissionID, scope)
-                    
+                        result = validator.validate(submissionID, scope)   
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -104,12 +103,14 @@ class MetaDataValidator:
             return False
         self.submission = submission
         self.datacommon = submission.get(DATA_COMMON_NAME)
+        model = self.model_store.get_model_by_data_common(self.datacommon)
         #1. call mongo_dao to get dataRecords based on submissionID and scope
-
+        dataRecords = self.mongo_dao.get_dataRecords(submissionID, scope)
         #2. loop through all records and call validateNode
 
-        #3. update records
-        
+        #3. update data records
+
+        #4. set errors in submission
         return True
 
     

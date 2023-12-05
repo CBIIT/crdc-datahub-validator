@@ -229,6 +229,26 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
-            return False  
+            return False 
+    """
+    retrieve dataRecords by submissionID and scope either New dataRecords or All
+    """
+    def get_dataRecords(self, submissionID, scope, db):
+        db = self.client[db]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            query = 
+            result = file_collection.find()
+            count = len(result.inserted_ids)
+            self.log.info(f'Total {count} dataRecords are inserted!')
+            return count > 0 
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
+            return False 
 
   
