@@ -1,7 +1,7 @@
 from pymongo import MongoClient, errors, ReplaceOne
 from bento.common.utils import get_logger
 from common.constants import MONGO_DB, BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
-    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, ERRORS
+    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, ERRORS, INTENTION_NEW, FILE_STATUS
 from common.utils import get_exception_msg, current_datetime_str
 
 MAX_SIZE = 10000
@@ -153,7 +153,8 @@ class MongoDao:
         db = self.client[db]
         file_collection = db[SUBMISSION_COLLECTION]
         try:
-            submission[ERRORS] =  list(submission[ERRORS]).extend(msgs) if submission.get(ERRORS) and isinstance(submission[ERRORS], list) else msgs
+            if msgs and len(msgs) > 0:
+                submission[ERRORS] =  list(submission[ERRORS]).extend(msgs) if submission.get(ERRORS) and isinstance(submission[ERRORS], list) else msgs
             submission[UPDATED_AT] = current_datetime_str()
             result = file_collection.replace_one({ID : submission[ID]}, submission, False)
             return result.matched_count > 0 
@@ -167,15 +168,35 @@ class MongoDao:
             return False  
 
     """
-    update file records in dataRecords
+    update data records based on _id in dataRecords
     """
-    def update_files (self, file_records, db):
+    def update_files(self, file_records, db):
         db = self.client[db]
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
                 ReplaceOne( { ID: m[ID] },  m,  False)
                     for m in list(file_records)
+                ])
+            return result.matched_count > 0 
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
+            return False 
+    """
+    update data records based on node ID in dataRecords
+    """
+    def update_data_records(self, data_records, db):
+        db = self.client[db]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            result = file_collection.bulk_write([
+                ReplaceOne( { "nodeID": m["nodeID"] },  m,  False)
+                    for m in list(data_records)
                 ])
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
@@ -229,6 +250,28 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
-            return False  
+            return False 
+    """
+    retrieve dataRecords by submissionID and scope either New dataRecords or All
+    """
+    def get_dataRecords(self, submissionID, scope, db):
+        db = self.client[db]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            query = {'submissionID': {'$eq': submissionID}} 
+            if scope == INTENTION_NEW:
+                query[FILE_STATUS] = INTENTION_NEW
+            result = list(file_collection.find(query))
+            count = len(result)
+            self.log.info(f'Total {count} dataRecords are found for the submission, {submissionID} and scope of {scope}!')
+            return result
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
+            return False 
 
   

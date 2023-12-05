@@ -75,8 +75,8 @@ def fileValidate(configs, job_queue, mongo_dao):
                 finally:
                     try:
                         msg.delete()
-                    except:
-                        log.debug(e)
+                    except Exception as e1:
+                        log.debug(e1)
                         log.critical(
                         f'Something wrong happened while delete sqs message! Check debug log for details.')
                     if extender:

@@ -78,7 +78,7 @@ class DataLoader:
                 if intention == INTENTION_NEW:
                     returnVal = returnVal and self.mongo_dao.insert_data_records(records, self.configs[DB])
                 elif intention == INTENTION_UPDATE:
-                    returnVal = returnVal and self.mongo_dao.update_files(records, self.configs[DB])
+                    returnVal = returnVal and self.mongo_dao.update_data_records(records, self.configs[DB])
                 
             except Exception as e:
                     df = None
