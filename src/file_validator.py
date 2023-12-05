@@ -17,7 +17,7 @@ def fileValidate(configs, job_queue, mongo_dao):
     log = get_logger('File Validation Service')
     validator = FileValidator(configs, mongo_dao)
 
-    #step 3: run validator as a service
+    #run file validator as a service
     while True:
         try:
             log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
@@ -50,6 +50,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                             log.info(f'The file record is updated,{data[FILE_ID]}.')
 
                     elif data.get(SUBMISSION_ID):
+                        extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         submissionID = data[SUBMISSION_ID]
                         if not validator.get_root_path(submissionID):
                             log.error(f'Invalid submission, {submissionID}!')
@@ -366,8 +367,8 @@ class FileValidator:
         except Exception as e:
             self.df = None
             self.log.debug(e)
-            self.log.exception(f"Failed get file info from bucket, {self.batch.bucketName}! {get_exception_msg()}!")
-            msg = f"Failed get file info from bucket, {self.batch.bucketName}! {get_exception_msg()}!"
+            self.log.exception(f"Failed get file info from mounted bucket! {get_exception_msg()}!")
+            msg = f"Failed get file info from mounted bucket! {get_exception_msg()}!"
             error = {"title": "Exception", "description": msg}
             return STATUS_ERROR, error
         
