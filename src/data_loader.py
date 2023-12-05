@@ -5,7 +5,7 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime_str, get_exception_msg
 from common.constants import MODEL, IDS, TYPE, ID, SUBMISSION_ID, BATCH_ID, FILE_STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, BATCH_CREATED, UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, FILE_SIZE, \
-    MD5, DB, DATA_COMMON, NODE_LABEL, INTENTION_NEW, INTENTION_DELETE, SIZE
+    MD5, DB, DATA_COMMON, NODE_LABEL, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -77,6 +77,8 @@ class DataLoader:
                 # 3-1. insert data in a tsv file into mongo DB
                 if intention == INTENTION_NEW:
                     returnVal = returnVal and self.mongo_dao.insert_data_records(records, self.configs[DB])
+                elif intention == INTENTION_UPDATE:
+                    returnVal = returnVal and self.mongo_dao.update_files(records, self.configs[DB])
                 
             except Exception as e:
                     df = None
