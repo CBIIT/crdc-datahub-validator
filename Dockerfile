@@ -4,4 +4,4 @@ WORKDIR /usr/validator
 COPY . .
 RUN pip3 install -r requirements.txt
  
-CMD [python src/validator.py -c configs/validator-metadata-config.yml]
+CMD [/usr/local/bin/python3 src/validator.py -c configs/validator-metadata-config.yml]
