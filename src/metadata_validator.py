@@ -8,7 +8,7 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, SCOPE, MODEL, SUBMISSION_ID
+    S3_DOWNLOAD_DIR, SQS_NAME, SCOPE, MODEL, SUBMISSION_ID, PASSED, ERROR
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -118,26 +118,39 @@ class MetaDataValidator:
         return None
 
     def validate_required_props(self, data_record, node_definition):
-
         result = {"result": ERROR, "errors": [], "warnings": []}
+        # check the correct format from the node_definition
+        if "model" not in node_definition.keys() or "nodes" not in node_definition["model"].keys():
+            result["errors"].append(f"node definition is not correctly formatted.")
+            return result
+        # check the correct format from the data_record
+        if "nodeType" not in data_record.keys() or "rawData" not in data_record.keys() or len(data_record["rawData"].items()) == 0:
+            result["errors"].append(f"data record is not correctly formatted.")
+            return result
 
-
+        # validation start
         nodes = node_definition["model"]["nodes"]
+        node_type = data_record["nodeType"]
         # extract a node from the data record
-        if data_record["nodeType"] not in nodes.keys():
-            result["errors"].append(f"Required property '{data_record['nodeType']}' is missing or empty.")
-        else:
-            anode = nodes[data_record["nodeType"]]
+        if node_type not in nodes.keys():
+            result["errors"].append(f"Required node '{node_type}' does not exist.")
+            return result
 
-        if data_record["nodeType"] in nodes.keys():
+        anode = nodes[node_type]
+        if node_type in nodes.keys():
             for key, value in data_record["rawData"].items():
-                if 'properties' not in anode:
-                    key_not_exist = key not in anode.properties
-                    value_invalid = not value.strip()
-                    if key_not_exist or value_invalid:
-                        result["errors"].append(f"Required property '{key}' is missing or empty.")
+                anode_keys = anode.keys()
+                if "properties" not in anode_keys:
+                    result["errors"].append(f"data record is not correctly formatted.")
+                    break
 
-        result["result"] = ERROR if result["errors"] else PASSED
+                key_not_exist = key not in anode["properties"]
+                value_invalid = not value.strip()
+                if key_not_exist or value_invalid:
+                    result["errors"].append(f"Required property '{key}' is missing or empty.")
+
+        if len(result["errors"]) == 0:
+            result["result"] = PASSED
         return result
 
     def validate_prop_value(self, dataRecord, model):
