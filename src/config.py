@@ -93,12 +93,12 @@ class Config():
         else:
             self.data[TIER_CONFIG] = tier
 
-        s3_bucket_drive = self.data.get(S3_BUCKET_DIR)
-        if not s3_bucket_drive and self.data[SERVICE_TYPE] == SERVICE_TYPE_FILE:
-            self.log.critical(f'No s3 bucket drive configured!')
-            return False
-        else:
-            self.data[S3_BUCKET_DIR] = s3_bucket_drive
+        # s3_bucket_drive = self.data.get(S3_BUCKET_DIR)
+        # if not s3_bucket_drive and self.data[SERVICE_TYPE] == SERVICE_TYPE_FILE:
+        #     self.log.critical(f'No s3 bucket drive configured!')
+        #     return False
+        # else:
+        #     self.data[S3_BUCKET_DIR] = s3_bucket_drive
 
 
         retry = self.data.get(RETRIES, 3) #default value is 3

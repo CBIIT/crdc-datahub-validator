@@ -52,19 +52,22 @@ class DataLoader:
                     del rawData['index'] #remove index column
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
+                    node_id = self.get_node_id(type, row)
+                    exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_nodeId(node_id, self.configs[DB])
+                    batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else [self.batch[ID]] + exist_node[BATCH_IDS]
                     dataRecord = {
-                        ID: get_uuid_str(data_common, type),
+                        ID: self.get_record_id(intention, exist_node),
                         SUBMISSION_ID: self.batch[SUBMISSION_ID],
-                        BATCH_IDS: [self.batch[ID]],
+                        BATCH_IDS: batchIds,
                         FILE_STATUS: STATUS_NEW,
-                        ERRORS: [],
-                        WARNINGS: [],
+                        ERRORS: [] if intention == INTENTION_NEW or not exist_node else exist_node[ERRORS],
+                        WARNINGS: [] if intention == INTENTION_NEW or not exist_node else exist_node[WARNINGS],
                         BATCH_CREATED: current_datetime_str(), 
                         UPDATED_AT: current_datetime_str(), 
                         "orginalFileName": os.path.basename(file),
                         "lineNumber": index,
                         "nodeType": type,
-                        "nodeID": self.get_node_id(type, row),
+                        "nodeID": node_id,
                         "props": {k: v for (k, v) in rawData.items() if k in prop_names},
                         "parents": self.get_parents(relation_fields, row),
                         "rawData":  rawData
@@ -92,7 +95,17 @@ class DataLoader:
             returnVal = returnVal and self.mongo_dao.delete_data_records_by_node_ids(deleted_ids, self.configs[DB])             
         return returnVal
     
-    """.
+    """
+    get node id defined in model dict
+    """
+    def get_record_id(self, intention, node):
+        if intention == INTENTION_NEW:
+            return get_uuid_str()
+        else:
+            return node[ID] if node else get_uuid_str()
+
+    
+    """
     get node id defined in model dict
     """
     def get_node_id(self, type, row):

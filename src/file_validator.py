@@ -4,9 +4,10 @@ import json
 import os
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, get_md5
+from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, DB, FILE_STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
-    FILE_NAME, S3_DOWNLOAD_DIR, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, S3_BUCKET_DIR
-from common.utils import cleanup_s3_download_dir, get_exception_msg, current_datetime_str
+    FILE_NAME, S3_DOWNLOAD_DIR, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, BATCH_BUCKET
+from common.utils import cleanup_s3_download_dir, get_exception_msg, current_datetime_str, get_file_md5_size
 
 VISIBILITY_TIMEOUT = 20
 """
@@ -82,8 +83,6 @@ def fileValidate(configs, job_queue, mongo_dao):
                     if extender:
                         extender.stop()
                         extender = None
-                    #cleanup contents in the s3 download dir
-                    cleanup_s3_download_dir(S3_DOWNLOAD_DIR)
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
@@ -110,11 +109,10 @@ class FileValidator:
         self.log = get_logger('File Validator')
         self.mongo_dao = mongo_dao
         self.fileRecord = None
-        self.bucketDir= configs[S3_BUCKET_DIR]
+        self.bucket_name = None
+        self.bucket = None
         self.rootPath = None
-        self.file_errors = {}
-        self.file_warnings = {}
-        self.update_file_list = []
+        self.update_file_list = None
         self.submission = None
 
     def validate(self, fileRecord):
@@ -179,7 +177,14 @@ class FileValidator:
             self.log.error(msg)
             return False
         
+        if not submission.get(BATCH_BUCKET):
+            msg = f'Invalid submission object, no bucket found, {submissionID}!'
+            self.log.error(msg)
+            return False
+        
         self.rootPath= submission["rootPath"]
+        self.bucket_name = submission[BATCH_BUCKET]
+        self.bucket = S3Bucket(self.bucket_name)
         return True
     
     """
@@ -188,21 +193,22 @@ class FileValidator:
     def validate_file(self, fileRecord):
 
         file_info = fileRecord[S3_FILE_INFO]
-        key = os.path.join(self.bucketDir, os.path.join(self.rootPath, f"file/{file_info[FILE_NAME]}"))
+        key = os.path.join(os.path.join(self.rootPath, f"file/{file_info[FILE_NAME]}"))
         org_size = file_info[SIZE]
         org_md5 = file_info[MD5]
         file_name = file_info[FILE_NAME]
 
         try:
             # 1. check if exists
-            if not os.path.isfile(key):
+            if not self.bucket.file_exists_on_s3(key):
                 msg = f'The file does not exist in s3 bucket, {fileRecord[ID]}/{file_name}!'
                 self.log.error(msg)
                 error = {"title": "The file does not exist in s3 bucket", "description": msg}
                 return STATUS_ERROR, error
             
             # 2. check file integrity
-            if org_size != os.path.getsize(key) or org_md5 != get_md5(key):
+            size, md5 = get_file_md5_size(self.bucket_name, key)
+            if org_size != size or org_md5 != md5:
                 msg = f'The file in s3 bucket does not matched with the file record, {fileRecord[ID]}/{file_name}!'
                 self.log.error(msg)
                 error = {"title": "File is not integrity", "description": msg}
@@ -266,8 +272,16 @@ class FileValidator:
     def validate_all_files(self, submissionId):
         errors = []
         missing_count = 0
-        key = os.path.join(self.bucketDir, os.path.join(self.rootPath, f"file/"))
         invalid_ids = []
+        if not self.get_root_path(submissionId):
+            msg = f'Invalid submission object, no rootPath found, {submissionId}!'
+            self.log.error(msg)
+            error = {"title": "Invalid submission", "description": msg}
+            return STATUS_ERROR, [error]
+        key = os.path.join(os.path.join(self.rootPath, f"file/"))
+        # initialize update_file_list
+        if not self.update_file_list: 
+            self.update_file_list = []
         try:
             # get manifest info for the submission
             manifest_info_list = self.mongo_dao.get_files_by_submission(submissionId, self.configs[DB])
@@ -284,12 +298,16 @@ class FileValidator:
             manifest_file_names = [manifest_info[S3_FILE_INFO][FILE_NAME] for manifest_info in manifest_info_list]
 
             # get file objects info in mounted s3 bucket base on key
-            root, dirs, files = next(os.walk(key))
-            for file_name in files:
-                if file_name.startswith('.'):
-                    continue
-                file = os.path.join(key, file_name)
-                if os.path.isfile(file) and file_name not in manifest_file_names:
+            # root, dirs, files = next(os.walk(key))
+            # get file info in the s3 bucket file folder
+            files = self.bucket.bucket.objects.filter(Prefix=key)
+            for file in files:
+                # don't retrieve logs
+                if '/log' in file.key:
+                    break
+                file_name = file.key.split('/')[-1]
+                
+                if file_name not in manifest_file_names:
                     msg = f"File, {file_name}, in s3 bucket is not specified by the manifests in the submission, {submissionId}!"
                     self.log.error(msg)
                     error = {"title": "No file records found for the submission", "description": msg}
@@ -297,8 +315,10 @@ class FileValidator:
                     missing_count += 1
                 else:
                     #2 check integrity of a file
+                    size, md5 = get_file_md5_size(self.bucket_name, file.key)
                     record = next(filter(lambda i: i[S3_FILE_INFO][FILE_NAME] == file_name, manifest_info_list))
-                    if record[S3_FILE_INFO][SIZE] != os.path.getsize(file) or record[S3_FILE_INFO][MD5] != get_md5(file):
+
+                    if record[S3_FILE_INFO][SIZE] != size or record[S3_FILE_INFO][MD5] != md5:
                         msg = f"The file failed integrity checking, {record[ID]}"
                         self.log.error(msg)
                         error = {"title": "Not integrity", "description": msg}
@@ -367,8 +387,9 @@ class FileValidator:
         except Exception as e:
             self.df = None
             self.log.debug(e)
-            self.log.exception(f"Failed get file info from mounted bucket! {get_exception_msg()}!")
-            msg = f"Failed get file info from mounted bucket! {get_exception_msg()}!"
+            msg = f"Failed to validate files! {get_exception_msg()}!"
+            self.log.exception(msg)
+            
             error = {"title": "Exception", "description": msg}
             return STATUS_ERROR, error
         
@@ -412,6 +433,12 @@ class FileValidator:
         else:
             record[FILE_STATUS] = STATUS_PASSED
             record[S3_FILE_INFO][FILE_STATUS] = STATUS_PASSED
+
+    
+        
+
+
+
 
 
 
