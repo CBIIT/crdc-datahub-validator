@@ -6,3 +6,4 @@ requests_aws4auth
 pymongo
 python-dateutil
 pandas
+pytest==7.4.3
