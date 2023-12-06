@@ -195,7 +195,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                ReplaceOne( { "nodeID": m["nodeID"] },  m,  False)
+                ReplaceOne( { "nodeID": m["nodeID"] },  m,  True)
                     for m in list(data_records)
                 ])
             return result.matched_count > 0 
@@ -267,11 +267,27 @@ class MongoDao:
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
-            return False
+            self.log.exception(f"Failed to retrieve data records, {get_exception_msg()}")
+            return None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
-            return False 
+            self.log.exception(f"Failed to retrieve data records, {get_exception_msg()}")
+            return None 
 
-  
+    """
+    retrieve dataRecord nby nodeID
+    """
+    def get_dataRecord_nodeId(self, nodeID, db):
+        db = self.client[db]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            result = file_collection.find_one({"nodeID": nodeID})
+            return result
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to retrieve data record, {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to retrieve data record, {get_exception_msg()}")
+            return None 
