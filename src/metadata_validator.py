@@ -114,7 +114,7 @@ class MetaDataValidator:
 
 
     def validateNode(self, dataRecord, model):
-        self.validate_required_props(dataRecord, model)
+
         return None
 
     def validate_required_props(self, data_record, node_definition):
