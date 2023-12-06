@@ -19,7 +19,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
     batches_processed = 0
     log = get_logger('Metadata Validation Service')
     try:
-        model_store = ModelFactory(configs) 
+        model_store = ModelFactory(configs)
         # dump models to json
         dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
     except Exception as e:
@@ -33,7 +33,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
         try:
             log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
                             f'{batches_processed} batches have been processed so far')
-            
+
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
                 extender = None
@@ -47,12 +47,12 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         scope = data[SUBMISSION_ID]
                         submissionID = data[SUBMISSION_ID]
                         result = validator.validate(submissionID, scope)
-                    
+
                     else:
                         log.error(f'Invalid message: {data}!')
 
                     batches_processed +=1
-                    
+
                 except Exception as e:
                     log.debug(e)
                     log.critical(
@@ -79,7 +79,7 @@ Compose a list of files to be updated and their sizes (metadata or files)
 """
 
 class MetaDataValidator:
-    
+
     def __init__(self, configs, mongo_dao, model_store):
         self.configs = configs
         self.fileList = [] #list of files object {file_name, file_path, file_size, invalid_reason}
@@ -109,12 +109,12 @@ class MetaDataValidator:
         #2. loop through all records and call validateNode
 
         #3. update records
-        
+
         return True
 
-    
+
     def validateNode(self, dataRecord, model):
-        
+
         return None
 
     def validate_required_props(self, data_record, node_definition):
@@ -155,7 +155,7 @@ class MetaDataValidator:
 
     def validate_prop_value(self, dataRecord, model):
         return None
-    
+
     def validate_relationship(self, dataRecord, model):
         return None
 
