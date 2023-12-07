@@ -88,6 +88,11 @@ FILE_SIZE = "file_size"
 S3_DOWNLOAD_DIR = "s3_download"
 # sqs message
 SCOPE = "scope"
+SQS_TYPE = "type"
+TYPE_LOAD = "Load Metadata"
+TYPE_METADATA_VALIDATE = "Validate Metadata"
+TYPE_FILE_VALIDATE = "Validate Single File"
+TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
 
 
 
