@@ -8,7 +8,7 @@ from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, INTENTION_NEW, IDS, SQS_TYPE, TYPE_LOAD,\
-    BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL
+    BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, TIER_CONFIG
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -25,15 +25,15 @@ def essentialValidate(configs, job_queue, mongo_dao):
     batches_processed = 0
     log = get_logger('Essential Validation Service')
     try:
-        model_store = ModelFactory(configs) 
+        model_store = ModelFactory(configs[MODEL_FILE_DIR], configs[TIER_CONFIG]) 
         # dump models to json files
         # dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
-        dump_dict_to_json(model_store.models, f"tmp/data_models_dump.json")
+        dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
         log.debug(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
-    validator = EssentialValidator(configs, mongo_dao, model_store)
+    validator = EssentialValidator(mongo_dao, model_store)
 
     #step 3: run validator as a service
     while True:
@@ -52,7 +52,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     if data.get(SQS_TYPE) == TYPE_LOAD and data.get(BATCH_ID):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         #1 call mongo_dao to get batch by batch_id
-                        batch = mongo_dao.get_batch(data[BATCH_ID], configs[DB])
+                        batch = mongo_dao.get_batch(data[BATCH_ID])
                         if not batch:
                             log.error(f"No batch find for {data[BATCH_ID]}")
                             continue
@@ -61,17 +61,18 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         if result and len(validator.download_file_list) > 0:
                             #3. call mongo_dao to load data
                             data_loader = DataLoader(configs, model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao)
-                            result = data_loader.load_data(validator.download_file_list)
+                            result, errors = data_loader.load_data(validator.download_file_list)
                             if result:
                                 batch[BATCH_STATUS] = BATCH_STATUS_LOADED
                             else:
-                                error = f'Failed to load data into or delete data from database!'
-                                batch[ERRORS] = batch[ERRORS] + [error] if batch[ERRORS] else [error]
+                                error = f'Failed to upsert data into or delete data from database!'
+                                errors.append(error)
+                                batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
                         else:
                             batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
 
                         #4. update batch
-                        result = mongo_dao.update_batch( batch, configs[DB])
+                        result = mongo_dao.update_batch(batch)
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -107,8 +108,7 @@ When metadata intention is "New", all IDs must not exist in the database or curr
 """
 class EssentialValidator:
     
-    def __init__(self, configs, mongo_dao, model_store):
-        self.configs = configs
+    def __init__(self, mongo_dao, model_store):
         self.fileList = [] #list of files object {file_name, file_path, file_size, invalid_reason}
         self.log = get_logger('Essential Validator')
         self.mongo_dao = mongo_dao
@@ -163,7 +163,7 @@ class EssentialValidator:
             self.file_info_list = file_info_list
             self.batch = batch
             # get data common from submission
-            submission = self.mongo_dao.get_submission(batch.get("submissionID"), self.configs[DB])
+            submission = self.mongo_dao.get_submission(batch.get("submissionID"))
             if not submission or not submission.get(DATA_COMMON_NAME):
                 msg = f'Invalid batch, no datacommon found, {batch[ID]}!'
                 self.log.error(msg)
@@ -241,12 +241,12 @@ class EssentialValidator:
             type = self.df[TYPE][0]
 
             # get id data fields for the type, the domain for mvp2/m3 is cds.
-            id_field = next(id["key"] for id in self.model[IDS] if id[NODE_LABEL] == type)
+            id_field = self.model_store.get_node_id(self.model, type)
             if not id_field: return True
             # extract ids from df.
             ids = self.df[id_field].tolist()  
             # query db.         
-            if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id, self.configs[DB]):
+            if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
                 msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)

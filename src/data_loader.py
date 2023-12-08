@@ -3,9 +3,9 @@ import os
 import pandas as pd
 from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime_str, get_exception_msg
-from common.constants import MODEL, IDS, TYPE, ID, SUBMISSION_ID, BATCH_ID, FILE_STATUS, STATUS_NEW, \
-    ERRORS, WARNINGS, BATCH_CREATED, UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, FILE_SIZE, \
-    MD5, DB, DATA_COMMON, NODE_LABEL, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE
+from common.constants import MODEL, ID_PROPERTY, TYPE, ID, SUBMISSION_ID, FILE_STATUS, STATUS_NEW, \
+    ERRORS, WARNINGS, BATCH_CREATED, UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
+    MD5, NODES_LABEL, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, NODES_LABEL
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -20,13 +20,14 @@ class DataLoader:
         self.mongo_dao =mongo_dao
         self.batch = batch
         self.file_nodes = model[MODEL].get("file-nodes", {})
+        self.errors = None
 
     """
     param: file_path_list downloaded from s3 bucket
     """
     def load_data(self, file_path_list):
         returnVal = True
-        data_common = self.model[MODEL][DATA_COMMON]
+        self.errors = []
         intention = self.batch.get(BATCH_INTENTION, STATUS_NEW)
         file_types = None if intention == INTENTION_DELETE else [k for (k,v) in self.file_nodes.items()]
         deleted_ids = [] if intention == INTENTION_DELETE else None
@@ -35,6 +36,7 @@ class DataLoader:
             failed_at = 1
             # 1. read file to dataframe
             if not os.path.isfile(file):
+                self.errors.append(f"File does not exist, {file}")
                 continue
             try:
                 df = pd.read_csv(file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
@@ -45,7 +47,7 @@ class DataLoader:
                     
                     type = row[TYPE]
                     if intention == INTENTION_DELETE:
-                        deleted_ids.append(self.get_node_id(type, row))
+                        deleted_ids.append({"nodeID": self.get_node_id(type, row), "nodeType": type})
                         continue
                     # 2. construct dataRecord
                     rawData = df.loc[index].to_dict()
@@ -53,7 +55,7 @@ class DataLoader:
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
                     node_id = self.get_node_id(type, row)
-                    exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_nodeId(node_id, self.configs[DB])
+                    exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_nodeId(node_id)
                     batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else [self.batch[ID]] + exist_node[BATCH_IDS]
                     dataRecord = {
                         ID: self.get_record_id(intention, exist_node),
@@ -79,21 +81,21 @@ class DataLoader:
 
                 # 3-1. insert data in a tsv file into mongo DB
                 if intention == INTENTION_NEW:
-                    returnVal = returnVal and self.mongo_dao.insert_data_records(records, self.configs[DB])
+                    returnVal = returnVal and self.mongo_dao.insert_data_records(records)
                 elif intention == INTENTION_UPDATE:
-                    returnVal = returnVal and self.mongo_dao.update_data_records(records, self.configs[DB])
+                    returnVal = returnVal and self.mongo_dao.update_data_records(records)
                 
             except Exception as e:
                     df = None
                     self.log.debug(e)
                     msg = f"Failed to load data in file, {file} at {failed_at + 1}! {get_exception_msg()}."
                     self.log.exception(msg)
-                    self.batch[ERRORS].append(msg) if self.batch[ERRORS] else [msg]
-                    return False
+                    self.errors.append(msg)
+                    return False, self.errors
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:
-            returnVal = returnVal and self.mongo_dao.delete_data_records_by_node_ids(deleted_ids, self.configs[DB])             
-        return returnVal
+            returnVal = returnVal and self.mongo_dao.delete_data_records(deleted_ids)             
+        return returnVal, self.errors
     
     """
     get node id defined in model dict
@@ -109,7 +111,7 @@ class DataLoader:
     get node id defined in model dict
     """
     def get_node_id(self, type, row):
-        id_field = next(id["key"] for id in self.model[IDS] if id[NODE_LABEL] == type)
+        id_field = self.model[MODEL][NODES_LABEL][type].get(ID_PROPERTY, None)
         return row[id_field] if id_field else None
     
     """
@@ -141,6 +143,3 @@ class DataLoader:
             BATCH_CREATED: current_datetime_str(), 
             UPDATED_AT: current_datetime_str(), 
         }
-    
-    def delete_data(self, ids):
-        return True
