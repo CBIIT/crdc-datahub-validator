@@ -63,7 +63,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                                 batch[BATCH_STATUS] = BATCH_STATUS_LOADED
                             else:
                                 error = f'Failed to load data into or delete data from database!'
-                                batch[ERRORS] = batch[ERRORS].append(error) if batch[ERRORS] else [error]
+                                batch[ERRORS] = batch[ERRORS] + [error] if batch[ERRORS] else [error]
                         else:
                             batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
 

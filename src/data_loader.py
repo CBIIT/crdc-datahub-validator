@@ -88,7 +88,7 @@ class DataLoader:
                     self.log.debug(e)
                     msg = f"Failed to load data in file, {file} at {failed_at + 1}! {get_exception_msg()}."
                     self.log.exception(msg)
-                    self.batch[ERRORS] = self.batch[ERRORS].append(msg) if self.batch[ERRORS] else [msg]
+                    self.batch[ERRORS].append(msg) if self.batch[ERRORS] else [msg]
                     return False
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:

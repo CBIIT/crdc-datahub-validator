@@ -9,8 +9,8 @@ from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import DB, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
     ERRORS, SQS_NAME, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
-    STATUS_WARNING, STATUS_PASSED, FILE_STATUS, ERROR, PASSED
-from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
+    STATUS_WARNING, STATUS_PASSED, FILE_STATUS, UPDATED_AT
+from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
 
@@ -104,7 +104,7 @@ class MetaDataValidator:
             msg = f'Invalid submission, no datacommon found, {submissionID}!'
             self.log.error(msg)
             error = {"title": "Invalid submission", "description": msg}
-            submission[ERRORS] = submission[ERRORS].append({error})
+            submission[ERRORS] = submission[ERRORS] + [error]
             return False
         self.submission = submission
         self.datacommon = submission.get(DATA_COMMON_NAME)
@@ -115,39 +115,65 @@ class MetaDataValidator:
             msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
             error = {"title": "Invalid submission", "description": msg}
-            submission[ERRORS] = submission[ERRORS].append({error})
+            submission[ERRORS] = submission[ERRORS] + [error]
             return False
         #2. loop through all records and call validateNode
+        updated_records = []
         try:
             for record in dataRecords:
-                status, errors, warnings = self.validateNode(record, model)
+                status, errors, warnings = self.validate_node(record, model)
                 # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
-                    record[ERRORS] = record[ERRORS].append(errors) if record.get(ERRORS) else errors
+                    record[ERRORS] = record[ERRORS] + errors if record.get(ERRORS) else errors
                 if warnings and len(warnings)> 0: 
-                    record[WARNINGS] = record[WARNINGS].append(errors) if record.get(WARNINGS) else warnings
+                    record[WARNINGS] = record[WARNINGS] + warnings if record.get(WARNINGS) else warnings
                 record[FILE_STATUS] = status
+                record[UPDATED_AT] = current_datetime_str()
+                updated_records.append(record)
         except Exception as e:
             self.log.debug(e)
             msg = f'Failed to validate dataRecords for the submission, {submissionID} at scope, {scope}!'
             self.log.exception(msg)
             error = {"title": "Failed to validate dataRecords", "description": msg}
-            submission[ERRORS] = submission[ERRORS].append({error})
-        #3. update data records
-        result = self.mongo_dao.update_files(dataRecords, self.configs[DB])
+            submission[ERRORS].append(error)
+        #3. update data records based on record's _id
+        result = self.mongo_dao.update_files(updated_records, self.configs[DB])
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
             error = {"title": "Failed to update dataRecords", "description": msg}
-            submission[ERRORS] = submission[ERRORS].append({error})
+            submission[ERRORS].append(error)
 
         return result
 
-    
-    def validateNode(self, dataRecord, model):
-        
-        return STATUS_PASSED, None, None
+    def validate_node(self, dataRecord, model):
+        # set default return values
+        result = STATUS_PASSED
+        errors = []
+        warnings = []
+
+        # call validate_required_props
+        result_required= self.validate_required_props(dataRecord, model)
+        # call validate_prop_value
+        result_prop_value = self.validate_prop_value(dataRecord, model)
+        # call validate_relationship
+        result_rel = self.validate_relationship(dataRecord, model)
+
+        # concatenation of all errors
+        errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
+        # concatenation of all warnings
+        warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
+        # if there are any errors set the result to "Error"
+        if len(errors) > 0:
+            result = STATUS_ERROR
+            return result, errors, warnings
+        # if there are no errors but warnings,  set the result to "Warning"
+        if len(warnings) > 0:
+            result = STATUS_WARNING
+            return result, errors, warnings
+        #  if there are neither errors nor warnings, return default values
+        return result, errors, warnings
     
     def validate_required_props(self, data_record, node_definition):
         result = {"result": ERROR, "errors": [], "warnings": []}
@@ -186,9 +212,17 @@ class MetaDataValidator:
         return result
     
     def validate_prop_value(self, dataRecord, model):
-        return None
+        # set default return values
+        errors = []
+        warnings = []
+        result = STATUS_PASSED
+        return {"result": result, ERRORS: errors, WARNINGS: warnings}
     
     def validate_relationship(self, dataRecord, model):
-        return None
+        # set default return values
+        errors = []
+        warnings = []
+        result = STATUS_PASSED
+        return {"result": result, ERRORS: errors, WARNINGS: warnings}
 
 

@@ -418,16 +418,16 @@ class FileValidator:
         record[UPDATED_AT] = record[S3_FILE_INFO][UPDATED_AT] = current_datetime_str()
         if status == STATUS_ERROR:
             record[FILE_STATUS] = STATUS_ERROR
-            record[ERRORS] = record[ERRORS].append(error) if record[ERRORS] and isinstance(record[ERRORS], list) else [error]
+            record[ERRORS] = record[ERRORS] + [error] if record[ERRORS] and isinstance(record[ERRORS], list) else [error]
             record[S3_FILE_INFO][FILE_STATUS] = STATUS_ERROR
-            record[S3_FILE_INFO][ERRORS] = record[S3_FILE_INFO][ERRORS].append(error) if record[S3_FILE_INFO][ERRORS] \
+            record[S3_FILE_INFO][ERRORS] = record[S3_FILE_INFO][ERRORS] + [error] if record[S3_FILE_INFO][ERRORS] \
                 and isinstance(record[S3_FILE_INFO][ERRORS], list) else [error]
             
         elif status == STATUS_WARNING: 
             record[FILE_STATUS] = STATUS_WARNING
-            record[WARNINGS] = record[WARNINGS].append(error) if record[WARNINGS] and isinstance(record[WARNINGS], list) else [error]
+            record[WARNINGS] = record[WARNINGS] + [error] if record[WARNINGS] and isinstance(record[WARNINGS], list) else [error]
             record[S3_FILE_INFO][FILE_STATUS] = STATUS_WARNING
-            record[S3_FILE_INFO][WARNINGS] = record[S3_FILE_INFO][WARNINGS].append(error) if record[S3_FILE_INFO][WARNINGS] \
+            record[S3_FILE_INFO][WARNINGS] = record[S3_FILE_INFO][WARNINGS] + [error] if record[S3_FILE_INFO][WARNINGS] \
                 and isinstance(record[S3_FILE_INFO][WARNINGS], list) else [error]
             
         else:
