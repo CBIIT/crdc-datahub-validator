@@ -48,7 +48,7 @@ class ModelFactory:
         model = self.get_model_by_data_common(data_common)
         return model[IDS] if model else None
     
-    def get_node_id(self, data_common, node):  
-        ids = self.get_model_ids_by_data_common(data_common)
-        result = next((x for x in ids if x['node'] == node), None)
-        return result["key"] if result else None
+    # def get_node_id(self, data_common, node):  
+    #     ids = self.get_model_ids_by_data_common(data_common)
+    #     result = next((x for x in ids if x['node'] == node), None)
+    #     return result["key"] if result else None

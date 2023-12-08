@@ -7,8 +7,8 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, \
-    BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, STATUS_NEW, FILE_PREFIX, BATCH_INTENTION
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, INTENTION_NEW, IDS, SQS_TYPE, TYPE_LOAD,\
+    BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -49,10 +49,13 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     data = json.loads(msg.body)
                     log.debug(data)
                     # Make sure job is in correct format
-                    if data.get(BATCH_ID):
+                    if data.get(SQS_TYPE) == TYPE_LOAD and data.get(BATCH_ID):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         #1 call mongo_dao to get batch by batch_id
                         batch = mongo_dao.get_batch(data[BATCH_ID], configs[DB])
+                        if not batch:
+                            log.error(f"No batch find for {data[BATCH_ID]}")
+                            continue
                         #2. validate batch and files.
                         result = validator.validate(batch)
                         if result and len(validator.download_file_list) > 0:
@@ -111,11 +114,11 @@ class EssentialValidator:
         self.mongo_dao = mongo_dao
         self.model_store = model_store
         self.datacommon = None
+        self.model = None
         self.submission_id = None
         self.download_file_list = None
 
     def validate(self,batch):
-
         self.bucket = S3Bucket(batch.get("bucketName"))
 
         if not self.validate_batch(batch):
@@ -167,6 +170,7 @@ class EssentialValidator:
                 batch[ERRORS].append(msg)
                 return False
             self.datacommon = submission.get(DATA_COMMON_NAME)
+            self.model = self.model_store.get_model_by_data_common(self.datacommon)
             self.submission_id  = submission[ID]
             self.download_file_list = []
             return True
@@ -231,13 +235,13 @@ class EssentialValidator:
             return False
         
         # When metadata intention is "New", all IDs must not exist in the database
-        if self.batch[BATCH_INTENTION] == STATUS_NEW:
+        if self.batch[BATCH_INTENTION] == INTENTION_NEW:
             # verify if ids in the df in the mongo db.
             # get node type
             type = self.df[TYPE][0]
 
             # get id data fields for the type, the domain for mvp2/m3 is cds.
-            id_field = self.model_store.get_node_id(self.datacommon , type)
+            id_field = next(id["key"] for id in self.model[IDS] if id[NODE_LABEL] == type)
             if not id_field: return True
             # extract ids from df.
             ids = self.df[id_field].tolist()  
