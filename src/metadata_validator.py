@@ -13,6 +13,7 @@ from common.constants import DB, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, 
 from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
+from common.error_messages import FAILED_VALIDATE_RECORDS
 
 VISIBILITY_TIMEOUT = 20
 
@@ -176,39 +177,38 @@ class MetaDataValidator:
         return result, errors, warnings
     
     def validate_required_props(self, data_record, node_definition):
-        result = {"result": ERROR, "errors": [], "warnings": []}
+        result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         # check the correct format from the node_definition
-        if "model" not in node_definition.keys() or "nodes" not in node_definition["model"].keys():
-            result["errors"].append(f"node definition is not correctly formatted.")
+        if MODEL not in node_definition.keys() or "nodes" not in node_definition[MODEL].keys():
+            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "node definition is not correctly formatted."))
             return result
         # check the correct format from the data_record
         if "nodeType" not in data_record.keys() or "rawData" not in data_record.keys() or len(data_record["rawData"].items()) == 0:
-            result["errors"].append(f"data record is not correctly formatted.")
+            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
             return result
 
         # validation start
-        nodes = node_definition["model"]["nodes"]
+        nodes = node_definition[MODEL]["nodes"]
         node_type = data_record["nodeType"]
         # extract a node from the data record
         if node_type not in nodes.keys():
-            result["errors"].append(f"Required node '{node_type}' does not exist.")
+            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required node '{node_type}' does not exist."))
             return result
 
         anode = nodes[node_type]
-        if node_type in nodes.keys():
-            for key, value in data_record["rawData"].items():
-                anode_keys = anode.keys()
-                if "properties" not in anode_keys:
-                    result["errors"].append(f"data record is not correctly formatted.")
-                    break
+        for key, value in data_record["rawData"].items():
+            anode_keys = anode.keys()
+            if "properties" not in anode_keys:
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
+                break
 
-                key_not_exist = key not in anode["properties"]
-                value_invalid = not value.strip()
-                if key_not_exist or value_invalid:
-                    result["errors"].append(f"Required property '{key}' is missing or empty.")
+            key_not_exist = key not in anode["properties"]
+            value_invalid = not value.strip()
+            if key_not_exist or value_invalid:
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required property '{key}' is missing or empty."))
 
-        if len(result["errors"]) == 0:
-            result["result"] = PASSED
+        if len(result[ERRORS]) == 0:
+            result["result"] = STATUS_PASSED
         return result
     
     def validate_prop_value(self, dataRecord, model):
@@ -225,4 +225,7 @@ class MetaDataValidator:
         result = STATUS_PASSED
         return {"result": result, ERRORS: errors, WARNINGS: warnings}
 
+
+def create_error(title, msg):
+    return {"title": title, "description": msg}
 
