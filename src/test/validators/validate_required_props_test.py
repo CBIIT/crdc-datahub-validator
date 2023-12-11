@@ -108,11 +108,19 @@ def validator():
      [{"title": FAILED_VALIDATE_RECORDS, "description": "Required property 'program_id' is missing or empty."}],
      STATUS_ERROR),
 
-    # Test case 17: multiple values can be empty and throw an error
-    ({"nodeType": "program", "props": {"test_id": None, "program_id": "test"}},
+    # Test case 18: integer value is not allowed
+    ({"nodeType": "program", "props": {"test_id": 123456789, "program_id": "test"}},
      {"model": {
          "nodes": {"program": {"properties": {"test_id": {"required": True}, "program_id": {"required": True}}}}}},
      [{"title": FAILED_VALIDATE_RECORDS, "description": "Required property 'test_id' is missing or empty."}],
+     STATUS_ERROR),
+
+    # Test case 19: None type is invalid
+    ({"nodeType": "program", "props": {"test_id": None, "program_id": None}},
+     {"model": {
+         "nodes": {"program": {"properties": {"test_id": {"required": True}, "program_id": {"required": True}}}}}},
+     [{"title": FAILED_VALIDATE_RECORDS, "description": "Required property 'test_id' is missing or empty."},
+      {"title": FAILED_VALIDATE_RECORDS, "description": "Required property 'program_id' is missing or empty."}],
      STATUS_ERROR),
 
 ])
