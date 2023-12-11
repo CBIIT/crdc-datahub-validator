@@ -178,10 +178,6 @@ class MetaDataValidator:
     
     def validate_required_props(self, data_record, node_definition):
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
-        # check the correct format from the node_definition
-        if MODEL not in node_definition.keys() or "nodes" not in node_definition[MODEL].keys():
-            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "node definition is not correctly formatted."))
-            return result
         # check the correct format from the data_record
         if "nodeType" not in data_record.keys() or "props" not in data_record.keys() or len(data_record["props"].items()) == 0:
             result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
@@ -204,7 +200,7 @@ class MetaDataValidator:
 
             # check missing required key and empty value
             if key in anode["properties"].keys() and anode["properties"][key]["required"]:
-                if value.strip():
+                if value is not None and value.strip():
                     continue
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required property '{key}' is missing or empty."))
 

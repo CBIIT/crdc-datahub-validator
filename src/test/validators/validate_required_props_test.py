@@ -108,6 +108,13 @@ def validator():
      [{"title": FAILED_VALIDATE_RECORDS, "description": "Required property 'program_id' is missing or empty."}],
      STATUS_ERROR),
 
+    # Test case 17: multiple values can be empty and throw an error
+    ({"nodeType": "program", "props": {"test_id": None, "program_id": "test"}},
+     {"model": {
+         "nodes": {"program": {"properties": {"test_id": {"required": True}, "program_id": {"required": True}}}}}},
+     [{"title": FAILED_VALIDATE_RECORDS, "description": "Required property 'test_id' is missing or empty."}],
+     STATUS_ERROR),
+
 ])
 def test_validate_required_props(validator, data_record, node_definition, expected_errors, expected_result):
     result = validator.validate_required_props(data_record, node_definition)
