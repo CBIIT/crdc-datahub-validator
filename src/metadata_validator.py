@@ -183,12 +183,12 @@ class MetaDataValidator:
             result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "node definition is not correctly formatted."))
             return result
         # check the correct format from the data_record
-        if "nodeType" not in data_record.keys() or "rawData" not in data_record.keys() or len(data_record["rawData"].items()) == 0:
+        if "nodeType" not in data_record.keys() or "props" not in data_record.keys() or len(data_record["props"].items()) == 0:
             result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
             return result
 
         # validation start
-        nodes = node_definition[MODEL]["nodes"]
+        nodes = node_definition[MODEL].get("nodes", {})
         node_type = data_record["nodeType"]
         # extract a node from the data record
         if node_type not in nodes.keys():
@@ -196,15 +196,16 @@ class MetaDataValidator:
             return result
 
         anode = nodes[node_type]
-        for key, value in data_record["rawData"].items():
+        for key, value in data_record["props"].items():
             anode_keys = anode.keys()
             if "properties" not in anode_keys:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
                 break
 
-            key_not_exist = key not in anode["properties"]
-            value_invalid = not value.strip()
-            if key_not_exist or value_invalid:
+            # check missing required key and empty value
+            if key in anode["properties"].keys() and anode["properties"][key]["required"]:
+                if value.strip():
+                    continue
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required property '{key}' is missing or empty."))
 
         if len(result[ERRORS]) == 0:
