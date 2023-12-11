@@ -60,6 +60,8 @@ NODE_ID = "nodeID"
 NODE_TYPE = "nodeType"
 S3_BUCKET_DIR = "s3_bucket_drive"
 FILE_ERRORS = "fileErrors"
+PROPERTIES = "props"
+
 
 #data model
 DATA_COMMON = "data_commons"
@@ -85,6 +87,17 @@ TIER = "DEV_TIER"
 TIER_CONFIG = "tier"
 UPDATED_AT = "updatedAt"
 FILE_SIZE = "file_size"
+MIN = 'minimum'
+MAX = 'maximum'
+VALID_PROP_TYPE_LIST = [
+    "string", # default type
+    "integer",
+    "number", # float or double
+    "datetime",
+    "date",
+    "boolean", # true/false or yes/no
+    "array" # value_type: list
+]
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
@@ -95,6 +108,8 @@ TYPE_LOAD = "Load Metadata"
 TYPE_METADATA_VALIDATE = "Validate Metadata"
 TYPE_FILE_VALIDATE = "Validate Single File"
 TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
+
+
 
 
 
