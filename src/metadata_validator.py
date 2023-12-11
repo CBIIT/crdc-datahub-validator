@@ -8,7 +8,9 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
-    STATUS_WARNING, STATUS_PASSED, FILE_STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME
+    STATUS_WARNING, STATUS_PASSED, FILE_STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALID_PROP_TYPE_LIST
+    
 from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -183,11 +185,24 @@ class MetaDataValidator:
         result = STATUS_PASSED
         return {"result": result, ERRORS: errors, WARNINGS: warnings}
     
-    def validate_prop_value(self, dataRecord, model):
+    def validate_props(self, dataRecord, model):
         # set default return values
         errors = []
         warnings = []
         result = STATUS_PASSED
+        props_def = self.model_store.get_node_props(model, dataRecord.get(NODE_TYPE))
+        props = dataRecord.get(PROPERTIES)
+        for k, v in props.items():
+            prop_def = props.get(k, None)
+            if not prop_def: 
+                errors.append(f"The property, {k}, is not defined in model!")
+                continue
+            else:
+                if v == None:
+                    continue
+            
+            self.validate_prop_value(v, prop_def)
+
         return {"result": result, ERRORS: errors, WARNINGS: warnings}
     
     def validate_relationship(self, dataRecord, model):
@@ -196,3 +211,39 @@ class MetaDataValidator:
         warnings = []
         result = STATUS_PASSED
         return {"result": result, ERRORS: errors, WARNINGS: warnings}
+    
+    def validate_prop_value(self, value, prop_def):
+        # set default return values
+        errors = []
+        warnings = []
+        result = STATUS_PASSED
+
+        type = prop_def.get(TYPE, None)
+        if not type or not type in VALID_PROP_TYPE_LIST:
+            errors.append(f"Invalid property type, {type}!")
+        else:
+            if type == "string":
+                val = str(value)
+                if permissive_vals and val not in permissive_vals:
+                    errors.append(f"The value, {val} is not permitted!")
+            elif type ==  "integer":
+                try:
+                    val = int(value)
+                except ValueError as e:
+                    errors.append(f"Can't cast the value, {value}, to integer!")
+            elif type ==  "number":
+                try:
+                    val = int(value)
+                except ValueError as e:
+                    errors.append(f"Can't cast the value, {value}, to integer!")
+            
+
+
+        permissive_vals = prop_def.get("permissible_values", None)
+        minimum = prop_def.get(MIN, None)
+        maximum = prop_def.get(MAX, None)
+
+
+
+
+        return errors,warnings
