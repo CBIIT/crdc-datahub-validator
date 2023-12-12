@@ -210,9 +210,8 @@ class MetaDataValidator:
 
             # check missing required key and empty value
             if anode_definition["properties"][data_key]["required"]:
-                if isinstance(data_value, str) and data_value.strip():
-                    continue
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required property '{data_key}' is missing or empty."))
+                if data_value is None or (isinstance(data_value, str) and not data_value.strip()):
+                    result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required property '{data_key}' is missing or empty."))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING

@@ -242,9 +242,9 @@ def validator():
      [{"title": FAILED_VALIDATE_RECORDS, 'description': "ID/Key property is missing or empty in the data-record."}],
      # Warnings
      [], STATUS_ERROR),
-    # 
-    # # Test case 15: integer value is not allowed
-    ({"nodeType": "program", "props": {"test_id": 123456789, "program_id": "test"}},
+
+    # Test case 15: null value is not allowed
+    ({"nodeType": "program", "props": {"test_id": None, "program_id": "test"}},
      {"model": {
          "nodes": {
              "program": {
@@ -252,7 +252,6 @@ def validator():
                  "properties": {
                      "test_id": {"required": True},
                      "program_id": {"required": True}
-                     # "program_id": {"required": False}
                  }
              }
          }
@@ -262,7 +261,7 @@ def validator():
      # Warnings
      [], STATUS_ERROR),
 
-    # Test case 19: id property key none not allowed
+    # Test case 16: id property key none not allowed
     ({"nodeType": "program", "props": {"test_id": None, "program_id": None}},
      {"model": {
          "nodes": {
@@ -271,7 +270,6 @@ def validator():
                  "properties": {
                      "test_id": {"required": True},
                      "program_id": {"required": True}
-                     # "program_id": {"required": False}
                  }
              }
          }
@@ -282,6 +280,77 @@ def validator():
       {"title": FAILED_VALIDATE_RECORDS, 'description': "Required property 'program_id' is missing or empty."}],
      # Warnings
      [], STATUS_ERROR),
+
+    # Test case 17: integer values is allowed
+    ({"nodeType": "program", "props": {"test_id": 1111, "program_id": "test"}},
+     {"model": {
+         "nodes": {
+             "program": {
+                 "id_property": "program_id",
+                 "properties": {
+                     "test_id": {"required": True},
+                     "program_id": {"required": True}
+                 }
+             }
+         }
+     }},
+     # Errors
+     [],
+     # Warnings
+     [], STATUS_PASSED),
+
+    # Test case 18: integer is allowed and not required
+    ({"nodeType": "program", "props": {"test_id": 1111, "program_id": "test"}},
+     {"model": {
+         "nodes": {
+             "program": {
+                 "id_property": "program_id",
+                 "properties": {
+                     "test_id": {"required": False},
+                     "program_id": {"required": True}
+                 }
+             }
+         }
+     }},
+     # Errors
+     [],
+     # Warnings
+     [], STATUS_PASSED),
+    # Test case 19: boolean is allowed
+    ({"nodeType": "program", "props": {"test_id": True, "program_id": "test"}},
+     {"model": {
+         "nodes": {
+             "program": {
+                 "id_property": "program_id",
+                 "properties": {
+                     "test_id": {"required": True},
+                     "program_id": {"required": True}
+                 }
+             }
+         }
+     }},
+     # Errors
+     [],
+     # Warnings
+     [], STATUS_PASSED),
+    # Test case 20: invalid values in the properties; value is boolean
+    ({"nodeType": "program", "props": {"test_id": False, "program_id": None}},
+     {"model": {
+         "nodes": {
+             "program": {
+                 "id_property": "program_id",
+                 "properties": {
+                     "test_id": {"required": True},
+                     "program_id": {"required": True}
+                 }
+             }
+         }
+     }},
+     # Errors
+     [{"title": FAILED_VALIDATE_RECORDS, 'description': "ID/Key property is missing or empty in the data-record."},
+      {"title": FAILED_VALIDATE_RECORDS, 'description': "Required property 'program_id' is missing or empty."}],
+     # Warnings
+     [], STATUS_ERROR)
 ])
 def test_validate_required_props(validator, data_record, node_definition, expected_errors, expected_warnings,
                                  expected_result):
