@@ -3,13 +3,14 @@
 import pandas as pd
 import json
 import os
+from datetime import datetime
 from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
     STATUS_WARNING, STATUS_PASSED, FILE_STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALID_PROP_TYPE_LIST
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALID_PROP_TYPE_LIST, VALIDATION_RESULT
     
 from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
@@ -152,14 +153,13 @@ class MetaDataValidator:
 
     def validate_node(self, dataRecord, model):
         # set default return values
-        result = STATUS_PASSED
         errors = []
         warnings = []
 
         # call validate_required_props
         result_required= self.validate_required_props(dataRecord, model)
         # call validate_prop_value
-        result_prop_value = self.validate_prop_value(dataRecord, model)
+        result_prop_value = self.validate_props(dataRecord, model)
         # call validate_relationship
         result_rel = self.validate_relationship(dataRecord, model)
 
@@ -169,31 +169,27 @@ class MetaDataValidator:
         warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, []) 
         # if there are any errors set the result to "Error"
         if len(errors) > 0:
-            result = STATUS_ERROR
-            return result, errors, warnings
+            return STATUS_ERROR, errors, warnings
         # if there are no errors but warnings,  set the result to "Warning"
         if len(warnings) > 0:
-            result = STATUS_WARNING
-            return result, errors, warnings
+            return STATUS_WARNING, errors, warnings
         #  if there are neither errors nor warnings, return default values
-        return result, errors, warnings
+        return STATUS_PASSED, errors, warnings
     
     def validate_required_props(self, dataRecord, model):
         # set default return values
         errors = []
         warnings = []
         result = STATUS_PASSED
-        return {"result": result, ERRORS: errors, WARNINGS: warnings}
+        return {VALIDATION_RESULT: result, ERRORS: errors, WARNINGS: warnings}
     
     def validate_props(self, dataRecord, model):
         # set default return values
         errors = []
-        warnings = []
-        result = STATUS_PASSED
         props_def = self.model_store.get_node_props(model, dataRecord.get(NODE_TYPE))
         props = dataRecord.get(PROPERTIES)
         for k, v in props.items():
-            prop_def = props.get(k, None)
+            prop_def = props_def.get(k)
             if not prop_def: 
                 errors.append(f"The property, {k}, is not defined in model!")
                 continue
@@ -201,49 +197,97 @@ class MetaDataValidator:
                 if v == None:
                     continue
             
-            self.validate_prop_value(v, prop_def)
+            errs = self.validate_prop_value(v, prop_def)
+            if len(errs) > 0:
+                errors.extend(errs)
 
-        return {"result": result, ERRORS: errors, WARNINGS: warnings}
+        return {VALIDATION_RESULT: STATUS_ERROR if len(errors) > 0 else STATUS_PASSED, ERRORS: errors, WARNINGS: []}
     
     def validate_relationship(self, dataRecord, model):
         # set default return values
         errors = []
         warnings = []
         result = STATUS_PASSED
-        return {"result": result, ERRORS: errors, WARNINGS: warnings}
+        return {VALIDATION_RESULT: result, ERRORS: errors, WARNINGS: warnings}
     
     def validate_prop_value(self, value, prop_def):
         # set default return values
         errors = []
-        warnings = []
-        result = STATUS_PASSED
-
-        type = prop_def.get(TYPE, None)
+        type = prop_def.get(TYPE)
         if not type or not type in VALID_PROP_TYPE_LIST:
             errors.append(f"Invalid property type, {type}!")
         else:
+            permissive_vals = prop_def.get("permissible_values")
+            minimum = prop_def.get(MIN)
+            maximum = prop_def.get(MAX)
             if type == "string":
                 val = str(value)
-                if permissive_vals and val not in permissive_vals:
-                    errors.append(f"The value, {val} is not permitted!")
+                result, error = check_permissive(val, permissive_vals)
+                if not result:
+                    errors.append(error)
             elif type ==  "integer":
                 try:
                     val = int(value)
                 except ValueError as e:
-                    errors.append(f"Can't cast the value, {value}, to integer!")
+                    errors.append(f"The value, {value}, is not an integer!")
+
+                result, error = check_permissive(val, permissive_vals)
+                if not result:
+                    errors.append(error)
+
+                errs = check_boundary(val, minimum, maximum)
+                if len(errs) > 0:
+                    errors.extend(errs)
+
             elif type ==  "number":
                 try:
-                    val = int(value)
+                    val = float(value)
                 except ValueError as e:
-                    errors.append(f"Can't cast the value, {value}, to integer!")
+                    errors.append(f"The value, {value}, is not a number!")
+
+                result, error = check_permissive(val, permissive_vals)
+                if not result:
+                    errors.append(error)
+
+                errs = check_boundary(val, minimum, maximum)
+                if len(errs) > 0:
+                    errors.extend(errs)
+
+            elif type ==  "datetime" or type ==  "date":
+                try:
+                    val = datetime.strptime(value, '%m/%d/%y %H:%M:%S')
+                except ValueError as e:
+                    errors.append(f"The value, {value}, is neither a datetime nor date!")
+
+            elif type ==  "boolean":
+                try:
+                    val = bool(value)
+                except ValueError as e:
+                    errors.append(f"The value, {value}, is not a boolean!")
             
+            elif type ==  "array":
+                try:
+                    val = list(value)
+                except ValueError as e:
+                    errors.append(f"The value, {value}, is not a list!")
+            else:
+                errors.append(f"Invalid data type, {type}!")
 
+        return errors
+    
+"""util functions"""
+def check_permissive(value, permissive_vals):
+    result = True,
+    error = None
+    if permissive_vals and len(permissive_vals) and value not in permissive_vals:
+       result = False
+       error = f"The value, {value} is not allowed!"
+    return result, error
 
-        permissive_vals = prop_def.get("permissible_values", None)
-        minimum = prop_def.get(MIN, None)
-        maximum = prop_def.get(MAX, None)
-
-
-
-
-        return errors,warnings
+def check_boundary(value, min, max):
+    errors = []
+    if min and value < min:
+        errors.append(f"The value is less than minimum, {value} < {min}!")
+    if max and value > max:
+        errors.append(f"The value is more than maximum, {value} > {min}!")
+    return errors

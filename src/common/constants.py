@@ -98,6 +98,7 @@ VALID_PROP_TYPE_LIST = [
     "boolean", # true/false or yes/no
     "array" # value_type: list
 ]
+VALIDATION_RESULT = "result"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
