@@ -196,15 +196,22 @@ class MetaDataValidator:
             anode_keys = anode.keys()
             if "properties" not in anode_keys:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
-                break
+                continue
+
+            if data_key not in anode_definition["properties"].keys():
+                result[WARNINGS].append(create_error(FAILED_VALIDATE_RECORDS, f"data record key '{data_key}' does not exist in the node-definition."))
+                continue
 
             # check missing required key and empty value
-            if key in anode["properties"].keys() and anode["properties"][key]["required"]:
-                if isinstance(value, str) and value.strip():
+            if anode_definition["properties"][data_key]["required"]:
+                if isinstance(data_value, str) and data_value.strip():
                     continue
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required property '{key}' is missing or empty."))
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required property '{data_key}' is missing or empty."))
 
-        if len(result[ERRORS]) == 0:
+        if len(result[WARNINGS]) > 0:
+            result["result"] = STATUS_WARNING
+
+        if len(result[ERRORS]) == 0 and len(result[WARNINGS]) == 0:
             result["result"] = STATUS_PASSED
         return result
     
