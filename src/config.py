@@ -12,12 +12,14 @@ class Config():
         self.log = get_logger('Upload Config')
         parser = argparse.ArgumentParser(description='Upload files to AWS s3 bucket')
         parser.add_argument('-s', '--service-type', type=str, choices=["essential", "file", "metadata"], help='validation type, required')
-        parser.add_argument('-c', '--mongo', help='Mongo database connection string, required')
-        parser.add_argument('-d', '--db', help='Mongo database with batch collection, required')
-        parser.add_argument('-p', '--models-loc', help='metadata models local, only required for essential and metadata service types')
-        parser.add_argument('-t', '--tier', help='current tier, optional')
-        parser.add_argument('-q', '--sqs', help='aws sqs name, required')
-        parser.add_argument('-r', '--retries', help='db connection, data loading, default value is 3, optional')
+        parser.add_argument('-v', '--server', help='Mongo database host, optional, it can be acquired from env.')
+        parser.add_argument('-p', '--port', help='Mongo database port, optional, it can be acquired from env.')
+        parser.add_argument('-u', '--user', help='Mongo database user id, optional, it can be acquired from env.')
+        parser.add_argument('-w', '--pwd', help='Mongo database user password, optional, it can be acquired from env.')
+        parser.add_argument('-d', '--db', help='Mongo database with batch collection, optional, it can be acquired from env.')
+        parser.add_argument('-l', '--models-loc', help='metadata models local, only required for essential and metadata service types')
+        parser.add_argument('-q', '--sqs', help='aws sqs name, optional, it can be acquired from env.')
+
         
         parser.add_argument('config', help='configuration file path, contains all above parameters, required')
        
@@ -52,15 +54,19 @@ class Config():
             self.log.critical(f'Service type is required and must be "essential", "file" or "metadata"!')
             return False
         
-        mongo = self.data.get(MONGO_DB)
-        if mongo is None:
-            self.log.critical(f'Mongo DB connection string is required!')
+        db_server = self.data.get("server", os.environ.get("MONGO_DB_HOST"))
+        db_port = self.data.get("port", os.environ.get("MONGO_DB_PORT"))
+        db_user_id = self.data.get("user", os.environ.get("MONGO_DB_USER"))
+        db_user_password = self.data.get("pwd", os.environ.get("MONGO_DB_PASSWORD"))
+        db_name= self.data.get("db", os.environ.get("MONGO_DB_NAME"))
+        if db_server is None or db_port is None or db_user_id is None or db_user_password is None \
+            or db_name is None:
+            self.log.critical(f'Missing Mongo BD setting(s)!')
             return False
-        
-        db = self.data.get(DB)
-        if db is None:
-            self.log.critical(f'Mongo DB for batch is required!')
-            return False
+        else:
+            self.data[DB] = db_name
+            self.data[MONGO_DB] = f"mongodb://{db_user_id}:{db_user_password}@{db_server}:{db_port}/?authMechanism=DEFAULT"
+
         
         models_loc= self.data.get(MODEL_FILE_DIR)
         if models_loc is None and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE:

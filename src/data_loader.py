@@ -56,11 +56,13 @@ class DataLoader:
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
                     node_id = self.get_node_id(type, row)
                     exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_nodeId(node_id)
-                    batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else [self.batch[ID]] + exist_node[BATCH_IDS]
+                    batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
                     dataRecord = {
                         ID: self.get_record_id(intention, exist_node),
                         SUBMISSION_ID: self.batch[SUBMISSION_ID],
                         BATCH_IDS: batchIds,
+                        "latestBatchID": self.batch[ID],
+                        "uploadedDate": current_datetime_str(), 
                         FILE_STATUS: STATUS_NEW,
                         ERRORS: [] if intention == INTENTION_NEW or not exist_node else exist_node[ERRORS],
                         WARNINGS: [] if intention == INTENTION_NEW or not exist_node else exist_node[WARNINGS],
