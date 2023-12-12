@@ -194,7 +194,7 @@ class MetaDataValidator:
                 errors.append(f"The property, {k}, is not defined in model!")
                 continue
             else:
-                if v == None:
+                if v is None:
                     continue
             
             errs = self.validate_prop_value(v, prop_def)
