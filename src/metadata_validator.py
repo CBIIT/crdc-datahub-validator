@@ -13,6 +13,7 @@ from common.constants import DB, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, 
 from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
+from common.error_messages import FAILED_VALIDATE_RECORDS
 
 VISIBILITY_TIMEOUT = 20
 
@@ -161,9 +162,9 @@ class MetaDataValidator:
         result_rel = self.validate_relationship(dataRecord, model)
 
         # concatenation of all errors
-        errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, []) 
+        errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
         # concatenation of all warnings
-        warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, []) 
+        warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
         # if there are any errors set the result to "Error"
         if len(errors) > 0:
             result = STATUS_ERROR
@@ -175,12 +176,49 @@ class MetaDataValidator:
         #  if there are neither errors nor warnings, return default values
         return result, errors, warnings
     
-    def validate_required_props(self, dataRecord, model):
-        # set default return values
-        errors = []
-        warnings = []
-        result = STATUS_PASSED
-        return {"result": result, ERRORS: errors, WARNINGS: warnings}
+    def validate_required_props(self, data_record, node_definition):
+        result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
+        # check the correct format from the data_record
+        if "nodeType" not in data_record.keys() or "props" not in data_record.keys() or len(data_record["props"].items()) == 0:
+            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
+            return result
+
+        # validation start
+        nodes = node_definition[MODEL].get("nodes", {})
+        node_type = data_record["nodeType"]
+        # extract a node from the data record
+        if node_type not in nodes.keys():
+            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required node '{node_type}' does not exist."))
+            return result
+
+        anode_definition = nodes[node_type]
+        id_property_key = anode_definition["id_property"]
+        id_property_value = data_record["props"].get(id_property_key, None)
+        # check id property key and value are valid
+        if not (id_property_key not in data_record["props"].keys()) and not (isinstance(id_property_value, str) and id_property_value.strip()):
+            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "ID/Key property is missing or empty in the data-record."))
+
+        for data_key, data_value in data_record["props"].items():
+            anode_keys = anode_definition.keys()
+            if "properties" not in anode_keys:
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
+                continue
+
+            if data_key not in anode_definition["properties"].keys():
+                result[WARNINGS].append(create_error(FAILED_VALIDATE_RECORDS, f"data record key '{data_key}' does not exist in the node-definition."))
+                continue
+
+            # check missing required key and empty value
+            if anode_definition["properties"][data_key]["required"]:
+                if data_value is None or (isinstance(data_value, str) and not data_value.strip()):
+                    result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required property '{data_key}' is missing or empty."))
+
+        if len(result[WARNINGS]) > 0:
+            result["result"] = STATUS_WARNING
+
+        if len(result[ERRORS]) == 0 and len(result[WARNINGS]) == 0:
+            result["result"] = STATUS_PASSED
+        return result
     
     def validate_prop_value(self, dataRecord, model):
         # set default return values
@@ -196,4 +234,7 @@ class MetaDataValidator:
         result = STATUS_PASSED
         return {"result": result, ERRORS: errors, WARNINGS: warnings}
 
+
+def create_error(title, msg):
+    return {"title": title, "description": msg}
 
