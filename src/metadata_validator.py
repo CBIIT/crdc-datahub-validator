@@ -191,9 +191,15 @@ class MetaDataValidator:
             result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required node '{node_type}' does not exist."))
             return result
 
-        anode = nodes[node_type]
-        for key, value in data_record["props"].items():
-            anode_keys = anode.keys()
+        anode_definition = nodes[node_type]
+        id_property_key = anode_definition["id_property"]
+        id_property_value = data_record["props"].get(id_property_key, None)
+        # check id property key and value are valid
+        if not (id_property_key not in data_record["props"].keys()) and not (isinstance(id_property_value, str) and id_property_value.strip()):
+            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "ID/Key property is missing or empty in the data-record."))
+
+        for data_key, data_value in data_record["props"].items():
+            anode_keys = anode_definition.keys()
             if "properties" not in anode_keys:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
                 continue
