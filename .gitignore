@@ -145,4 +145,4 @@ backup/
 **/configs/*config.yml
 
 # model dict dumps
-**/model/*.json
+**/models/*.json
