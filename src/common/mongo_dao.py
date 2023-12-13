@@ -1,6 +1,6 @@
 from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
 from bento.common.utils import get_logger
-from common.constants import MONGO_DB, BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
+from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, ERRORS, INTENTION_NEW, FILE_STATUS, FILE_ERRORS
 from common.utils import get_exception_msg, current_datetime_str
 

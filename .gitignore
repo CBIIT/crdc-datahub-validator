@@ -138,8 +138,11 @@ config/es_loader_*
 backup/
 **/.vscode/
 **/.DS_Store
-**/s3_download
+**/s3_download/*
 
 #config files for testing
 **/configs/models
 **/configs/*config.yml
+
+# model dict dumps
+#**/model/*.json

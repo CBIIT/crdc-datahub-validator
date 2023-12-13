@@ -1,6 +1,4 @@
 import os
-import json
-import glob
 from bento.common.utils import get_logger
 from common.model_reader import YamlModelParser
 from common.constants import DATA_COMMON, IDS, NODES_LABEL, MODELS_DEFINITION_FILE, MODEL

@@ -6,8 +6,8 @@ from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
-from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, INTENTION_NEW, IDS, SQS_TYPE, TYPE_LOAD,\
+from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, \
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
     BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, TIER_CONFIG
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory

@@ -4,17 +4,13 @@ import pandas as pd
 import json
 import os
 from datetime import datetime
-from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
-from bento.common.s3 import S3Bucket
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
     STATUS_WARNING, STATUS_PASSED, FILE_STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALID_PROP_TYPE_LIST, VALIDATION_RESULT
-    
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALID_PROP_TYPE_LIST, VALIDATION_RESULT  
 from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
-from data_loader import DataLoader
 
 VISIBILITY_TIMEOUT = 20
 
