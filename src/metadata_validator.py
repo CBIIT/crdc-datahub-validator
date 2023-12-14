@@ -227,12 +227,66 @@ class MetaDataValidator:
         result = STATUS_PASSED
         return {"result": result, ERRORS: errors, WARNINGS: warnings}
     
-    def validate_relationship(self, dataRecord, model):
+    def validate_relationship(self, data_record, node_definition):
         # set default return values
-        errors = []
-        warnings = []
-        result = STATUS_PASSED
-        return {"result": result, ERRORS: errors, WARNINGS: warnings}
+        result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
+        if not data_record.get("parents"):
+            result["result"] = STATUS_WARNING
+            result[WARNINGS].append(create_error(FAILED_VALIDATE_RECORDS, "Parent property does not exist or empty"))
+            return result
+
+        data_record_parent_nodes = data_record.get("parents")
+        nodes = node_definition[MODEL].get("nodes", {})
+        node_keys = nodes.keys()
+
+        node_type = data_record.get("nodeType")
+        if not node_type or node_type not in node_keys:
+            node_type = f'\'{node_type}\'' if node_type else ''
+            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Current node property {node_type} does not exist."))
+
+        for parent_node in data_record_parent_nodes:
+            parent_type = parent_node.get("parentType")
+            if not parent_type or parent_type not in node_keys:
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Parent property '{parent_type}' does not exist."))
+
+        # Validate all ID field used in a parent node (in the parents property)
+        # are defined in the parent node (it doesn’t have to be the same as “Key” property of the parent node though)
+
+
+        # parents nodes ID field are defined
+        # type ParentNode {
+        #     parentType: String # node type of the parent node, e.g. "study"
+        #     parentIDPropName: String # ID property name can be used to identify parent node, e.g., "study_id"
+        #     parentIDValue: String # Value for above ID property, e.g. "CDS-study-007"
+        # }
+
+        # Validate at least one parent node has non-empty parentIDValue property
+        # at least parentIDValue has to be non empoty value
+        # type ParentNode {
+        #     parentType: String # node type of the parent node, e.g. "study"
+        #     parentIDPropName: String # ID property name can be used to identify parent node, e.g., "study_id"
+        #     parentIDValue: String # Value for above ID property, e.g. "CDS-study-007"
+        # }
+
+
+
+        # Validate parent node specified in parentIDValue property exists in the database (does not limit to current submission)
+        # look up the database, key and value exsits in the data-record
+
+
+
+
+        if len(result[WARNINGS]) > 0:
+            result["result"] = STATUS_WARNING
+
+        if len(result[ERRORS]) == 0 and len(result[WARNINGS]) == 0:
+            result["result"] = STATUS_PASSED
+        return result
+
+        # errors = []
+        # warnings = []
+        # result = STATUS_PASSED
+        # return {"result": result, ERRORS: errors, WARNINGS: warnings}
 
 
 def create_error(title, msg):
