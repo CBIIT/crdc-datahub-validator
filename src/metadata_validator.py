@@ -2,16 +2,12 @@
 
 import pandas as pd
 import json
-import os
-from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
-from bento.common.s3 import S3Bucket
-from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
+from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
     STATUS_WARNING, STATUS_PASSED, FILE_STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME
 from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
-from data_loader import DataLoader
 
 VISIBILITY_TIMEOUT = 20
 
@@ -21,7 +17,6 @@ def metadataValidate(configs, job_queue, mongo_dao):
     try:
         model_store = ModelFactory(configs[MODEL_FILE_DIR], configs[TIER_CONFIG]) 
         # dump models to json files
-        # dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
         dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
         log.debug(e)

@@ -1,9 +1,8 @@
 import os
-import json
-import glob
 from bento.common.utils import get_logger
 from common.model_reader import YamlModelParser
-from common.constants import DATA_COMMON, IDS, NODES_LABEL, MODELS_DEFINITION_FILE, MODEL
+from common.model import DataModel
+from common.constants import DATA_COMMON, IDS, MODELS_DEFINITION_FILE, MODEL
 from common.utils import download_file_to_dict
 
 
@@ -43,41 +42,15 @@ class ModelFactory:
             model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES]})
             self.models.append({MODEL: model_reader.model, IDS: model_reader.id_fields})
 
-            
+
+
+
     """
     get model by data common
     """       
     def get_model_by_data_common(self, data_common):
-        return next((x for x in self.models if x[MODEL][DATA_COMMON] == data_common.upper()), None)
+        model = next((x for x in self.models if x[MODEL][DATA_COMMON] == data_common.upper()), None)
+        return DataModel(model)
         
 
-    # model connivent functions
-    """
-    get model id fields in the given model
-    """
-    def get_model_ids(self, model):       
-            return model.get(IDS, None)
-
-    """
-    get id field of a given node in the model
-    """   
-    def get_node_id(self, model, node): 
-        if model.get(IDS): 
-            return model[MODEL][NODES_LABEL][node].get("id_property", None)
-        return None
-
-    """
-    get properties of a node in the model
-    """
-    def get_node_props(self, model, node):
-        if model[MODEL][NODES_LABEL].get(node):
-            return model[MODEL][NODES_LABEL][node].get("properties", None)
-        
-    """
-    get required properties of a node in the model
-    """
-    def get_node_req_props(self, model, node):
-        props = self.get_node_props(model, node)
-        if not props:
-            return None
-        return {k: v for (k, v) in props.items() if v.get("required") == True}
+   

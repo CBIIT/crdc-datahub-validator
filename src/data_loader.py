@@ -5,7 +5,8 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime_str, get_exception_msg
 from common.constants import MODEL, ID_PROPERTY, TYPE, ID, SUBMISSION_ID, FILE_STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, BATCH_CREATED, UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
-    MD5, NODES_LABEL, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, NODES_LABEL
+    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, \
+    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -13,13 +14,12 @@ BATCH_IDS = "batchIDs"
 # This script load matadata files to database
 # input: file info list
 class DataLoader:
-    def __init__(self, configs, model, batch, mongo_dao):
+    def __init__(self, model, batch, mongo_dao):
         self.log = get_logger('Matedata loader')
-        self.configs = configs
         self.model = model
         self.mongo_dao =mongo_dao
         self.batch = batch
-        self.file_nodes = model[MODEL].get("file-nodes", {})
+        self.file_nodes = self.model.model[MODEL].get("file-nodes", {})
         self.errors = None
 
     """
@@ -28,7 +28,7 @@ class DataLoader:
     def load_data(self, file_path_list):
         returnVal = True
         self.errors = []
-        intention = self.batch.get(BATCH_INTENTION, STATUS_NEW)
+        intention = self.batch.get(BATCH_INTENTION, INTENTION_NEW)
         file_types = None if intention == INTENTION_DELETE else [k for (k,v) in self.file_nodes.items()]
         deleted_ids = [] if intention == INTENTION_DELETE else None
         for file in file_path_list:
@@ -111,7 +111,7 @@ class DataLoader:
     get node id defined in model dict
     """
     def get_node_id(self, type, row):
-        id_field = self.model[MODEL][NODES_LABEL][type].get(ID_PROPERTY, None)
+        id_field = self.model.get_node_id(type)
         return row[id_field] if id_field else None
     
     """
@@ -130,9 +130,9 @@ class DataLoader:
     """
     def get_file_info(self, type, prop_names, row):
         file_fields = self.file_nodes.get(type)
-        file_name = row[file_fields["name-field"]] if file_fields["name-field"] in prop_names else None
-        file_size = row[file_fields["size-field"]] if file_fields["size-field"] in prop_names else None
-        file_md5 = row[file_fields["md5-field"]] if file_fields["md5-field"] in prop_names else None
+        file_name = row[file_fields[FILE_NAME_FIELD]] if file_fields[FILE_NAME_FIELD] in prop_names else None
+        file_size = row[file_fields[FILE_SIZE_FIELD]] if file_fields[FILE_SIZE_FIELD] in prop_names else None
+        file_md5 = row[file_fields[FILE_MD5_FIELD]] if file_fields[FILE_MD5_FIELD] in prop_names else None
         return {
             FILE_NAME: file_name,
             SIZE: file_size,

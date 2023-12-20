@@ -60,6 +60,9 @@ NODE_ID = "nodeID"
 NODE_TYPE = "nodeType"
 S3_BUCKET_DIR = "s3_bucket_drive"
 FILE_ERRORS = "fileErrors"
+FILE_NAME_FIELD = "name-field"
+FILE_SIZE_FIELD = "size-field"
+FILE_MD5_FIELD = "md5-field"
 
 #data model
 DATA_COMMON = "data_commons"
