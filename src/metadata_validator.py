@@ -226,7 +226,24 @@ class MetaDataValidator:
         warnings = []
         result = STATUS_PASSED
         return {"result": result, ERRORS: errors, WARNINGS: warnings}
-    
+
+    def get_parent_node_cache(self, data_record_parent_nodes):
+        parent_nodes = []
+        for parent_node in data_record_parent_nodes:
+            parent_type = parent_node.get("parentType")
+            parent_id_property = parent_node.get("parentIDPropName")
+            parent_id_value = parent_node.get("parentIDValue")
+            if not parent_type and not parent_id_value and not parent_id_value:
+                parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": parent_id_value})
+        exist_parent_nodes = self.mongo_dao.searching_nodes_by_type_and_value(self.configs[DB], parent_nodes)
+
+        parent_node_cache = set()
+        for node in exist_parent_nodes:
+            if node.get("props"):
+                for key, value in node["props"].items():
+                    parent_node_cache.add(tuple([node.type, key, value]))
+        return parent_node_cache
+
     def validate_relationship(self, data_record, node_definition):
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
@@ -244,36 +261,50 @@ class MetaDataValidator:
             node_type = f'\'{node_type}\'' if node_type else ''
             result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Current node property {node_type} does not exist."))
 
+        parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
             if not parent_type or parent_type not in node_keys:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Parent property '{parent_type}' does not exist."))
+                continue
 
-        # Validate all ID field used in a parent node (in the parents property)
-        # are defined in the parent node (it doesn’t have to be the same as “Key” property of the parent node though)
+            parent_id_property = parent_node.get("parentIDPropName")
+            anode_definition = nodes[parent_type]
+            node_definition_properties = anode_definition.get("properties")
+            node_definition_relationships = anode_definition.get("relationships")
 
+            if not node_definition_properties or parent_id_property not in node_definition_properties:
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist."))
+                continue
 
-        # parents nodes ID field are defined
-        # type ParentNode {
-        #     parentType: String # node type of the parent node, e.g. "study"
-        #     parentIDPropName: String # ID property name can be used to identify parent node, e.g., "study_id"
-        #     parentIDValue: String # Value for above ID property, e.g. "CDS-study-007"
-        # }
+            invalid_parent_relationship = not node_definition_relationships or not node_definition_relationships.get(parent_type) or not node_definition_relationships.get(parent_type).get(parent_id_property)
+            if not invalid_parent_relationship:
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' is not defined in the node relationship"))
+                continue
 
-        # Validate at least one parent node has non-empty parentIDValue property
-        # at least parentIDValue has to be non empoty value
-        # type ParentNode {
-        #     parentType: String # node type of the parent node, e.g. "study"
-        #     parentIDPropName: String # ID property name can be used to identify parent node, e.g., "study_id"
-        #     parentIDValue: String # Value for above ID property, e.g. "CDS-study-007"
-        # }
+            # these should be defined in the data model in the properties
+            parent_id_nodes = nodes.get(parent_type)
+            is_parent_id_valid_format = parent_id_nodes.get("properties")
+            is_parent_id_exist = is_parent_id_valid_format and parent_id_nodes.get("properties").get(parent_id_property)
+            if not is_parent_id_valid_format or not is_parent_id_exist:
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist"))
+                continue
 
+            # collect all node_type, node_value, parentIDValue for the parent nodes
+            parent_id_value = parent_node.get("parentIDValue")
+            # TODO
+            if parent_id_value is not None and (isinstance(parent_id_value, str) and parent_id_value.strip()) \
+                    and (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Parent parent node '{parent_id_property}' does not exist in the database."))
 
+        # Validate at least one parent node has non-empty parentIDValue property / at least parentIDValue non empty
+        is_valid_parent_id_value = any(
+            isinstance(parent_node.get("parentIDValue"), (str, bool)) and str(parent_node.get("parentIDValue")).strip()
+            for parent_node in data_record_parent_nodes
+        )
 
-        # Validate parent node specified in parentIDValue property exists in the database (does not limit to current submission)
-        # look up the database, key and value exsits in the data-record
-
-
+        if not is_valid_parent_id_value:
+            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"At least, one parent node does not have non-empty parentIDValue property"))
 
 
         if len(result[WARNINGS]) > 0:
@@ -282,12 +313,6 @@ class MetaDataValidator:
         if len(result[ERRORS]) == 0 and len(result[WARNINGS]) == 0:
             result["result"] = STATUS_PASSED
         return result
-
-        # errors = []
-        # warnings = []
-        # result = STATUS_PASSED
-        # return {"result": result, ERRORS: errors, WARNINGS: warnings}
-
 
 def create_error(title, msg):
     return {"title": title, "description": msg}

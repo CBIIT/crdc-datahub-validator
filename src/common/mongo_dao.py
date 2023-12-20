@@ -44,6 +44,32 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to find submission, {submissionId}: {get_exception_msg()}")
             return None
+
+    """
+    check node exists by node name and its value
+    """
+    # def validate_node(self, db_name, submission_id, node_type, node_key, node_value):
+    def searching_nodes_by_type_and_value(self, db_name, submission_id, nodes):
+        db = self.client[db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            node_set = set()
+            query = []
+            for node in nodes:
+                if node.type and node.key and node.value\
+                        and [node.type, node.key, node.value] not in node_set:
+                    node_set.add(tuple([node.type, node.key, node.value]))
+                    query.append({"$and": [{"nodeType": node.type, "props." + node.key: node.value}]})
+
+            return (data_collection.find({"$or": query}) if len(query) > 0 else []) or []
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to verify the valid node existence, {submission_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to verify the valid node existence, {submission_id}: {get_exception_msg()}")
+            return None
     """
     get file in dataRecord collection by fileId
     """ 
