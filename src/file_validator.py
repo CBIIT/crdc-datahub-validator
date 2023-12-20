@@ -5,7 +5,7 @@ import os
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, get_md5
 from bento.common.s3 import S3Bucket
-from common.constants import ERRORS, WARNINGS, DB, FILE_STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
+from common.constants import ERRORS, WARNINGS, FILE_STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, BATCH_BUCKET
 from common.utils import cleanup_s3_download_dir, get_exception_msg, current_datetime_str, get_file_md5_size
 
@@ -81,7 +81,6 @@ def fileValidate(configs, job_queue, mongo_dao):
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
-
 
 """
  Requirement for the ticket crdcdh-539
