@@ -226,7 +226,7 @@ def validator():
          # Warnings
          [], STATUS_ERROR),
 
-        # Test case 8: parents value is not matched
+        # Test case 8: invalid parents value
         ({"nodeType": "program", "parents": [
             {
                 "parentType": "study",
@@ -261,7 +261,7 @@ def validator():
          # mock for database
          [["study", "study_id", "CDS-study-007"]],
          # Errors
-         [{"title": FAILED_VALIDATE_RECORDS, 'description': "At least, one parent node does not have non-empty parentIDValue property"}],
+         [{"title": FAILED_VALIDATE_RECORDS, 'description': "'study_id's parent value is missing or empty."}],
          # Warnings
          [], STATUS_ERROR),
         # Test case 9: at least one parent node has non-empty parentIDValue property
@@ -299,7 +299,10 @@ def validator():
          [["study", "study_id", "CDS-study-007"], ["program", "program_id", "program_test"]],
          # Errors
          [{"title": FAILED_VALIDATE_RECORDS,
-           'description': "At least, one parent node does not have non-empty parentIDValue property"}],
+           'description': "'study_id's parent value is missing or empty."},
+          {"title": FAILED_VALIDATE_RECORDS,
+           'description': "'program_id's parent value is missing or empty."}
+          ],
          # Warnings
          [], STATUS_ERROR),
         # Test case 10: multiple parents nodes with valid data in the database
@@ -307,7 +310,7 @@ def validator():
             {
                 "parentType": "study",
                 "parentIDPropName": "study_id",
-                "parentIDValue": ""
+                "parentIDValue": "study_test"
             },
             {
                 "parentType": "program",
@@ -334,7 +337,7 @@ def validator():
              }
          }},
          # mock for database
-         [["study", "study_id", ""], ["program", "program_id", "program_test"]],
+         [["study", "study_id", "study_test"], ["program", "program_id", "program_test"]],
          # Errors
          [],
          # Warnings

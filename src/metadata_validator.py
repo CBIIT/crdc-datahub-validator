@@ -292,20 +292,12 @@ class MetaDataValidator:
 
             # collect all node_type, node_value, parentIDValue for the parent nodes
             parent_id_value = parent_node.get("parentIDValue")
-            # TODO
-            if parent_id_value is not None and (isinstance(parent_id_value, str) and parent_id_value.strip()) \
-                    and (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
+            if parent_id_value is None or (isinstance(parent_id_value, str) and not parent_id_value.strip()):
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"'{parent_id_property}'s parent value is missing or empty."))
+                continue
+
+            if (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Parent parent node '{parent_id_property}' does not exist in the database."))
-
-        # Validate at least one parent node has non-empty parentIDValue property / at least parentIDValue non empty
-        is_valid_parent_id_value = any(
-            isinstance(parent_node.get("parentIDValue"), (str, bool)) and str(parent_node.get("parentIDValue")).strip()
-            for parent_node in data_record_parent_nodes
-        )
-
-        if not is_valid_parent_id_value:
-            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"At least, one parent node does not have non-empty parentIDValue property"))
-
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
