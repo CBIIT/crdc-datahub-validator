@@ -3,7 +3,7 @@ import os
 from bento.common.utils import get_logger, get_md5
 from bento.common.s3 import S3Bucket
 from boto3.s3.transfer import TransferConfig
-from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
+from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, DB, \
     SUCCEEDED, ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, FILE_ID, BATCH_STATUS_LOADED, \
     BATCH_STATUS_REJECTED 
 from common.utils import cleanup_s3_download_dir, get_exception_msg

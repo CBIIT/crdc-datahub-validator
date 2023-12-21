@@ -7,9 +7,8 @@ import json
 import requests
 import yaml
 import boto3 
-from bento.common.utils import get_md5, get_stream_md5
+from bento.common.utils import get_stream_md5
 from datetime import datetime
-#from bento.common.utils import get_uuid
 import uuid
 from common.constants import DATA_COMMON, VERSION
 
@@ -124,7 +123,7 @@ def current_datetime_str():
 
 
 """
-get uuid v5
+get uuid v4
 """
 def get_uuid_str():
     return str(uuid.uuid4())
@@ -141,6 +140,12 @@ def get_file_md5_size(bucket_name, key):
     res = s3.head_object(Bucket=bucket_name, Key=key)
     size = res['ContentLength']
     return size, md5
+
+"""
+create error dict
+"""
+def create_error(title, msg):
+    return {"title": title, "description": msg}
 
 
 
