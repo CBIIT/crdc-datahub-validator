@@ -233,7 +233,7 @@ class MetaDataValidator:
             parent_type = parent_node.get("parentType")
             parent_id_property = parent_node.get("parentIDPropName")
             parent_id_value = parent_node.get("parentIDValue")
-            if not parent_type and not parent_id_value and not parent_id_value:
+            if parent_type and parent_id_value and parent_id_value is not None:
                 parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": parent_id_value})
         exist_parent_nodes = self.mongo_dao.searching_nodes_by_type_and_value(self.configs[DB], parent_nodes)
 
@@ -241,7 +241,7 @@ class MetaDataValidator:
         for node in exist_parent_nodes:
             if node.get("props"):
                 for key, value in node["props"].items():
-                    parent_node_cache.add(tuple([node.type, key, value]))
+                    parent_node_cache.add(tuple([node.get("nodeType"), key, value]))
         return parent_node_cache
 
     def validate_relationship(self, data_record, node_definition):

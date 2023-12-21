@@ -6,17 +6,28 @@ import os
 current_directory = os.getcwd()
 sys.path.insert(0, current_directory + '/src')
 from src.metadata_validator import MetaDataValidator
-from src.common.constants import STATUS_WARNING, ERRORS, WARNINGS, STATUS_PASSED, STATUS_ERROR
+from src.common.constants import STATUS_WARNING, ERRORS, WARNINGS, STATUS_PASSED, STATUS_ERROR, DB
 from src.common.error_messages import FAILED_VALIDATE_RECORDS
 
 
 @pytest.fixture
-def validator():
-    validator_instance = MetaDataValidator(None, None, None)
-    validator_instance.get_parent_node_cache = MagicMock()
-    validator_instance.get_parent_node_cache.return_value = []
-    return validator_instance
+def mock_configs():
+    return {DB: 'test-database'}
 
+@pytest.fixture
+def mock_mongo_dao(mocker):
+    mock_dao = mocker.MagicMock()
+    mock_dao.searching_nodes_by_type_and_value.return_value = []
+    return mock_dao
+
+@pytest.fixture
+def mock_model_store(mocker):
+    return mocker.MagicMock()
+
+
+@pytest.fixture
+def validator(mock_configs, mock_mongo_dao, mock_model_store):
+    return MetaDataValidator(mock_configs, mock_mongo_dao, mock_model_store)
 
 @pytest.mark.parametrize(
     "data_record, node_definition, return_value, expected_errors, expected_warnings, expected_result", [
@@ -107,7 +118,7 @@ def validator():
              }
          }},
          # mock for database
-         [["study", "study_id", "CDS-study-007"]],
+         [{"nodeType": "study", "props": {"study_id": "CDS-study-007"}}],
          # Errors
          [],
          # Warnings
@@ -144,7 +155,7 @@ def validator():
              }
          }},
          # mock for database
-         [["study", "study_id", "CDS-study-007"]],
+         [{"nodeType": "study", "props": {"study_id": "CDS-study-007"}}],
          # Errors
          [{"title": FAILED_VALIDATE_RECORDS, 'description': "Parent property 'fake-study' does not exist."}],
          # Warnings
@@ -181,7 +192,7 @@ def validator():
              }
          }},
          # mock for database
-         [["study", "study_id", "CDS-study-007"]],
+         [{"nodeType": "study", "props": {"study_id": "CDS-study-007"}}],
          # Errors
          [{"title": FAILED_VALIDATE_RECORDS, 'description': "Current node property 'fake-program' does not exist."},
           {"title": FAILED_VALIDATE_RECORDS, 'description': "Parent property 'fake-study' does not exist."}],
@@ -220,7 +231,7 @@ def validator():
              }
          }},
          # mock for database
-         [["study", "study_id", "CDS-study-007"]],
+         [{"nodeType": "study", "props": {"study_id": "CDS-study-007"}}],
          # Errors
          [{"title": FAILED_VALIDATE_RECORDS, 'description': "ID property in parent node 'fake_study_id' does not exist."}],
          # Warnings
@@ -259,7 +270,7 @@ def validator():
              }
          }},
          # mock for database
-         [["study", "study_id", "CDS-study-007"]],
+         [{"nodeType": "study", "props": {"study_id": "CDS-study-007"}}],
          # Errors
          [{"title": FAILED_VALIDATE_RECORDS, 'description': "'study_id's parent value is missing or empty."}],
          # Warnings
@@ -296,7 +307,8 @@ def validator():
              }
          }},
          # mock for database
-         [["study", "study_id", "CDS-study-007"], ["program", "program_id", "program_test"]],
+         [{"nodeType": "study", "props": {"study_id": "CDS-study-007"}},
+          {"nodeType": "program", "props": {"program_id": "program_test"}}],
          # Errors
          [{"title": FAILED_VALIDATE_RECORDS,
            'description': "'study_id's parent value is missing or empty."},
@@ -337,7 +349,8 @@ def validator():
              }
          }},
          # mock for database
-         [["study", "study_id", "study_test"], ["program", "program_id", "program_test"]],
+         [{"nodeType": "study", "props": {"study_id": "study_test"}},
+          {"nodeType": "program", "props": {"program_id": "program_test"}}],
          # Errors
          [],
          # Warnings
@@ -347,19 +360,8 @@ def validator():
 def test_validate_required_props(validator, data_record, node_definition, return_value, expected_errors,
                                  expected_warnings,
                                  expected_result):
-    validator.get_parent_node_cache.return_value = create_set(return_value)
+    validator.mongo_dao.searching_nodes_by_type_and_value.return_value = return_value
     result = validator.validate_relationship(data_record, node_definition)
     assert result['result'] == expected_result
     assert result[ERRORS] == expected_errors
     assert result[WARNINGS] == expected_warnings
-
-
-def create_set(nodes):
-    node_set = set()
-    for node in nodes:
-        node_type, key, value = node
-        node_set.add(tuple([node_type, key, value]))
-    return node_set
-
-
-# TODO codes for self.get_parent_node_cache(data_record_parent_nodes)
