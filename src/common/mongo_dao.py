@@ -49,26 +49,25 @@ class MongoDao:
     check node exists by node name and its value
     """
     # def validate_node(self, db_name, submission_id, node_type, node_key, node_value):
-    def searching_nodes_by_type_and_value(self, db_name, submission_id, nodes):
+    def search_nodes_by_type_and_value(self, db_name, nodes):
         db = self.client[db_name]
         data_collection = db[DATA_COLlECTION]
         try:
-            node_set = set()
-            query = []
+            node_set, query = set(), []
             for node in nodes:
-                if node.type and node.key and node.value is not None \
-                        and [node.type, node.key, node.value] not in node_set:
-                    node_set.add(tuple([node.type, node.key, node.value]))
-                    query.append({"$and": [{"nodeType": node.type, "props." + node.key: node.value}]})
-
-            return (data_collection.find({"$or": query}) if len(query) > 0 else []) or []
+                node_type, node_key, node_value = node.get("type"), node.get("key"), node.get("value")
+                if node_type and node_key and node_value is not None \
+                        and (node_type, node_key, node_value) not in node_set:
+                    node_set.add(tuple([node_type, node_key, node_value]))
+                    query.append({"$and": [{"nodeType": node_type, "props." + node_key: node_value}]})
+            return list(data_collection.find({"$or": query})) if len(query) > 0 else []
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to search nodes, {submission_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to search nodes: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to search nodes, {submission_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to search nodes: {get_exception_msg()}")
             return None
     """
     get file in dataRecord collection by fileId
