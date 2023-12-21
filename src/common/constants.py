@@ -28,9 +28,9 @@ BATCH_ID = "batchID"
 SUCCEEDED = "succeeded"
 ERRORS = "errors"
 WARNINGS = "warnings"
-BATCH_CREATED = "createdAt"
-BATCH_UPDATED = "updatedAt"
-BATCH_STATUS= "status"
+CREATED_AT = "createdAt"
+UPDATED_AT = "updatedAt"
+STATUS= "status"
 BATCH_STATUS_REJECTED = "rejected"
 BATCH_TYPE_METADATA ="metadata"
 BATCH_STATUS_UPLOADED = "uploaded"
@@ -50,7 +50,6 @@ SIZE ="size"
 MD5 = "md5"
 DATA_COLlECTION = "dataRecords"
 FILE_NAME = "fileName"
-FILE_STATUS = "status"
 STATUS_ERROR = "Error"
 STATUS_WARNING = "Warning"
 STATUS_PASSED = "Passed"
@@ -88,7 +87,6 @@ TYPE ="type"
 MODELS_DEFINITION_FILE = "content.json"
 TIER = "TIER"
 TIER_CONFIG = "tier"
-UPDATED_AT = "updatedAt"
 FILE_SIZE = "file_size"
 MIN = 'minimum'
 MAX = 'maximum'
@@ -102,6 +100,7 @@ VALID_PROP_TYPE_LIST = [
     "array" # value_type: list
 ]
 VALIDATION_RESULT = "result"
+VALIDATED_AT = "validatedAt"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
@@ -112,6 +111,7 @@ TYPE_LOAD = "Load Metadata"
 TYPE_METADATA_VALIDATE = "Validate Metadata"
 TYPE_FILE_VALIDATE = "Validate Single File"
 TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
+
 
 
 

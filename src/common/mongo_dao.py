@@ -1,7 +1,7 @@
 from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
-    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, ERRORS, INTENTION_NEW, FILE_STATUS, FILE_ERRORS
+    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW
 from common.utils import get_exception_msg, current_datetime_str
 
 MAX_SIZE = 10000
@@ -260,8 +260,8 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             query = {'submissionID': {'$eq': submissionID}} 
-            if scope == INTENTION_NEW:
-                query[FILE_STATUS] = INTENTION_NEW
+            if scope == STATUS_NEW:
+                query[STATUS] = STATUS_NEW
             result = list(file_collection.find(query))
             count = len(result)
             self.log.info(f'Total {count} dataRecords are found for the submission, {submissionID} and scope of {scope}!')

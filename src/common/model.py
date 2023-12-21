@@ -29,7 +29,10 @@ class DataModel:
     get required properties of a node in the model
     """
     def get_node_req_props(self, node):
-        props = self.get_node_props(self.model, node)
+        props = self.get_node_props(node)
         if not props:
             return None
         return {k: v for (k, v) in props.items() if v.get("required") == True}
+    
+    def get_file_nodes(self):
+        return self.model[MODEL].get("file-nodes", {})

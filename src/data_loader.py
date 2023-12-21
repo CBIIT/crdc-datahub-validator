@@ -3,8 +3,8 @@ import os
 import pandas as pd
 from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime_str, get_exception_msg
-from common.constants import MODEL, ID_PROPERTY, TYPE, ID, SUBMISSION_ID, FILE_STATUS, STATUS_NEW, \
-    ERRORS, WARNINGS, BATCH_CREATED, UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
+from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
+    ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
     MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD 
 SEPARATOR_CHAR = '\t'
@@ -19,7 +19,7 @@ class DataLoader:
         self.model = model
         self.mongo_dao =mongo_dao
         self.batch = batch
-        self.file_nodes = self.model.model[MODEL].get("file-nodes", {})
+        self.file_nodes = self.model.get_file_nodes()
         self.errors = None
 
     """
@@ -57,17 +57,20 @@ class DataLoader:
                     node_id = self.get_node_id(type, row)
                     exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_nodeId(node_id)
                     batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
+                    current_date_time = current_datetime_str()
+                    id = self.get_record_id(intention, exist_node)
                     dataRecord = {
-                        ID: self.get_record_id(intention, exist_node),
+                        ID: id,
+                        "CRDC_ID": id,
                         SUBMISSION_ID: self.batch[SUBMISSION_ID],
                         BATCH_IDS: batchIds,
                         "latestBatchID": self.batch[ID],
-                        "uploadedDate": current_datetime_str(), 
-                        FILE_STATUS: STATUS_NEW,
-                        ERRORS: [] if intention == INTENTION_NEW or not exist_node else exist_node[ERRORS],
-                        WARNINGS: [] if intention == INTENTION_NEW or not exist_node else exist_node[WARNINGS],
-                        BATCH_CREATED: current_datetime_str(), 
-                        UPDATED_AT: current_datetime_str(), 
+                        "uploadedDate": current_date_time, 
+                        STATUS: STATUS_NEW,
+                        ERRORS: [],
+                        WARNINGS: [],
+                        CREATED_AT : current_date_time, 
+                        UPDATED_AT: current_date_time, 
                         "orginalFileName": os.path.basename(file),
                         "lineNumber": index,
                         "nodeType": type,
@@ -135,13 +138,14 @@ class DataLoader:
         file_name = row[file_fields[FILE_NAME_FIELD]] if file_fields[FILE_NAME_FIELD] in prop_names else None
         file_size = row[file_fields[FILE_SIZE_FIELD]] if file_fields[FILE_SIZE_FIELD] in prop_names else None
         file_md5 = row[file_fields[FILE_MD5_FIELD]] if file_fields[FILE_MD5_FIELD] in prop_names else None
+        current_date_time = current_datetime_str()
         return {
             FILE_NAME: file_name,
             SIZE: file_size,
             MD5: file_md5,
-            FILE_STATUS: STATUS_NEW,
+            STATUS: STATUS_NEW,
             ERRORS: [],
             WARNINGS: [],
-            BATCH_CREATED: current_datetime_str(), 
-            UPDATED_AT: current_datetime_str(), 
+            CREATED_AT: current_date_time, 
+            UPDATED_AT: current_date_time
         }

@@ -141,5 +141,11 @@ def get_file_md5_size(bucket_name, key):
     size = res['ContentLength']
     return size, md5
 
+"""
+create error dict
+"""
+def create_error(title, msg):
+    return {"title": title, "description": msg}
+
 
 

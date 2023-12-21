@@ -6,7 +6,7 @@ from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
-from common.constants import BATCH_STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, \
+from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
     BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, TIER_CONFIG
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
@@ -63,13 +63,13 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao)
                             result, errors = data_loader.load_data(validator.download_file_list)
                             if result:
-                                batch[BATCH_STATUS] = BATCH_STATUS_LOADED
+                                batch[STATUS] = BATCH_STATUS_LOADED
                             else:
                                 error = f'Failed to upsert data into or delete data from database!'
                                 errors.append(error)
                                 batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
                         else:
-                            batch[BATCH_STATUS] = BATCH_STATUS_REJECTED
+                            batch[STATUS] = BATCH_STATUS_REJECTED
 
                         #4. update batch
                         result = mongo_dao.update_batch(batch)
@@ -127,11 +127,11 @@ class EssentialValidator:
         for file_info in self.file_info_list: 
             #1. download the file in s3 and load tsv file into dataframe
             if not self.download_file(file_info):
-                file_info[BATCH_STATUS] = "failed"
+                file_info[STATUS] = "failed"
                 return False
             #2. validate meatadata in self.df
             if not self.validate_data(file_info):
-                file_info[BATCH_STATUS] = "failed"
+                file_info[STATUS] = "failed"
                 return False
         return True
 

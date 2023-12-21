@@ -6,9 +6,9 @@ from datetime import datetime
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
-    STATUS_WARNING, STATUS_PASSED, FILE_STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALID_PROP_TYPE_LIST, VALIDATION_RESULT  
-from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json
+    STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
+from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.error_messages import FAILED_VALIDATE_RECORDS
 
@@ -81,12 +81,10 @@ Compose a list of files to be updated and their sizes (metadata or files)
 class MetaDataValidator:
     
     def __init__(self, mongo_dao, model_store):
-        self.fileList = [] #list of files object {file_name, file_path, file_size, invalid_reason}
         self.log = get_logger('MetaData Validator')
         self.mongo_dao = mongo_dao
         self.model_store = model_store
         self.submission = None
-        self.datacommon = None
 
     def validate(self, submissionID, scope):
         #1. # get data common from submission
@@ -102,15 +100,14 @@ class MetaDataValidator:
             # error = {"title": "Invalid submission", "description": msg}
             return "Failed"
         self.submission = submission
-        self.datacommon = submission.get(DATA_COMMON_NAME)
-        model = self.model_store.get_model_by_data_common(self.datacommon)
+        datacommon = submission.get(DATA_COMMON_NAME)
+        model = self.model_store.get_model_by_data_common(datacommon)
         #1. call mongo_dao to get dataRecords based on submissionID and scope
         dataRecords = self.mongo_dao.get_dataRecords(submissionID, scope)
         if not dataRecords or len(dataRecords) == 0:
             msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
-            # error = {"title": "Invalid submission", "description": msg}
-            return "Failed"
+            return None
         #2. loop through all records and call validateNode
         updated_records = []
         isError = False
@@ -125,8 +122,8 @@ class MetaDataValidator:
                 if warnings and len(warnings)> 0: 
                     record[WARNINGS] = record[WARNINGS] + warnings if record.get(WARNINGS) else warnings
                     isWarning = True
-                record[FILE_STATUS] = status
-                record[UPDATED_AT] = current_datetime_str()
+                record[STATUS] = status
+                record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime_str()
                 updated_records.append(record)
         except Exception as e:
             self.log.debug(e)
@@ -223,7 +220,7 @@ class MetaDataValidator:
         for k, v in props.items():
             prop_def = props_def.get(k)
             if not prop_def: 
-                errors.append(f"The property, {k}, is not defined in model!")
+                errors.append(create_error("Property not defined", f"The property, {k}, is not defined in model!"))
                 continue
             else:
                 if v is None:
@@ -261,7 +258,7 @@ class MetaDataValidator:
                 try:
                     val = int(value)
                 except ValueError as e:
-                    errors.append(f"The value, {value}, is not an integer!")
+                    errors.append(create_error("Not a integer", f"The value, {value}, is not a integer!"))
 
                 result, error = check_permissive(val, permissive_vals)
                 if not result:
@@ -275,8 +272,7 @@ class MetaDataValidator:
                 try:
                     val = float(value)
                 except ValueError as e:
-                    errors.append(f"The value, {value}, is not a number!")
-
+                    errors.append(create_error("Not a number", f"The value, {value}, is not a number!"))
                 result, error = check_permissive(val, permissive_vals)
                 if not result:
                     errors.append(error)
@@ -289,21 +285,21 @@ class MetaDataValidator:
                 try:
                     val = datetime.strptime(value, '%m/%d/%y %H:%M:%S')
                 except ValueError as e:
-                    errors.append(f"The value, {value}, is neither a datetime nor date!")
+                    errors.append(create_error("Not a date/datetime", f"The value, {value}, is neither a datetime nor date!"))
 
             elif type ==  "boolean":
                 try:
                     val = bool(value)
                 except ValueError as e:
-                    errors.append(f"The value, {value}, is not a boolean!")
+                    errors.append(create_error("Not a boolean", f"The value, {value}, is not a boolean!"))
             
             elif type ==  "array":
                 try:
                     val = list(value)
                 except ValueError as e:
-                    errors.append(f"The value, {value}, is not a list!")
+                    errors.append(create_error("Not a list", f"The value, {value}, is not a list!"))
             else:
-                errors.append(f"Invalid data type, {type}!")
+                errors.append(create_error("Not a valid type", f"Invalid data type, {type}!"))
 
         return errors
     
@@ -313,17 +309,14 @@ def check_permissive(value, permissive_vals):
     error = None
     if permissive_vals and len(permissive_vals) and value not in permissive_vals:
        result = False
-       error = f"The value, {value} is not allowed!"
+       error = create_error("Not permitted value", f"The value, {value} is not allowed!")
     return result, error
 
 def check_boundary(value, min, max):
     errors = []
     if min and value < min:
-        errors.append(f"The value is less than minimum, {value} < {min}!")
+        errors.append(create_error("Less than minimum", f"The value is less than minimum, {value} < {min}!"))
     if max and value > max:
-        errors.append(f"The value is more than maximum, {value} > {min}!")
+        errors.append(create_error("More than maximum", f"The value is more than maximum, {value} > {min}!"))
     return errors
-
-def create_error(title, msg):
-    return {"title": title, "description": msg}
 
