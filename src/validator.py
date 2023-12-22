@@ -6,8 +6,8 @@ import os
 import json
 from collections import deque
 from bento.common.utils import get_logger, LOG_PREFIX, get_time_stamp
-from bento.common.sqs import Queue, VisibilityExtender
-from common.constants import SQS_NAME, MODEL, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL,\
+from bento.common.sqs import Queue
+from common.constants import SQS_NAME, MONGO_DB, DB, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL,\
     SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA
 from common.utils import dump_dict_to_json, get_exception_msg, cleanup_s3_download_dir
 from common.mongo_dao import MongoDao
@@ -16,8 +16,6 @@ from essential_validator import essentialValidate
 from file_validator import fileValidate
 from metadata_validator import metadataValidate
 
-if LOG_PREFIX not in os.environ:
-    os.environ[LOG_PREFIX] = 'Validator Main'
 log = get_logger('Validator')
 # public function to received args and dispatch to different modules for different uploading types, file or metadata
 def controller():
@@ -34,7 +32,7 @@ def controller():
     #step 2 initialize sqs queue, mongo db access object and model store
     try:
         job_queue = Queue(configs[SQS_NAME])
-        mongo_dao = MongoDao(configs)
+        mongo_dao = MongoDao(configs[MONGO_DB], configs[DB])
     except Exception as e:
         log.debug(e)
         log.exception(f'Error occurred when initialize the application: {get_exception_msg()}')

@@ -34,7 +34,7 @@ MIN = 'minimum'
 MAX = 'maximum'
 EX_MIN = 'exclusiveMinimum'
 EX_MAX = 'exclusiveMaximum'
-RELATION_DELIMITER = 'S'
+RELATION_DELIMITER = '$'
 DEFAULT_VERSION = "1.0.0"
 DEFAULT_DESC = ""
 FILE_NAME = "file_name"
@@ -61,8 +61,7 @@ def get_list_values(list_str):
 def is_parent_pointer(field_name):
     return re.fullmatch(r'\w+\.\w+', field_name) is not None
 
-
-class Model:
+class YamlModelParser:
     def __init__(self, yaml_files, data_common, version=DEFAULT_VERSION):
         self.log = get_logger('Model Reader')
         # initialize the data model

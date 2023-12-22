@@ -28,9 +28,9 @@ BATCH_ID = "batchID"
 SUCCEEDED = "succeeded"
 ERRORS = "errors"
 WARNINGS = "warnings"
-BATCH_CREATED = "createdAt"
-BATCH_UPDATED = "updatedAt"
-BATCH_STATUS= "status"
+CREATED_AT = "createdAt"
+UPDATED_AT = "updatedAt"
+STATUS= "status"
 BATCH_STATUS_REJECTED = "rejected"
 BATCH_TYPE_METADATA ="metadata"
 BATCH_STATUS_UPLOADED = "uploaded"
@@ -50,7 +50,6 @@ SIZE ="size"
 MD5 = "md5"
 DATA_COLlECTION = "dataRecords"
 FILE_NAME = "fileName"
-FILE_STATUS = "status"
 STATUS_ERROR = "Error"
 STATUS_WARNING = "Warning"
 STATUS_PASSED = "Passed"
@@ -59,6 +58,12 @@ SUBMISSION_ID = "submissionID"
 NODE_ID = "nodeID"
 NODE_TYPE = "nodeType"
 S3_BUCKET_DIR = "s3_bucket_drive"
+FILE_ERRORS = "fileErrors"
+PROPERTIES = "props"
+
+FILE_NAME_FIELD = "name-field"
+FILE_SIZE_FIELD = "size-field"
+FILE_MD5_FIELD = "md5-field"
 
 #data model
 DATA_COMMON = "data_commons"
@@ -74,15 +79,28 @@ ALLOWED_VALUES = "permissible_values"
 RELATION_LABEL = "label"
 RELATION_PARENT_NODE ="parent_nodes"
 NODE_LABEL = "node"
+NODES_LABEL = "nodes"
 IDS = "id_fields"
 NODE_PROPERTIES = "properties"
 PROP_REQUIRED="required"
 TYPE ="type"
 MODELS_DEFINITION_FILE = "content.json"
-TIER = "DEV_TIER"
+TIER = "TIER"
 TIER_CONFIG = "tier"
-UPDATED_AT = "updatedAt"
 FILE_SIZE = "file_size"
+MIN = 'minimum'
+MAX = 'maximum'
+VALID_PROP_TYPE_LIST = [
+    "string", # default type
+    "integer",
+    "number", # float or double
+    "datetime",
+    "date",
+    "boolean", # true/false or yes/no
+    "array" # value_type: list
+]
+VALIDATION_RESULT = "result"
+VALIDATED_AT = "validatedAt"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
@@ -93,6 +111,9 @@ TYPE_LOAD = "Load Metadata"
 TYPE_METADATA_VALIDATE = "Validate Metadata"
 TYPE_FILE_VALIDATE = "Validate Single File"
 TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
+
+
+
 
 
 
