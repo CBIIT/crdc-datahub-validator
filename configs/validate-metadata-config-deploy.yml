@@ -1,0 +1,5 @@
+Config:
+    # service type value in metadata, file and metadata
+    service-type: metadata
+    models-loc: https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/
+   

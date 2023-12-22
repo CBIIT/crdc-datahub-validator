@@ -1,0 +1,5 @@
+Config:
+    # service type value in essential, file and metadata
+    service-type: essential
+    models-loc: https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/
+   

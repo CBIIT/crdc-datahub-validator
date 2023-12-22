@@ -1,0 +1,5 @@
+Config:
+    # service type value in essential, file and metadata
+    service-type: file
+
+   
