@@ -10,12 +10,7 @@ from src.common.constants import STATUS_WARNING, ERRORS, WARNINGS, STATUS_PASSED
 from src.common.error_messages import FAILED_VALIDATE_RECORDS
 # from src.common.mongo_dao import MongoDao
 
-
-@pytest.fixture
-def mock_configs():
-    return {DB: MONGO_DB}
-
-# dev database test
+# needs to modify for dev database test
 # @pytest.fixture
 # def mock_mongo_dao():
 #     configs = {
@@ -36,8 +31,8 @@ def mock_model_store(mocker):
 
 
 @pytest.fixture
-def validator(mock_configs, mock_mongo_dao, mock_model_store):
-    return MetaDataValidator(mock_configs, mock_mongo_dao, mock_model_store)
+def validator(mock_mongo_dao, mock_model_store):
+    return MetaDataValidator(mock_mongo_dao, mock_model_store)
 
 @pytest.mark.parametrize(
     "data_record, node_definition, return_value, expected_errors, expected_warnings, expected_result", [
@@ -364,7 +359,77 @@ def validator(mock_configs, mock_mongo_dao, mock_model_store):
          # Errors
          [],
          # Warnings
-         [], STATUS_PASSED)
+         [], STATUS_PASSED),
+        # Test case 11: multiple parents nodes with boolean value
+        ({"nodeType": "program", "parents": [
+            {
+                "parentType": "study",
+                "parentIDPropName": "study_id",
+                "parentIDValue": False
+            },
+            {
+                "parentType": "program",
+                "parentIDPropName": "program_id",
+                "parentIDValue": True
+            },
+
+        ]},
+         {"model": {
+             "nodes": {
+                 "program": {
+                     "id_property": "test",
+                     "properties": {
+                         "key1": {"required": True},
+                         "program_id": {"required": True}
+                     }
+                 },
+                 "study": {
+                     "id_property": "test",
+                     "properties": {
+                         "study_id": {"required": True}
+                     }
+                 }
+             }
+         }},
+         # mock for database
+         [{"nodeType": "study", "props": {"study_id": False}},
+          {"nodeType": "program", "props": {"program_id": True}}],
+         # Errors
+         [],
+         # Warnings
+         [], STATUS_PASSED),
+        # Test case 12: a parent node with boolean value
+        ({"nodeType": "program", "parents": [
+            {
+                "parentType": "study",
+                "parentIDPropName": "study_id",
+                "parentIDValue": True
+            }
+        ]},
+         {"model": {
+             "nodes": {
+                 "program": {
+                     "id_property": "test",
+                     "properties": {
+                         "key1": {"required": True},
+                         "program_id": {"required": True}
+                     }
+                 },
+                 "study": {
+                     "id_property": "test",
+                     "properties": {
+                         "study_id": {"required": True}
+                     }
+                 }
+             }
+         }},
+         # mock for database
+         [{"nodeType": "study", "props": {"study_id": True}},
+          {"nodeType": "program", "props": {"program_id": True}}],
+         # Errors
+         [],
+         # Warnings
+         [], STATUS_PASSED),
     ])
 
 def test_validate_required_props(validator, data_record, node_definition, return_value, expected_errors,

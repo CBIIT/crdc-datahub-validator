@@ -48,8 +48,8 @@ class MongoDao:
     check node exists by node name and its value
     """
     # def validate_node(self, db_name, submission_id, node_type, node_key, node_value):
-    def search_nodes_by_type_and_value(self, db_name, nodes):
-        db = self.client[db_name]
+    def search_nodes_by_type_and_value(self, nodes):
+        db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
             node_set, query = set(), []

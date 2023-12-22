@@ -240,7 +240,7 @@ class MetaDataValidator:
             parent_id_value = parent_node.get("parentIDValue")
             if parent_type and parent_id_value and parent_id_value is not None:
                 parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": parent_id_value})
-        exist_parent_nodes = self.mongo_dao.search_nodes_by_type_and_value(self.configs[DB], parent_nodes)
+        exist_parent_nodes = self.mongo_dao.search_nodes_by_type_and_value(parent_nodes)
 
         parent_node_cache = set()
         for node in exist_parent_nodes:
