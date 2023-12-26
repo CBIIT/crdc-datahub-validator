@@ -106,12 +106,6 @@ def validator(mock_mongo_dao, mock_model_store):
                      "id_property": "test",
                      "properties": {
                          "key1": {"required": True}
-                     }
-                 },
-                 "study": {
-                     "id_property": "test",
-                     "properties": {
-                         "study_id": {"required": True}
                      },
                      "relationships": {
                          "study": {
@@ -119,6 +113,12 @@ def validator(mock_mongo_dao, mock_model_store):
                              "type": "many_to_one",
                              "label": "member_of"
                          }
+                     }
+                 },
+                 "study": {
+                     "id_property": "test",
+                     "properties": {
+                         "study_id": {"required": True}
                      }
                  }
              }
@@ -180,12 +180,6 @@ def validator(mock_mongo_dao, mock_model_store):
                      "id_property": "test",
                      "properties": {
                          "key1": {"required": True}
-                     }
-                 },
-                 "study": {
-                     "id_property": "test",
-                     "properties": {
-                         "key1": {"required": True}
                      },
                      "relationships": {
                          "study": {
@@ -193,6 +187,12 @@ def validator(mock_mongo_dao, mock_model_store):
                              "type": "many_to_one",
                              "label": "member_of"
                          }
+                     }
+                 },
+                 "study": {
+                     "id_property": "test",
+                     "properties": {
+                         "key1": {"required": True}
                      }
                  }
              }
@@ -257,13 +257,6 @@ def validator(mock_mongo_dao, mock_model_store):
                      "id_property": "test",
                      "properties": {
                          "key1": {"required": True}
-                     }
-                 },
-                 "study": {
-                     "id_property": "test",
-                     "properties": {
-                         "key1": {"required": True},
-                         "study_id": {"required": True}
                      },
                      "relationships": {
                          "study": {
@@ -271,6 +264,13 @@ def validator(mock_mongo_dao, mock_model_store):
                              "type": "many_to_one",
                              "label": "member_of"
                          }
+                     }
+                 },
+                 "study": {
+                     "id_property": "test",
+                     "properties": {
+                         "key1": {"required": True},
+                         "study_id": {"required": True}
                      }
                  }
              }
@@ -302,6 +302,18 @@ def validator(mock_mongo_dao, mock_model_store):
                      "properties": {
                          "key1": {"required": True},
                          "program_id": {"required": True}
+                     },
+                     "relationships": {
+                         "study": {
+                             "dest_node": "study",
+                             "type": "many_to_one",
+                             "label": "member_of"
+                         },
+                         "program": {
+                             "dest_node": "program",
+                             "type": "many_to_one",
+                             "label": "member_of"
+                         }
                      }
                  },
                  "study": {
@@ -344,6 +356,18 @@ def validator(mock_mongo_dao, mock_model_store):
                      "properties": {
                          "key1": {"required": True},
                          "program_id": {"required": True}
+                     },
+                     "relationships": {
+                         "study": {
+                             "dest_node": "study",
+                             "type": "many_to_one",
+                             "label": "member_of"
+                         },
+                         "program": {
+                             "dest_node": "program",
+                             "type": "many_to_one",
+                             "label": "member_of"
+                         }
                      }
                  },
                  "study": {
@@ -382,6 +406,18 @@ def validator(mock_mongo_dao, mock_model_store):
                      "properties": {
                          "key1": {"required": True},
                          "program_id": {"required": True}
+                     },
+                     "relationships": {
+                         "study": {
+                             "dest_node": "study",
+                             "type": "many_to_one",
+                             "label": "member_of"
+                         },
+                         "program": {
+                             "dest_node": "program",
+                             "type": "many_to_one",
+                             "label": "member_of"
+                         }
                      }
                  },
                  "study": {
@@ -414,6 +450,18 @@ def validator(mock_mongo_dao, mock_model_store):
                      "properties": {
                          "key1": {"required": True},
                          "program_id": {"required": True}
+                     },
+                     "relationships": {
+                         "study": {
+                             "dest_node": "study",
+                             "type": "many_to_one",
+                             "label": "member_of"
+                         },
+                         "program": {
+                             "dest_node": "program",
+                             "type": "many_to_one",
+                             "label": "member_of"
+                         }
                      }
                  },
                  "study": {
@@ -430,9 +478,47 @@ def validator(mock_mongo_dao, mock_model_store):
          # Errors
          [],
          # Warnings
-         [], STATUS_PASSED)
+         [], STATUS_PASSED),
+        # Test case 13: a parent node does not exist in the relationship
+        ({"nodeType": "program", "parents": [
+            {
+                "parentType": "file",
+                "parentIDPropName": "file_id",
+                "parentIDValue": True
+            }
+        ]},
+         {"model": {
+             "nodes": {
+                 "program": {
+                     "id_property": "test",
+                     "properties": {
+                         "key1": {"required": True},
+                         "program_id": {"required": True}
+                     },
+                     "relationships": {
+                         "study": {
+                             "dest_node": "study",
+                             "type": "many_to_one",
+                             "label": "member_of"
+                         }
+                     }
+                 },
+                 "file": {
+                     "id_property": "test",
+                     "properties": {
+                         "file_id": {"required": True}
+                     }
+                 }
+             }
+         }},
+         # mock for database
+         [{"nodeType": "study", "props": {"study_id": True}},
+          {"nodeType": "program", "props": {"program_id": True}}],
+         # Errors
+         [{"title": FAILED_VALIDATE_RECORDS, 'description': f"parent node 'file' is not defined in the node relationship."}],
+         # Warnings
+         [], STATUS_ERROR)
     ])
-
 def test_validate_required_props(validator, data_record, node_definition, return_value, expected_errors,
                                  expected_warnings,
                                  expected_result):

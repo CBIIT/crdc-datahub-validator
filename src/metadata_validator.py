@@ -262,6 +262,7 @@ class MetaDataValidator:
         node_keys = model.get_node_keys()
 
         node_type = data_record.get("nodeType")
+        node_relationships = model.get_node_relationships(node_type)
         if not node_type or node_type not in node_keys:
             node_type = f'\'{node_type}\'' if node_type else ''
             result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Current node property {node_type} does not exist."))
@@ -274,16 +275,14 @@ class MetaDataValidator:
                 continue
 
             parent_id_property = parent_node.get("parentIDPropName")
-            node_definition_properties = model.get_node_props(parent_type)
-            node_definition_relationships = model.get_node_relationships(parent_type)
+            model_properties = model.get_node_props(parent_type)
 
-            if not node_definition_properties or parent_id_property not in node_definition_properties:
+            if not model_properties or parent_id_property not in model_properties:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist."))
                 continue
-
-            invalid_parent_relationship = not node_definition_relationships or not node_definition_relationships.get(parent_type) or not node_definition_relationships.get(parent_type).get(parent_id_property)
-            if not invalid_parent_relationship:
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' is not defined in the node relationship"))
+            # check node relationship
+            if not node_relationships or not node_relationships.get(parent_type):
+                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"parent node '{parent_type}' is not defined in the node relationship."))
                 continue
 
             # these should be defined in the data model in the properties
