@@ -99,9 +99,23 @@ class DataLoader:
                     return False, self.errors
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:
-            returnVal = returnVal and self.mongo_dao.delete_data_records(deleted_ids)             
+            returnVal = returnVal and self.mongo_dao.delete_data_records(deleted_ids) \
+                and self.process_children(deleted_ids)          
         return returnVal, self.errors
     
+    """
+    process related children record in dataRecords
+    """
+    def process_children(self, deleted_ids):
+        deleted_child_ids = []
+        for id in deleted_ids:
+            """ todo
+            1) retrieve children node based on deleted node.
+            2) remove related parent prop.
+            3) delete children node if parent props a empty or null
+            """
+
+        return True
     """
     get node id defined in model dict
     """
