@@ -250,7 +250,7 @@ class MetaDataValidator:
         return parent_node_cache
 
 
-    def validate_relationship(self, data_record, node_definition):
+    def validate_relationship(self, data_record, model):
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         if not data_record.get("parents"):
@@ -259,8 +259,7 @@ class MetaDataValidator:
             return result
 
         data_record_parent_nodes = data_record.get("parents")
-        nodes = node_definition[MODEL].get("nodes", {})
-        node_keys = nodes.keys()
+        node_keys = model.get_node_keys()
 
         node_type = data_record.get("nodeType")
         if not node_type or node_type not in node_keys:
@@ -275,9 +274,8 @@ class MetaDataValidator:
                 continue
 
             parent_id_property = parent_node.get("parentIDPropName")
-            anode_definition = nodes[parent_type]
-            node_definition_properties = anode_definition.get("properties")
-            node_definition_relationships = anode_definition.get("relationships")
+            node_definition_properties = model.get_node_props(parent_type)
+            node_definition_relationships = model.get_node_relationships(parent_type)
 
             if not node_definition_properties or parent_id_property not in node_definition_properties:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist."))
@@ -289,9 +287,8 @@ class MetaDataValidator:
                 continue
 
             # these should be defined in the data model in the properties
-            parent_id_nodes = nodes.get(parent_type)
-            is_parent_id_valid_format = parent_id_nodes.get("properties")
-            is_parent_id_exist = is_parent_id_valid_format and parent_id_nodes.get("properties").get(parent_id_property)
+            is_parent_id_valid_format = model.get_node_props(parent_type)
+            is_parent_id_exist = is_parent_id_valid_format and is_parent_id_valid_format.get(parent_id_property)
             if not is_parent_id_valid_format or not is_parent_id_exist:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist"))
                 continue

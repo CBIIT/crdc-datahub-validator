@@ -8,6 +8,7 @@ sys.path.insert(0, current_directory + '/src')
 from src.metadata_validator import MetaDataValidator
 from src.common.constants import STATUS_WARNING, ERRORS, WARNINGS, STATUS_PASSED, STATUS_ERROR, DB, MONGO_DB
 from src.common.error_messages import FAILED_VALIDATE_RECORDS
+from src.common.model import DataModel
 # from src.common.mongo_dao import MongoDao
 
 # needs to modify for dev database test
@@ -429,7 +430,7 @@ def validator(mock_mongo_dao, mock_model_store):
          # Errors
          [],
          # Warnings
-         [], STATUS_PASSED),
+         [], STATUS_PASSED)
     ])
 
 def test_validate_required_props(validator, data_record, node_definition, return_value, expected_errors,
@@ -437,7 +438,9 @@ def test_validate_required_props(validator, data_record, node_definition, return
                                  expected_result):
     # uncomment this if test in dev database
     validator.mongo_dao.search_nodes_by_type_and_value.return_value = return_value
-    result = validator.validate_relationship(data_record, node_definition)
+    # create mock data model
+    mock_model = DataModel(node_definition)
+    result = validator.validate_relationship(data_record, mock_model)
     assert result['result'] == expected_result
     assert result[ERRORS] == expected_errors
     assert result[WARNINGS] == expected_warnings
