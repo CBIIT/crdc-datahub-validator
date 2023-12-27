@@ -67,10 +67,10 @@ Usage of the CLI tool:
     $ python src/uploader.py -h
 
 2) Start essential validation service command:
-    $ python src/validator.py -c configs/validator-essential-config.yml
+    $ python src/validator.py configs/validator-essential-config.yml
 
 3) Start file validation service command:
-    $ python src/validator.py -c configs/validator-file-config.yml
+    $ python src/validator.py configs/validator-file-config.yml
 
 4) Start metadata validation service command:
-    $ python src/validator.py -c configs/validator-metadata-config.yml
+    $ python src/validator.py configs/validator-metadata-config.yml

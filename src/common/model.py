@@ -1,4 +1,4 @@
-from common.constants import IDS, NODES_LABEL, MODEL
+from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS
 
 class DataModel:
     def __init__(self, model):
@@ -17,6 +17,11 @@ class DataModel:
     def get_node_id(self, node): 
         return self.model[MODEL][NODES_LABEL][node].get("id_property", None)
 
+    """
+    get all node keys in the model
+    """
+    def get_node_keys(self):
+        return self.model[MODEL][NODES_LABEL].keys()
 
     """
     get properties of a node in the model
@@ -24,6 +29,13 @@ class DataModel:
     def get_node_props(self, node):
         if self.model[MODEL][NODES_LABEL].get(node):
             return self.model[MODEL][NODES_LABEL][node].get("properties", None)
+
+    """
+    get relationships of a node in the model
+    """
+    def get_node_relationships(self, node):
+        if self.model[MODEL][NODES_LABEL].get(node):
+            return self.model[MODEL][NODES_LABEL][node].get(RELATIONSHIPS, None)
         
     """
     get required properties of a node in the model

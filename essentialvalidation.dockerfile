@@ -5,4 +5,4 @@ WORKDIR /usr/validator
 COPY . .
 RUN pip3 install -r requirements.txt
  
-CMD [/usr/local/bin/python3 src/validator.py -c configs/validator-essential-config-deploy.yml]
+CMD [/usr/local/bin/python3 src/validator.py configs/validator-essential-config-deploy.yml]
