@@ -6,7 +6,7 @@ from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
-from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, \
+from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, ROOT_PATH, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
     BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, TIER_CONFIG
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
@@ -60,7 +60,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         result = validator.validate(batch)
                         if result and len(validator.download_file_list) > 0:
                             #3. call mongo_dao to load data
-                            data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao)
+                            data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao, validator.bucket, validator.root_path )
                             result, errors = data_loader.load_data(validator.download_file_list)
                             if result:
                                 batch[STATUS] = BATCH_STATUS_LOADED
@@ -116,7 +116,9 @@ class EssentialValidator:
         self.datacommon = None
         self.model = None
         self.submission_id = None
+        self.root_path = None
         self.download_file_list = None
+        self.bucket = None
 
     def validate(self,batch):
         self.bucket = S3Bucket(batch.get("bucketName"))
@@ -172,6 +174,7 @@ class EssentialValidator:
             self.datacommon = submission.get(DATA_COMMON_NAME)
             self.model = self.model_store.get_model_by_data_common(self.datacommon)
             self.submission_id  = submission[ID]
+            self.root_path = submission.get(ROOT_PATH)
             self.download_file_list = []
             return True
     

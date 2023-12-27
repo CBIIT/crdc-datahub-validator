@@ -1,7 +1,8 @@
 from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
-    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE
+    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
+    PARENT_TYPE, PARENT_ID_VAL, PARENTS
 from common.utils import get_exception_msg, current_datetime_str
 
 MAX_SIZE = 10000
@@ -326,14 +327,15 @@ class MongoDao:
         query = []
         for id in parent_ids:
             node_type, node_id = id.get(NODE_TYPE), id.get(NODE_ID)
-            query.append({"parents": {"$elemMatch": {"parentType": node_type, "parentIDValue": node_id}}})
+            query.append({PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
         try:
-            return list(data_collection.find({"$or": query})) if len(query) > 0 else []
+            results = list(data_collection.distinct(ID, {"$or": query})) if len(query) > 0 else []
+            return True, results
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to retrieve child nodes: {get_exception_msg()}")
-            return None
+            return False, None
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to retrieve child  nodes: {get_exception_msg()}")
-            return None
+            return False, None

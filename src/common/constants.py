@@ -60,6 +60,9 @@ NODE_TYPE = "nodeType"
 S3_BUCKET_DIR = "s3_bucket_drive"
 FILE_ERRORS = "fileErrors"
 PROPERTIES = "props"
+PARENTS = "parents"
+PARENT_TYPE = "parentType"
+PARENT_ID_VAL = "parentIDValue"
 
 FILE_NAME_FIELD = "name-field"
 FILE_SIZE_FIELD = "size-field"
@@ -105,6 +108,7 @@ VALIDATED_AT = "validatedAt"
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
+ROOT_PATH = "rootPath"
 # sqs message
 SCOPE = "scope"
 SQS_TYPE = "type"

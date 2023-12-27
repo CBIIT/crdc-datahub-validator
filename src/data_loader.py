@@ -5,8 +5,8 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime_str, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
-    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, \
-    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_ID, NODE_TYPE
+    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_ID_VAL, PARENT_TYPE, \
+    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_ID, NODE_TYPE, PARENTS
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -14,11 +14,13 @@ BATCH_IDS = "batchIDs"
 # This script load matadata files to database
 # input: file info list
 class DataLoader:
-    def __init__(self, model, batch, mongo_dao):
+    def __init__(self, model, batch, mongo_dao, bucket, root_path):
         self.log = get_logger('Matedata loader')
         self.model = model
         self.mongo_dao =mongo_dao
         self.batch = batch
+        self.bucket = bucket
+        self.root_path = root_path
         self.file_nodes = self.model.get_file_nodes()
         self.errors = None
 
@@ -31,6 +33,7 @@ class DataLoader:
         intention = self.batch.get(BATCH_INTENTION, INTENTION_NEW)
         file_types = None if intention == INTENTION_DELETE else [k for (k,v) in self.file_nodes.items()]
         deleted_ids = [] if intention == INTENTION_DELETE else None
+        deleted_file_nodes = [] if intention == INTENTION_DELETE else None
         for file in file_path_list:
             records = [] if intention != INTENTION_DELETE else None
             failed_at = 1
@@ -46,8 +49,11 @@ class DataLoader:
                 for index, row in df.iterrows():
                     
                     type = row[TYPE]
-                    if intention == INTENTION_DELETE:
+                    exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_nodeId(node_id)
+                    if intention == INTENTION_DELETE and exist_node:
                         deleted_ids.append({NODE_ID: self.get_node_id(type, row), NODE_TYPE: type})
+                        if exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
+                            deleted_file_nodes.append(exist_node[S3_FILE_INFO])
                         continue
                     # 2. construct dataRecord
                     rawData = df.loc[index].to_dict()
@@ -55,7 +61,7 @@ class DataLoader:
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
                     node_id = self.get_node_id(type, row)
-                    exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_nodeId(node_id)
+                    
                     batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
                     current_date_time = current_datetime_str()
                     id = self.get_record_id(intention, exist_node)
@@ -99,28 +105,79 @@ class DataLoader:
                     return False, self.errors
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:
-            returnVal = returnVal and self.mongo_dao.delete_data_records(deleted_ids) \
-                and self.process_children(deleted_ids)          
+            if self.mongo_dao.delete_data_records(deleted_ids):
+                self.delete_files_in_s3(deleted_file_nodes)
+                self.process_children(deleted_ids) 
+            else:
+                self.errors.append(f"Failed to delete data records!")
+                returnVal = False
+
         return returnVal, self.errors
     
     """
     process related children record in dataRecords
     """
     def process_children(self, deleted_ids):
+        # retrieve child nodes
+        status, child_nodes = self.mongo_dao.get_nodes_by_parents(deleted_ids)
+        if not status: # if exception occurred
+            self.errors.append(f"Failed to retrieve child nodes!")
+            return False
+
+        if len(child_nodes) == 0: # if no child
+            return True
+        
         deleted_child_ids = []
         updated_child_nodes = []
-        child_nodes = self.mongo_dao.get_nodes_by_parents(deleted_ids)
+        file_nodes = []
+        parent_types = [item[NODE_TYPE] for item in deleted_ids]
+        file_def_types = self.file_nodes.key()
         for node in child_nodes:
-            """ todo
-            1) remove related parent prop.
-            2) delete children node if parent props a empty or null
-            """
-            parents = list(node.get("parents"))
-            if len(parents) == 0:
+            parents = list(filter(lambda x: (x[PARENT_TYPE] not in parent_types), node.get(PARENTS)))
+            if len(parents) == 0:  #delete if no other parents
                 deleted_child_ids.append({NODE_ID: node.get(NODE_ID), NODE_TYPE: node.get(NODE_TYPE)})
-            else:
-                node["parents"] = parents.filter()
+                if node.get(NODE_TYPE) in file_def_types and node.get(S3_FILE_INFO):
+                    file_nodes.append(node[S3_FILE_INFO])
+            else: #remove deleted parent and update the node
+                node[PARENTS] = parents
+                updated_child_nodes.append(node)
 
+        updated_results = True
+        deleted_results = True
+        if len(updated_child_nodes) > 0:
+            result = updated_results = self.mongo_dao.update_data_records(updated_child_nodes)
+            if not result:
+                self.errors.append(f"Failed to update child nodes!")
+
+        if len(deleted_child_ids) > 0:
+            deleted_results = self.mongo_dao.delete_data_records(deleted_child_ids)
+            if updated_results and deleted_results: 
+                #delete files
+                result = self.delete_files_in_s3(file_nodes)
+                if result: # delete grand children...
+                    self.process_children(deleted_child_ids)
+            else:
+                self.errors.append(f"Failed to delete child nodes!")
+        return True
+    
+    """
+    delete files
+    """
+    def delete_files_in_s3(self, file_s3_infos):
+        if len(file_s3_infos) == 0:
+            return True
+        for s3_info in file_s3_infos:
+            if not s3_info or not s3_info.get(FILE_NAME):
+                continue
+            key = os.path.join(self.root_path, os.path.join("file", s3_info[FILE_NAME]))
+            try:
+                result = self.bucket.delete_file(key)
+            except Exception  as e:
+                self.log.debug(e)
+                msg = f"Failed to delete file in s3 bucket, {key}! {get_exception_msg()}."
+                self.log.exception(msg)
+                self.errors.append(msg)
+                return False
         return True
     """
     get node id defined in model dict
