@@ -161,7 +161,7 @@ class DataLoader:
         return True
     
     """
-    delete files
+    delete files in s3 after deleted file nodes
     """
     def delete_files_in_s3(self, file_s3_infos):
         if len(file_s3_infos) == 0:
@@ -171,7 +171,10 @@ class DataLoader:
                 continue
             key = os.path.join(self.root_path, os.path.join("file", s3_info[FILE_NAME]))
             try:
-                result = self.bucket.delete_file(key)
+                if self.bucket.file_exists_on_s3(key):
+                    result = self.bucket.delete_file(key)
+                else:
+                    self.errors.append(f"The file,{key}, does not exit in s3 bucket!")
             except Exception  as e:
                 self.log.debug(e)
                 msg = f"Failed to delete file in s3 bucket, {key}! {get_exception_msg()}."
