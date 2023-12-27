@@ -6,7 +6,7 @@ from common.utils import get_uuid_str, current_datetime_str, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
     MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, \
-    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD 
+    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_ID, NODE_TYPE
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -47,7 +47,7 @@ class DataLoader:
                     
                     type = row[TYPE]
                     if intention == INTENTION_DELETE:
-                        deleted_ids.append({"nodeID": self.get_node_id(type, row), "nodeType": type})
+                        deleted_ids.append({NODE_ID: self.get_node_id(type, row), NODE_TYPE: type})
                         continue
                     # 2. construct dataRecord
                     rawData = df.loc[index].to_dict()
@@ -108,12 +108,18 @@ class DataLoader:
     """
     def process_children(self, deleted_ids):
         deleted_child_ids = []
-        for id in deleted_ids:
+        updated_child_nodes = []
+        child_nodes = self.mongo_dao.get_nodes_by_parents(deleted_ids)
+        for node in child_nodes:
             """ todo
-            1) retrieve children node based on deleted node.
-            2) remove related parent prop.
-            3) delete children node if parent props a empty or null
+            1) remove related parent prop.
+            2) delete children node if parent props a empty or null
             """
+            parents = list(node.get("parents"))
+            if len(parents) == 0:
+                deleted_child_ids.append({NODE_ID: node.get(NODE_ID), NODE_TYPE: node.get(NODE_TYPE)})
+            else:
+                node["parents"] = parents.filter()
 
         return True
     """

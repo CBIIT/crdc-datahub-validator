@@ -1,7 +1,7 @@
 from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
-    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW
+    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE
 from common.utils import get_exception_msg, current_datetime_str
 
 MAX_SIZE = 10000
@@ -56,7 +56,7 @@ class MongoDao:
             if node_type and node_key and node_value is not None \
                     and (node_type, node_key, node_value) not in node_set:
                 node_set.add(tuple([node_type, node_key, node_value]))
-                query.append({"$and": [{"nodeType": node_type, "props." + node_key: node_value}]})
+                query.append({"nodeType": node_type, "props." + node_key: node_value})
         try:
             return list(data_collection.find({"$or": query})) if len(query) > 0 else []
         except errors.PyMongoError as pe:
@@ -244,7 +244,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                DeleteOne( { "nodeID": str(m["nodeID"]), "nodeType": m["nodeType"] })
+                DeleteOne( { NODE_ID: str(m[NODE_ID]), NODE_TYPE: m[NODE_TYPE] })
                     for m in list(nodes)
                 ])
             self.log.info(f'Total {result.deleted_count} dataRecords are deleted!')
@@ -300,7 +300,7 @@ class MongoDao:
             return None 
 
     """
-    retrieve dataRecord nby nodeID
+    retrieve dataRecord by nodeID
     """
     def get_dataRecord_nodeId(self, nodeID):
         db = self.client[self.db_name]
@@ -316,3 +316,24 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to retrieve data record, {get_exception_msg()}")
             return None 
+        
+    """
+    find child node by type and id
+    """
+    def get_nodes_by_parents(self, parent_ids):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        query = []
+        for id in parent_ids:
+            node_type, node_id = id.get(NODE_TYPE), id.get(NODE_ID)
+            query.append({"parents": {"$elemMatch": {"parentType": node_type, "parentIDValue": node_id}}})
+        try:
+            return list(data_collection.find({"$or": query})) if len(query) > 0 else []
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to retrieve child nodes: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to retrieve child  nodes: {get_exception_msg()}")
+            return None
