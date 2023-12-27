@@ -56,7 +56,7 @@ class MongoDao:
             if node_type and node_key and node_value is not None \
                     and (node_type, node_key, node_value) not in node_set:
                 node_set.add(tuple([node_type, node_key, node_value]))
-                query.append({"$and": [{"nodeType": node_type, "props." + node_key: node_value}]})
+                query.append({"nodeType": node_type, "props." + node_key: node_value})
         try:
             return list(data_collection.find({"$or": query})) if len(query) > 0 else []
         except errors.PyMongoError as pe:
