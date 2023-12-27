@@ -4,10 +4,10 @@ import pandas as pd
 import json
 from datetime import datetime
 from bento.common.sqs import VisibilityExtender
-from bento.common.utils import get_logger
+from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
 from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.error_messages import FAILED_VALIDATE_RECORDS
@@ -281,23 +281,33 @@ class MetaDataValidator:
                 if len(errs) > 0:
                     errors.extend(errs)
 
-            elif type ==  "datetime" or type ==  "date":
+            elif type ==  "datetime":
                 try:
-                    val = datetime.strptime(value, '%m/%d/%y %H:%M:%S')
+                    val = datetime.strptime(value, DATETIME_FORMAT)
                 except ValueError as e:
-                    errors.append(create_error("Not a date/datetime", f"The value, {value}, is neither a datetime nor date!"))
+                    errors.append(create_error("Not a valid datetime", f"The value, {value}, is not a valid datetime!"))
+
+            elif type ==  "date":
+                val = None
+                for date_format in DATE_FORMATS:
+                    try:
+                        val = datetime.strptime(value, date_format)
+                        break #if the value can be parsed with the format
+                    except ValueError as e:
+                        continue
+                if val is None:
+                    errors.append(create_error("Not a valid date", f"The value, {value}, is not a valid date!"))
 
             elif type ==  "boolean":
-                try:
-                    val = bool(value)
-                except ValueError as e:
+                if not isinstance(value, bool) and value not in ["yes", "true", "no", "false"]:
                     errors.append(create_error("Not a boolean", f"The value, {value}, is not a boolean!"))
             
             elif type ==  "array":
-                try:
-                    val = list(value)
-                except ValueError as e:
-                    errors.append(create_error("Not a list", f"The value, {value}, is not a list!"))
+                arr = value.split("*")
+                for item in arr:
+                    result, error = check_permissive(item, permissive_vals)
+                    if not result:
+                        errors.append(error)
             else:
                 errors.append(create_error("Not a valid type", f"Invalid data type, {type}!"))
 
@@ -314,9 +324,17 @@ def check_permissive(value, permissive_vals):
 
 def check_boundary(value, min, max):
     errors = []
-    if min and value < min:
-        errors.append(create_error("Less than minimum", f"The value is less than minimum, {value} < {min}!"))
-    if max and value > max:
-        errors.append(create_error("More than maximum", f"The value is more than maximum, {value} > {min}!"))
+    if min and min.get(VALUE_PROP):
+        val = min.get(VALUE_PROP)
+        exclusive = min.get(VALUE_EXCLUSIVE)
+        if (exclusive and value <= val) or (not exclusive and value < val):
+            errors.append(create_error("Less than minimum", f"The value is less than minimum, {value} < {min}!"))
+
+    if max and max.get(VALUE_PROP):
+        val = max.get(VALUE_PROP)
+        exclusive = max.get(VALUE_EXCLUSIVE)
+        if (exclusive and value >= val) or (not exclusive and value > val):
+            errors.append(create_error("More than maximum", f"The value is more than maximum, {value} > {min}!"))      
+
     return errors
 
