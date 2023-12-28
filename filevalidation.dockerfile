@@ -6,4 +6,4 @@ COPY . .
 RUN pip3 install -r requirements.txt
  
 #CMD ["/usr/local/bin/python3", "src/validator.py", "-u", "$MONGO_DB_USER", "-p", "$MONGO_DB_PASSWORD", "-d", "$DATABASE_NAME", "-s", "$MONGO_DB_HOST", "-o", "27017", "-q", "$FILE_QUEUE", "-m", "https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/", "configs/validate-file-config-deploy.yml"]
-CMD ["/usr/local/bin/python3", "src/validator.py", "-d", "$DATABASE_NAME", "-o", "27017", "-q", "$FILE_QUEUE", "configs/validate-file-config-deploy.yml"]
+CMD ["/usr/local/bin/python3", "src/validator.py", "-o", "27017", "configs/validate-file-config-deploy.yml"]
