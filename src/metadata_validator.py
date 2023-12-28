@@ -323,7 +323,7 @@ class MetaDataValidator:
                 result, error = check_permissive(val, permissive_vals)
                 if not result:
                     errors.append(error)
-            elif type ==  "integer":
+            elif type == "integer":
                 try:
                     val = int(value)
                 except ValueError as e:
@@ -337,7 +337,7 @@ class MetaDataValidator:
                 if len(errs) > 0:
                     errors.extend(errs)
 
-            elif type ==  "number":
+            elif type == "number":
                 try:
                     val = float(value)
                 except ValueError as e:
@@ -350,13 +350,13 @@ class MetaDataValidator:
                 if len(errs) > 0:
                     errors.extend(errs)
 
-            elif type ==  "datetime":
+            elif type == "datetime":
                 try:
                     val = datetime.strptime(value, DATETIME_FORMAT)
                 except ValueError as e:
                     errors.append(create_error("Not a valid datetime", f"The value, {value}, is not a valid datetime!"))
 
-            elif type ==  "date":
+            elif type == "date":
                 val = None
                 for date_format in DATE_FORMATS:
                     try:
@@ -367,11 +367,11 @@ class MetaDataValidator:
                 if val is None:
                     errors.append(create_error("Not a valid date", f"The value, {value}, is not a valid date!"))
 
-            elif type ==  "boolean":
+            elif type == "boolean":
                 if not isinstance(value, bool) and value not in ["yes", "true", "no", "false"]:
                     errors.append(create_error("Not a boolean", f"The value, {value}, is not a boolean!"))
             
-            elif type ==  "array":
+            elif type == "array":
                 arr = value.split("*")
                 for item in arr:
                     result, error = check_permissive(item, permissive_vals)
