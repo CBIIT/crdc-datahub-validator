@@ -245,7 +245,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                DeleteOne( { NODE_ID: str(m[NODE_ID]), NODE_TYPE: m[NODE_TYPE] })
+                DeleteOne( { SUBMISSION_ID: m[SUBMISSION_ID], NODE_ID: str(m[NODE_ID]), NODE_TYPE: m[NODE_TYPE] })
                     for m in list(nodes)
                 ])
             self.log.info(f'Total {result.deleted_count} dataRecords are deleted!')
@@ -301,13 +301,13 @@ class MongoDao:
             return None 
 
     """
-    retrieve dataRecord by nodeID
+    retrieve dataRecord nby nodeID
     """
-    def get_dataRecord_nodeId(self, nodeID):
+    def get_dataRecord_by_node(self, nodeID, nodeType, submissionID):
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
-            result = file_collection.find_one({"nodeID": nodeID})
+            result = file_collection.find_one({SUBMISSION_ID: submissionID, NODE_ID: nodeID, NODE_TYPE: nodeType})
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -321,13 +321,13 @@ class MongoDao:
     """
     find child node by type and id
     """
-    def get_nodes_by_parents(self, parent_ids):
+    def get_nodes_by_parents(self, parent_ids, submissionID):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         query = []
         for id in parent_ids:
             node_type, node_id = id.get(NODE_TYPE), id.get(NODE_ID)
-            query.append({PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
+            query.append({SUBMISSION_ID: submissionID, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
         try:
             results = list(data_collection.distinct(ID, {"$or": query})) if len(query) > 0 else []
             return True, results

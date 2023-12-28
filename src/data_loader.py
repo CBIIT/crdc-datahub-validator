@@ -32,7 +32,7 @@ class DataLoader:
         self.errors = []
         intention = self.batch.get(BATCH_INTENTION, INTENTION_NEW)
         file_types = None if intention == INTENTION_DELETE else [k for (k,v) in self.file_nodes.items()]
-        deleted_ids = [] if intention == INTENTION_DELETE else None
+        deleted_nodes = [] if intention == INTENTION_DELETE else None
         deleted_file_nodes = [] if intention == INTENTION_DELETE else None
         for file in file_path_list:
             records = [] if intention != INTENTION_DELETE else None
@@ -48,9 +48,9 @@ class DataLoader:
                 
                 for index, row in df.iterrows():
                     type = row[TYPE]
-                    exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_nodeId(node_id)
+                    exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
                     if intention == INTENTION_DELETE and exist_node:
-                        deleted_ids.append({NODE_ID: self.get_node_id(type, row), NODE_TYPE: type})
+                        deleted_nodes.append(exist_node)
                         if exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
                             deleted_file_nodes.append(exist_node[S3_FILE_INFO])
                         continue
@@ -106,7 +106,7 @@ class DataLoader:
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:
             try:
-                returnVal = self.delete_nodes(deleted_ids, deleted_file_nodes)
+                returnVal = self.delete_nodes(deleted_nodes, deleted_file_nodes)
             except Exception as e:
                     df = None
                     self.log.debug(e)
@@ -119,12 +119,12 @@ class DataLoader:
     """
     delete nodes
     """
-    def delete_nodes(self, deleted_ids, deleted_file_nodes):
-        if len(deleted_ids):
+    def delete_nodes(self, deleted_nodes, deleted_file_nodes):
+        if len(deleted_nodes) == 0:
             return True
-        if self.mongo_dao.delete_data_records(deleted_ids):
+        if self.mongo_dao.delete_data_records(deleted_nodes):
                 self.delete_files_in_s3(deleted_file_nodes)
-                self.process_children(deleted_ids) 
+                self.process_children(deleted_nodes) 
         else:
             self.errors.append(f"Failed to delete data records!")
             returnVal = False
@@ -132,9 +132,9 @@ class DataLoader:
     """
     process related children record in dataRecords
     """
-    def process_children(self, deleted_ids):
+    def process_children(self, deleted_nodes):
         # retrieve child nodes
-        status, child_nodes = self.mongo_dao.get_nodes_by_parents(deleted_ids)
+        status, child_nodes = self.mongo_dao.get_nodes_by_parents(deleted_nodes, self.batch[SUBMISSION_ID])
         if not status: # if exception occurred
             self.errors.append(f"Failed to retrieve child nodes!")
             return False
