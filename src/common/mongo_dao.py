@@ -146,10 +146,10 @@ class MongoDao:
             return False if result else True
         except errors.OperationFailure as oe: 
             self.log.debug(oe)
-            self.log.exception(f"Failed to query DB, {metadata_db}, {nodeType}: {get_exception_msg()}!")
+            self.log.exception(f"Failed to query DB, {nodeType}: {get_exception_msg()}!")
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to query DB, {metadata_db}, {nodeType}: {get_exception_msg()}!")
+            self.log.exception(f"Failed to query DB, {nodeType}: {get_exception_msg()}!")
         return True
     
     """
