@@ -143,15 +143,15 @@ class DataLoader:
             return True
         
         rtn_val = True
-        deleted_child_ids = []
+        deleted_child_nodes = []
         updated_child_nodes = []
         file_nodes = []
-        parent_types = [item[NODE_TYPE] for item in deleted_ids]
+        parent_types = [item[NODE_TYPE] for item in deleted_nodes]
         file_def_types = self.file_nodes.key()
         for node in child_nodes:
             parents = list(filter(lambda x: (x[PARENT_TYPE] not in parent_types), node.get(PARENTS)))
             if len(parents) == 0:  #delete if no other parents
-                deleted_child_ids.append({NODE_ID: node.get(NODE_ID), NODE_TYPE: node.get(NODE_TYPE)})
+                deleted_child_nodes.append(node)
                 if node.get(NODE_TYPE) in file_def_types and node.get(S3_FILE_INFO):
                     file_nodes.append(node[S3_FILE_INFO])
             else: #remove deleted parent and update the node
@@ -166,13 +166,13 @@ class DataLoader:
                 self.errors.append(f"Failed to update child nodes!")
                 rtn_val = rtn_val and False
 
-        if len(deleted_child_ids) > 0:
-            deleted_results = self.mongo_dao.delete_data_records(deleted_child_ids)
+        if len(deleted_child_nodes) > 0:
+            deleted_results = self.mongo_dao.delete_data_records(deleted_child_nodes, self.batch[SUBMISSION_ID])
             if updated_results and deleted_results: 
                 #delete files
                 result = self.delete_files_in_s3(file_nodes)
                 if result: # delete grand children...
-                    if not self.process_children(deleted_child_ids):
+                    if not self.process_children(deleted_child_nodes):
                         self.errors.append(f"Failed to delete grand child nodes!")
                         rtn_val = rtn_val and False
                 else:
