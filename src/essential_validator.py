@@ -193,12 +193,14 @@ class EssentialValidator:
             self.log.debug(ce)
             self.log.exception(f"Failed downloading file,{file_info.fileName} to {self.batch.bucketName}! {get_exception_msg()}.")
             file_info[ERRORS] = [f'Downloading file failed with S3 client error! {get_exception_msg()}.']
+            self.batch[ERRORS].append(f'Failed downloading file,{file_info.fileName} to s3 bucket!')
             return False
         except Exception as e:
             self.df = None
             self.log.debug(e)
             self.log.exception('Downloading file failed! Check debug log for detailed information.')
             file_info[ERRORS] = [f"Downloading file failed! {get_exception_msg()}."]
+            self.batch[ERRORS].append('Downloading file failed! Check debug log for detailed information.')
             return False
     
     def validate_data(self, file_info):
@@ -224,6 +226,7 @@ class EssentialValidator:
             msg = f'Invalid metadata, contains empty rows, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
             return False
         
         # Each row in a metadata file must have same number of columns as the header row
