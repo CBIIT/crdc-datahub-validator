@@ -6,7 +6,8 @@ from common.utils import get_uuid_str, current_datetime_str, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
     MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_ID_VAL, PARENT_TYPE, \
-    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_ID, NODE_TYPE, PARENTS
+    PARENT_ID_NAME, FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_ID, NODE_TYPE, \
+    PARENTS, PROPERTIES
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -23,6 +24,7 @@ class DataLoader:
         self.root_path = root_path
         self.file_nodes = self.model.get_file_nodes()
         self.errors = None
+        self.relationship_map = None
 
     """
     param: file_path_list downloaded from s3 bucket
@@ -45,7 +47,7 @@ class DataLoader:
                 df = pd.read_csv(file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
                 df = df.reset_index()  # make sure indexes pair with number of rows
                 col_names =list(df.columns)
-                
+                self.relationship_map = {} if intention == INTENTION_NEW else None
                 for index, row in df.iterrows():
                     type = row[TYPE]
                     exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
@@ -60,7 +62,7 @@ class DataLoader:
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
                     node_id = self.get_node_id(type, row)
-                    
+                    self.relationship_map = {}
                     batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
                     current_date_time = current_datetime_str()
                     id = self.get_record_id(intention, exist_node)
@@ -78,10 +80,10 @@ class DataLoader:
                         UPDATED_AT: current_date_time, 
                         "orginalFileName": os.path.basename(file),
                         "lineNumber": index,
-                        "nodeType": type,
-                        "nodeID": node_id,
-                        "props": {k: v for (k, v) in rawData.items() if k in prop_names},
-                        "parents": self.get_parents(relation_fields, row),
+                        NODE_TYPE: type,
+                        NODE_ID: node_id,
+                        PROPERTIES: {k: v for (k, v) in rawData.items() if k in prop_names},
+                        PARENTS: self.get_parents(relation_fields, row),
                         "rawData":  rawData
                     }
                     if type in file_types:
@@ -114,6 +116,10 @@ class DataLoader:
                     self.log.exception(msg)
                     self.errors.append(msg)
                     return False, self.errors
+            
+        #3-3. insert relationship map into db if intention is new
+        if intention == INTENTION_NEW and len(self.relationship_map.items) > 0:
+            self.mongo_dao.insert_relation_map(self.relationship_map, self.batch[SUBMISSION_ID])
 
         return returnVal, self.errors
     """
@@ -123,6 +129,7 @@ class DataLoader:
         if len(deleted_nodes) == 0:
             return True
         if self.mongo_dao.delete_data_records(deleted_nodes):
+                self.relationship_map = self.mongo_dao.get_relationship_maps(self.batch[SUBMISSION_ID])
                 self.delete_files_in_s3(deleted_file_nodes)
                 self.process_children(deleted_nodes) 
         else:
@@ -133,8 +140,15 @@ class DataLoader:
     process related children record in dataRecords
     """
     def process_children(self, deleted_nodes):
+        parent_ids = []
         # retrieve child nodes
-        status, child_nodes = self.mongo_dao.get_nodes_by_parents(deleted_nodes, self.batch[SUBMISSION_ID])
+        for node in deleted_nodes:
+            rel_list = [item for item in self.relationship_map if item[PARENT_TYPE] == node[NODE_TYPE]]
+            for item in rel_list:
+                parent_ids.append({NODE_TYPE: item[NODE_TYPE], PARENT_TYPE: node[NODE_TYPE], PARENT_ID_NAME: item[PARENT_ID_NAME], \
+                                    PARENT_ID_VAL: node[PROPERTIES].get(item[PARENT_ID_NAME])})
+
+        status, child_nodes = self.mongo_dao.get_nodes_by_parents(parent_ids, self.batch[SUBMISSION_ID])
         if not status: # if exception occurred
             self.errors.append(f"Failed to retrieve child nodes!")
             return False
@@ -234,9 +248,14 @@ class DataLoader:
     """
     def get_parents(self, relation_fields, row):
         parents = []
+        relationships = set()
         for relation in relation_fields:
             temp = relation.split('.')
-            parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": row[relation]})
+            parents.append({PARENT_TYPE: temp[0],PARENT_ID_NAME: temp[1], PARENT_ID_VAL: row[relation]})
+            relationship = tuple(row[TYPE], temp[0], temp[1])
+            if relationship not in relationships:
+                relationships.add(relationship)
+                self.relationship_map.update({row[TYPE]: {PARENT_TYPE: temp[0], PARENT_ID_NAME: temp[1]}})
         return parents
     
     """

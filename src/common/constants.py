@@ -63,6 +63,7 @@ PROPERTIES = "props"
 PARENTS = "parents"
 PARENT_TYPE = "parentType"
 PARENT_ID_VAL = "parentIDValue"
+PARENT_ID_NAME = "parentIDPropName"
 
 FILE_NAME_FIELD = "name-field"
 FILE_SIZE_FIELD = "size-field"
@@ -105,6 +106,7 @@ VALID_PROP_TYPE_LIST = [
 ]
 VALIDATION_RESULT = "result"
 VALIDATED_AT = "validatedAt"
+
 
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"

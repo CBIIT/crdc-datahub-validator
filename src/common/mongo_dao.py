@@ -2,8 +2,8 @@ from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
-    PARENT_TYPE, PARENT_ID_VAL, PARENTS
-from common.utils import get_exception_msg, current_datetime_str
+    PARENT_TYPE, PARENT_ID_VAL, PARENT_ID_NAME, PARENTS, CREATED_AT
+from common.utils import get_exception_msg, current_datetime_str, get_uuid_str
 
 MAX_SIZE = 10000
 
@@ -326,8 +326,8 @@ class MongoDao:
         data_collection = db[DATA_COLlECTION]
         query = []
         for id in parent_ids:
-            node_type, node_id = id.get(NODE_TYPE), id.get(NODE_ID)
-            query.append({SUBMISSION_ID: submissionID, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
+            query.append({SUBMISSION_ID: submissionID, NODE_TYPE: id[NODE_TYPE], PARENTS: {"$elemMatch": {PARENT_TYPE: id.get(PARENT_TYPE), \
+                 PARENT_ID_NAME: id.get(PARENT_ID_NAME), PARENT_ID_VAL: id.get(PARENT_ID_VAL)}}})
         try:
             results = list(data_collection.distinct(ID, {"$or": query})) if len(query) > 0 else []
             return True, results
@@ -339,3 +339,63 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to retrieve child  nodes: {get_exception_msg()}")
             return False, None
+        
+    """
+    insert node relationship map
+    """
+    def insert_relationship_map(self, relationship_map, submissionID):
+        db = self.client[self.db_name]
+        data_collection = db["relationshipMap"]
+        maps = []
+        for key, val in relationship_map.items:
+            current_date_time = current_datetime_str()
+            map = {
+                ID: get_uuid_str(),
+                SUBMISSION_ID: submissionID,
+                NODE_TYPE: key,
+                PARENT_TYPE: val.get(PARENT_TYPE),
+                PARENT_ID_NAME: val.get(PARENT_ID_NAME),
+                CREATED_AT : current_date_time, 
+                UPDATED_AT: current_date_time, 
+            }
+            maps.append(map)
+        try:
+            result = data_collection.insert_many(maps)
+            count = len(result.inserted_ids)
+            self.log.info(f'Total {count} relationshipMap are inserted!')
+            return count > 0 
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to insert relationshipMap, {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to insert relationshipMap, {get_exception_msg()}")
+            return False 
+        
+    """
+    get relationship map
+    """
+    def get_relationship_maps(self, submissionID):
+        db = self.client[self.db_name]
+        data_collection = db["relationshipMap"]
+        try:
+            result = list(data_collection.find({SUBMISSION_ID: submissionID}))
+            if len(result) == 0:
+                return []
+            unique = set()
+            relationships = []
+            for r in result:
+                item = tuple(r[NODE_TYPE], r[PARENT_TYPE], r[PARENT_ID_NAME])
+                if item not in unique:
+                    unique.add(unique)
+                    relationships.append(r)
+            return relationships
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to retrieve relationshipMap, {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to retrieve relationshipMap, {get_exception_msg()}")
+            return False 
