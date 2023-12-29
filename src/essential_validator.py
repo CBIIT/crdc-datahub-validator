@@ -191,16 +191,16 @@ class EssentialValidator:
         except ClientError as ce:
             self.df = None
             self.log.debug(ce)
-            self.log.exception(f"Failed downloading file,{file_info.fileName} to {self.batch.bucketName}! {get_exception_msg()}.")
+            self.log.exception(f"Failed to download file, {file_info.fileName} from {self.batch.bucketName}! {get_exception_msg()}.")
             file_info[ERRORS] = [f'Downloading file failed with S3 client error! {get_exception_msg()}.']
-            self.batch[ERRORS].append(f'Failed downloading file,{file_info.fileName} to s3 bucket!')
+            self.batch[ERRORS].append(f'Failed to download file, {file_info.fileName}, from s3 bucket!')
             return False
         except Exception as e:
             self.df = None
             self.log.debug(e)
             self.log.exception('Downloading file failed! Check debug log for detailed information.')
             file_info[ERRORS] = [f"Downloading file failed! {get_exception_msg()}."]
-            self.batch[ERRORS].append('Downloading file failed! Check debug log for detailed information.')
+            self.batch[ERRORS].append('Downloading file failed!')
             return False
     
     def validate_data(self, file_info):
