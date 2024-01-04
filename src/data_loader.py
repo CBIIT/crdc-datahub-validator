@@ -2,7 +2,7 @@
 import os
 import pandas as pd
 from bento.common.utils import get_logger
-from common.utils import get_uuid_str, current_datetime_str, get_exception_msg
+from common.utils import get_uuid_str, current_datetime, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
     MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, \
@@ -57,7 +57,7 @@ class DataLoader:
                     node_id = self.get_node_id(type, row)
                     exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_nodeId(node_id)
                     batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
-                    current_date_time = current_datetime_str()
+                    current_date_time = current_datetime()
                     id = self.get_record_id(intention, exist_node)
                     dataRecord = {
                         ID: id,
@@ -138,7 +138,7 @@ class DataLoader:
         file_name = row[file_fields[FILE_NAME_FIELD]] if file_fields[FILE_NAME_FIELD] in prop_names else None
         file_size = row[file_fields[FILE_SIZE_FIELD]] if file_fields[FILE_SIZE_FIELD] in prop_names else None
         file_md5 = row[file_fields[FILE_MD5_FIELD]] if file_fields[FILE_MD5_FIELD] in prop_names else None
-        current_date_time = current_datetime_str()
+        current_date_time = current_datetime()
         return {
             FILE_NAME: file_name,
             SIZE: file_size,
