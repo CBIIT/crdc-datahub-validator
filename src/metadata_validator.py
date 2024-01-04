@@ -8,7 +8,7 @@ from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
-from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json, create_error
+from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.error_messages import FAILED_VALIDATE_RECORDS
 
@@ -123,7 +123,7 @@ class MetaDataValidator:
                     record[WARNINGS] = record[WARNINGS] + warnings if record.get(WARNINGS) else warnings
                     isWarning = True
                 record[STATUS] = status
-                record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime_str()
+                record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
         except Exception as e:
             self.log.debug(e)

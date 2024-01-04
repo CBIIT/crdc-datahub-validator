@@ -2,7 +2,7 @@ from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW
-from common.utils import get_exception_msg, current_datetime_str
+from common.utils import get_exception_msg, current_datetime
 
 MAX_SIZE = 10000
 
@@ -120,7 +120,7 @@ class MongoDao:
         db = self.client[self.db_name]
         batch_collection = db[BATCH_COLLECTION]
         #update the batch 
-        batch[UPDATED_AT] = current_datetime_str()
+        batch[UPDATED_AT] = current_datetime()
         # Using update_one() method for single updating.
         try:
             result = batch_collection.replace_one({ID : batch[ID]}, batch, False) 
@@ -184,7 +184,7 @@ class MongoDao:
                     submission["fileValidationStatus"] = status
                 else:
                     submission["metadataValidationStatus"] = status
-            submission[UPDATED_AT] = current_datetime_str()
+            submission[UPDATED_AT] = current_datetime()
             result = file_collection.replace_one({ID : submission[ID]}, submission, False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
