@@ -78,6 +78,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                     if extender:
                         extender.stop()
                         extender = None
+                    validator = None
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
