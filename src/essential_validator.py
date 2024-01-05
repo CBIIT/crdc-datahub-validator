@@ -92,8 +92,11 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     if extender:
                         extender.stop()
                         extender = None
+                        
+                    validator = None
                     #cleanup contents in the s3 download dir
                     cleanup_s3_download_dir(S3_DOWNLOAD_DIR)
+
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
