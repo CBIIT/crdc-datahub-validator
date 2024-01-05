@@ -16,7 +16,7 @@ Interface for validate files via SQS
 def fileValidate(configs, job_queue, mongo_dao):
     file_processed = 0
     log = get_logger('File Validation Service')
-    validator = FileValidator(mongo_dao)
+    validator = None
 
     #run file validator as a service
     while True:
@@ -37,6 +37,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                         #1 call mongo_dao to get batch by batch_id
                         fileRecord = mongo_dao.get_file(data[FILE_ID])
                         #2. validate file.
+                        validator = FileValidator(mongo_dao)
                         status = validator.validate(fileRecord)
                         if status == STATUS_ERROR:
                             log.error(f'The file record is invalid, {data[FILE_ID]}!')
@@ -53,6 +54,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                     elif data.get(SQS_TYPE) == "Validate Submission Files" and data.get(SUBMISSION_ID):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         submissionID = data[SUBMISSION_ID]
+                        validator = FileValidator(mongo_dao)
                         if not validator.get_root_path(submissionID):
                             log.error(f'Invalid submission, {submissionID}!')
                         else:

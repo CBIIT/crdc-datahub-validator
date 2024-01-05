@@ -33,8 +33,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
         log.debug(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
-    validator = EssentialValidator(mongo_dao, model_store)
-
+    validator = None
     #step 3: run validator as a service
     while True:
         try:
@@ -57,6 +56,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             log.error(f"No batch find for {data[BATCH_ID]}")
                             continue
                         #2. validate batch and files.
+                        validator = EssentialValidator(mongo_dao, model_store)
                         result = validator.validate(batch)
                         if result and len(validator.download_file_list) > 0:
                             #3. call mongo_dao to load data
@@ -92,7 +92,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     if extender:
                         extender.stop()
                         extender = None
-                        
+
                     validator = None
                     #cleanup contents in the s3 download dir
                     cleanup_s3_download_dir(S3_DOWNLOAD_DIR)
