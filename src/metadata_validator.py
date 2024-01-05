@@ -25,7 +25,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
         log.debug(e)
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
-    validator = MetaDataValidator(mongo_dao, model_store)
+    validator = None
 
     #step 3: run validator as a service
     while True:
@@ -45,6 +45,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         scope = data[SCOPE]
                         submissionID = data[SUBMISSION_ID]
+                        validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submissionID, scope) 
                         if status and status != "Failed": 
                             mongo_dao.set_submission_error(validator.submission, status, None, False)
