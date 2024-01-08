@@ -147,10 +147,10 @@ class MongoDao:
             return False if result else True
         except errors.OperationFailure as oe: 
             self.log.debug(oe)
-            self.log.exception(f"Failed to query DB, {metadata_db}, {nodeType}: {get_exception_msg()}!")
+            self.log.exception(f"Failed to query DB, {nodeType}: {get_exception_msg()}!")
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to query DB, {metadata_db}, {nodeType}: {get_exception_msg()}!")
+            self.log.exception(f"Failed to query DB, {nodeType}: {get_exception_msg()}!")
         return True
     
     """
@@ -316,12 +316,13 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to retrieve data record, {get_exception_msg()}")
-            return None 
         
     """
     find child node by type and id
     """
     def get_nodes_by_parents(self, parent_ids, submissionID):
+        if not parent_ids or len(parent_ids) == 0:
+            return True, None
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         query = []
@@ -329,7 +330,7 @@ class MongoDao:
             query.append({SUBMISSION_ID: submissionID, NODE_TYPE: id[NODE_TYPE], PARENTS: {"$elemMatch": {PARENT_TYPE: id.get(PARENT_TYPE), \
                  PARENT_ID_NAME: id.get(PARENT_ID_NAME), PARENT_ID_VAL: id.get(PARENT_ID_VAL)}}})
         try:
-            results = list(data_collection.distinct(ID, {"$or": query})) if len(query) > 0 else []
+            results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
             return True, results
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -343,59 +344,43 @@ class MongoDao:
     """
     insert node relationship map
     """
-    def insert_relationship_map(self, relationship_map, submissionID):
+    def insert_relation_maps(self, relationship_maps, submissionID):
         db = self.client[self.db_name]
-        data_collection = db["relationshipMap"]
-        maps = []
-        for key, val in relationship_map.items:
+        data_collection = db["relationshipMaps"] 
+        for item in relationship_maps:
             current_date_time = current_datetime()
             map = {
                 ID: get_uuid_str(),
                 SUBMISSION_ID: submissionID,
-                NODE_TYPE: key,
-                PARENT_TYPE: val.get(PARENT_TYPE),
-                PARENT_ID_NAME: val.get(PARENT_ID_NAME),
+                NODE_TYPE: item.get(NODE_TYPE),
+                PARENT_TYPE: item.get(PARENT_TYPE),
+                PARENT_ID_NAME: item.get(PARENT_ID_NAME),
                 CREATED_AT : current_date_time, 
                 UPDATED_AT: current_date_time, 
             }
-            maps.append(map)
-        try:
-            result = data_collection.insert_many(maps)
-            count = len(result.inserted_ids)
-            self.log.info(f'Total {count} relationshipMap are inserted!')
-            return count > 0 
-        except errors.PyMongoError as pe:
-            self.log.debug(pe)
-            self.log.exception(f"Failed to insert relationshipMap, {get_exception_msg()}")
-            return False
-        except Exception as e:
-            self.log.debug(e)
-            self.log.exception(f"Failed to insert relationshipMap, {get_exception_msg()}")
-            return False 
-        
+
+            try:
+                result = data_collection.insert_one(map)
+            except errors.PyMongoError as pe: #there is a composition unique index to prevent duplicates
+                self.log.debug(pe)
+                self.log.exception(f"Failed to insert relationshipMaps, {get_exception_msg()}")
+            except Exception as e:
+                self.log.debug(e)
+                self.log.exception(f"Failed to insert relationshipMaps, {get_exception_msg()}")
+        return True
     """
     get relationship map
     """
     def get_relationship_maps(self, submissionID):
         db = self.client[self.db_name]
-        data_collection = db["relationshipMap"]
+        data_collection = db["relationshipMaps"]
         try:
-            result = list(data_collection.find({SUBMISSION_ID: submissionID}))
-            if len(result) == 0:
-                return []
-            unique = set()
-            relationships = []
-            for r in result:
-                item = tuple(r[NODE_TYPE], r[PARENT_TYPE], r[PARENT_ID_NAME])
-                if item not in unique:
-                    unique.add(unique)
-                    relationships.append(r)
-            return relationships
+            return list(data_collection.find({SUBMISSION_ID: submissionID}))
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to retrieve relationshipMap, {get_exception_msg()}")
-            return False
+            return None
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to retrieve relationshipMap, {get_exception_msg()}")
-            return False 
+            return None 

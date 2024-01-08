@@ -33,8 +33,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
         log.debug(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
-    validator = EssentialValidator(mongo_dao, model_store)
-
+    validator = None
     #step 3: run validator as a service
     while True:
         try:
@@ -57,6 +56,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             log.error(f"No batch find for {data[BATCH_ID]}")
                             continue
                         #2. validate batch and files.
+                        validator = EssentialValidator(mongo_dao, model_store)
                         result = validator.validate(batch)
                         if result and len(validator.download_file_list) > 0:
                             #3. call mongo_dao to load data
@@ -92,8 +92,11 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     if extender:
                         extender.stop()
                         extender = None
+
+                    validator = None
                     #cleanup contents in the s3 download dir
                     cleanup_s3_download_dir(S3_DOWNLOAD_DIR)
+
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
@@ -194,14 +197,16 @@ class EssentialValidator:
         except ClientError as ce:
             self.df = None
             self.log.debug(ce)
-            self.log.exception(f"Failed downloading file,{file_info.fileName} to {self.batch.bucketName}! {get_exception_msg()}.")
+            self.log.exception(f"Failed to download file, {file_info.fileName} from {self.batch.bucketName}! {get_exception_msg()}.")
             file_info[ERRORS] = [f'Downloading file failed with S3 client error! {get_exception_msg()}.']
+            self.batch[ERRORS].append(f'Failed to download file, {file_info.fileName}, from s3 bucket!')
             return False
         except Exception as e:
             self.df = None
             self.log.debug(e)
             self.log.exception('Downloading file failed! Check debug log for detailed information.')
             file_info[ERRORS] = [f"Downloading file failed! {get_exception_msg()}."]
+            self.batch[ERRORS].append('Downloading file failed!')
             return False
     
     def validate_data(self, file_info):
@@ -227,6 +232,7 @@ class EssentialValidator:
             msg = f'Invalid metadata, contains empty rows, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
             return False
         
         # Each row in a metadata file must have same number of columns as the header row

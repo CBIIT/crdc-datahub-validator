@@ -126,8 +126,8 @@ get current datetime
 """
 def current_datetime():
     return datetime.now()
-
 """
+
 get uuid v4
 """
 def get_uuid_str():
