@@ -4,11 +4,11 @@ import pandas as pd
 import json
 from datetime import datetime
 from bento.common.sqs import VisibilityExtender
-from bento.common.utils import get_logger
+from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
-from common.utils import current_datetime_str, get_exception_msg, dump_dict_to_json, create_error
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
+from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.error_messages import FAILED_VALIDATE_RECORDS
 
@@ -25,7 +25,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
         log.debug(e)
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
-    validator = MetaDataValidator(mongo_dao, model_store)
+    validator = None
 
     #step 3: run validator as a service
     while True:
@@ -45,6 +45,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         scope = data[SCOPE]
                         submissionID = data[SUBMISSION_ID]
+                        validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submissionID, scope) 
                         if status and status != "Failed": 
                             mongo_dao.set_submission_error(validator.submission, status, None, False)
@@ -67,6 +68,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     if extender:
                         extender.stop()
                         extender = None
+                    validator = None
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
@@ -85,6 +87,7 @@ class MetaDataValidator:
         self.mongo_dao = mongo_dao
         self.model_store = model_store
         self.submission = None
+        self.dataRecords = None
 
     def validate(self, submissionID, scope):
         #1. # get data common from submission
@@ -108,6 +111,8 @@ class MetaDataValidator:
             msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
             return None
+        
+        self.dataRecords = dataRecords
         #2. loop through all records and call validateNode
         updated_records = []
         isError = False
@@ -123,7 +128,7 @@ class MetaDataValidator:
                     record[WARNINGS] = record[WARNINGS] + warnings if record.get(WARNINGS) else warnings
                     isWarning = True
                 record[STATUS] = status
-                record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime_str()
+                record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
         except Exception as e:
             self.log.debug(e)
@@ -323,7 +328,7 @@ class MetaDataValidator:
                 result, error = check_permissive(val, permissive_vals)
                 if not result:
                     errors.append(error)
-            elif type ==  "integer":
+            elif type == "integer":
                 try:
                     val = int(value)
                 except ValueError as e:
@@ -337,7 +342,7 @@ class MetaDataValidator:
                 if len(errs) > 0:
                     errors.extend(errs)
 
-            elif type ==  "number":
+            elif type == "number":
                 try:
                     val = float(value)
                 except ValueError as e:
@@ -350,23 +355,33 @@ class MetaDataValidator:
                 if len(errs) > 0:
                     errors.extend(errs)
 
-            elif type ==  "datetime" or type ==  "date":
+            elif type == "datetime":
                 try:
-                    val = datetime.strptime(value, '%m/%d/%y %H:%M:%S')
+                    val = datetime.strptime(value, DATETIME_FORMAT)
                 except ValueError as e:
-                    errors.append(create_error("Not a date/datetime", f"The value, {value}, is neither a datetime nor date!"))
+                    errors.append(create_error("Not a valid datetime", f"The value, {value}, is not a valid datetime!"))
 
-            elif type ==  "boolean":
-                try:
-                    val = bool(value)
-                except ValueError as e:
+            elif type == "date":
+                val = None
+                for date_format in DATE_FORMATS:
+                    try:
+                        val = datetime.strptime(value, date_format)
+                        break #if the value can be parsed with the format
+                    except ValueError as e:
+                        continue
+                if val is None:
+                    errors.append(create_error("Not a valid date", f"The value, {value}, is not a valid date!"))
+
+            elif type == "boolean":
+                if not isinstance(value, bool) and value not in ["yes", "true", "no", "false"]:
                     errors.append(create_error("Not a boolean", f"The value, {value}, is not a boolean!"))
             
-            elif type ==  "array":
-                try:
-                    val = list(value)
-                except ValueError as e:
-                    errors.append(create_error("Not a list", f"The value, {value}, is not a list!"))
+            elif type == "array":
+                arr = value.split("*")
+                for item in arr:
+                    result, error = check_permissive(item, permissive_vals)
+                    if not result:
+                        errors.append(error)
             else:
                 errors.append(create_error("Not a valid type", f"Invalid data type, {type}!"))
 
@@ -383,9 +398,17 @@ def check_permissive(value, permissive_vals):
 
 def check_boundary(value, min, max):
     errors = []
-    if min and value < min:
-        errors.append(create_error("Less than minimum", f"The value is less than minimum, {value} < {min}!"))
-    if max and value > max:
-        errors.append(create_error("More than maximum", f"The value is more than maximum, {value} > {min}!"))
+    if min and min.get(VALUE_PROP):
+        val = min.get(VALUE_PROP)
+        exclusive = min.get(VALUE_EXCLUSIVE)
+        if (exclusive and value <= val) or (not exclusive and value < val):
+            errors.append(create_error("Less than minimum", f"The value is less than minimum, {value} < {min}!"))
+
+    if max and max.get(VALUE_PROP):
+        val = max.get(VALUE_PROP)
+        exclusive = max.get(VALUE_EXCLUSIVE)
+        if (exclusive and value >= val) or (not exclusive and value > val):
+            errors.append(create_error("More than maximum", f"The value is more than maximum, {value} > {min}!"))      
+
     return errors
 

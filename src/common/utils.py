@@ -121,8 +121,13 @@ get current datetime string in iso format
 def current_datetime_str():
     return datetime.now(tz = datetime.now().astimezone().tzinfo).isoformat(timespec='milliseconds')
 
-
 """
+get current datetime
+"""
+def current_datetime():
+    return datetime.now()
+"""
+
 get uuid v4
 """
 def get_uuid_str():

@@ -138,7 +138,7 @@ config/es_loader_*
 backup/
 **/.vscode/
 **/.DS_Store
-**/s3_download/*
+**/s3_download/*.tsv
 
 #config files for testing
 **/configs/models

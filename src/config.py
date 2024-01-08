@@ -56,7 +56,7 @@ class Config():
         db_port = self.data.get("port", os.environ.get("MONGO_DB_PORT"))
         db_user_id = self.data.get("user", os.environ.get("MONGO_DB_USER"))
         db_user_password = self.data.get("pwd", os.environ.get("MONGO_DB_PASSWORD"))
-        db_name= self.data.get("db", os.environ.get("MONGO_DB_NAME"))
+        db_name= self.data.get("db", os.environ.get("DATABASE_NAME"))
         if db_server is None or db_port is None or db_user_id is None or db_user_password is None \
             or db_name is None:
             self.log.critical(f'Missing Mongo BD setting(s)!')

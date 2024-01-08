@@ -10,7 +10,7 @@ Config:
     # db user id
     user: xxx
     # db user password
-    pwd: ***
+    pwd: ****
     # db name
     db: crdc-datahub
     #sqs configuration

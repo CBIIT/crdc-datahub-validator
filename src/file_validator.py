@@ -7,7 +7,7 @@ from bento.common.utils import get_logger, get_md5
 from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, BATCH_BUCKET
-from common.utils import cleanup_s3_download_dir, get_exception_msg, current_datetime_str, get_file_md5_size, create_error
+from common.utils import cleanup_s3_download_dir, get_exception_msg, current_datetime, get_file_md5_size, create_error
 
 VISIBILITY_TIMEOUT = 20
 """
@@ -16,7 +16,7 @@ Interface for validate files via SQS
 def fileValidate(configs, job_queue, mongo_dao):
     file_processed = 0
     log = get_logger('File Validation Service')
-    validator = FileValidator(mongo_dao)
+    validator = None
 
     #run file validator as a service
     while True:
@@ -37,6 +37,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                         #1 call mongo_dao to get batch by batch_id
                         fileRecord = mongo_dao.get_file(data[FILE_ID])
                         #2. validate file.
+                        validator = FileValidator(mongo_dao)
                         status = validator.validate(fileRecord)
                         if status == STATUS_ERROR:
                             log.error(f'The file record is invalid, {data[FILE_ID]}!')
@@ -53,6 +54,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                     elif data.get(SQS_TYPE) == "Validate Submission Files" and data.get(SUBMISSION_ID):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         submissionID = data[SUBMISSION_ID]
+                        validator = FileValidator(mongo_dao)
                         if not validator.get_root_path(submissionID):
                             log.error(f'Invalid submission, {submissionID}!')
                         else:
@@ -78,6 +80,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                     if extender:
                         extender.stop()
                         extender = None
+                    validator = None
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
@@ -315,7 +318,7 @@ class FileValidator:
             return None, [error]
 
     def set_status(self, record, status, error):
-        record[S3_FILE_INFO][UPDATED_AT] = current_datetime_str()
+        record[S3_FILE_INFO][UPDATED_AT] = current_datetime()
         if status == STATUS_ERROR:
             record[S3_FILE_INFO][STATUS] = STATUS_ERROR
             record[S3_FILE_INFO][ERRORS] = record[S3_FILE_INFO][ERRORS] + [error] if record[S3_FILE_INFO][ERRORS] \
