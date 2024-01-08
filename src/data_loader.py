@@ -48,19 +48,19 @@ class DataLoader:
                 
                 for index, row in df.iterrows():
                     type = row[TYPE]
+                    node_id = self.get_node_id(type, row)
                     exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
-                    if intention == INTENTION_DELETE and exist_node:
-                        deleted_nodes.append(exist_node)
-                        if exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
-                            deleted_file_nodes.append(exist_node[S3_FILE_INFO])
+                    if intention == INTENTION_DELETE:
+                        if exist_node:
+                            deleted_nodes.append(exist_node)
+                            if exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
+                                deleted_file_nodes.append(exist_node[S3_FILE_INFO])
                         continue
                     # 2. construct dataRecord
                     rawData = df.loc[index].to_dict()
                     del rawData['index'] #remove index column
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
-                    node_id = self.get_node_id(type, row)
-                    
                     batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
                     current_date_time = current_datetime()
                     id = self.get_record_id(intention, exist_node)
@@ -147,7 +147,7 @@ class DataLoader:
         updated_child_nodes = []
         file_nodes = []
         parent_types = [item[NODE_TYPE] for item in deleted_nodes]
-        file_def_types = self.file_nodes.key()
+        file_def_types = self.file_nodes.keys()
         for node in child_nodes:
             parents = list(filter(lambda x: (x[PARENT_TYPE] not in parent_types), node.get(PARENTS)))
             if len(parents) == 0:  #delete if no other parents
@@ -167,7 +167,7 @@ class DataLoader:
                 rtn_val = rtn_val and False
 
         if len(deleted_child_nodes) > 0:
-            deleted_results = self.mongo_dao.delete_data_records(deleted_child_nodes, self.batch[SUBMISSION_ID])
+            deleted_results = self.mongo_dao.delete_data_records(deleted_child_nodes)
             if updated_results and deleted_results: 
                 #delete files
                 result = self.delete_files_in_s3(file_nodes)

@@ -329,7 +329,7 @@ class MongoDao:
             node_type, node_id = id.get(NODE_TYPE), id.get(NODE_ID)
             query.append({SUBMISSION_ID: submissionID, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
         try:
-            results = list(data_collection.distinct(ID, {"$or": query})) if len(query) > 0 else []
+            results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
             return True, results
         except errors.PyMongoError as pe:
             self.log.debug(pe)
