@@ -31,10 +31,10 @@ WARNINGS = "warnings"
 CREATED_AT = "createdAt"
 UPDATED_AT = "updatedAt"
 STATUS= "status"
-BATCH_STATUS_REJECTED = "Rejected"
+BATCH_STATUS_FAILED = "Failed" #updated based on crdcdh-736
 BATCH_TYPE_METADATA ="metadata"
 BATCH_STATUS_UPLOADED = "Uploaded"
-BATCH_STATUS_LOADED = "Loaded"
+#BATCH_STATUS_LOADED = "Loaded" #updated based on crdcdh-736
 SUBMISSION_COLLECTION="submissions"
 DATA_COMMON_NAME ="dataCommons"
 BATCH_INTENTION = "metadataIntention"
@@ -102,7 +102,8 @@ VALID_PROP_TYPE_LIST = [
 ]
 VALIDATION_RESULT = "result"
 VALIDATED_AT = "validatedAt"
-
+FILE_VALIDATION_STATUS = "fileValidationStatus"
+METADATA_VALIDATION_STATUS = "metadataValidationStatus"
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
 # sqs message
