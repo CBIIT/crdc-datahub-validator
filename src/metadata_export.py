@@ -3,11 +3,11 @@
 import json
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
-from common.constants import SQS_TYPE, SUBMISSION_ID, PROPERTIES, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID
+from common.constants import SQS_TYPE, SUBMISSION_ID, PROPERTIES, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
+    RELEASE, ARCHIVE_RELEASE
 import threading
 import boto3
-import csv
-from io import StringIO
+import io
 
 s3_client = boto3.client('s3')
 VISIBILITY_TIMEOUT = 20
@@ -48,7 +48,7 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
                     except Exception as e1:
                         log.debug(e1)
                         log.critical(
-                            f'Something wrong happened while delete sqs message! Check debug log for details.')
+                            f'Something wrong happened while exporting file sqs message! Check debug log for details.')
                     if extender:
                         extender.stop()
         except KeyboardInterrupt:
@@ -56,6 +56,7 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
             return
 
 
+# Private class
 class S3Service:
     def __init__(self, client):
         self.s3_client = client
@@ -64,7 +65,6 @@ class S3Service:
         prev_directory = ValidationDirectory.get_release(submission_id)
         new_directory = ValidationDirectory.get_archive(submission_id)
         # 1. List all objects in the old folder
-
         paginator = self.s3_client.get_paginator('list_objects_v2')
 
         # Iterate over each object in the source directory
@@ -80,33 +80,36 @@ class S3Service:
                     # Delete the original object
                     self.s3_client.delete_object(Bucket=bucket_name, Key=obj['Key'])
 
-    def upload_file_to_s3(self, bucket_name, key, data):
-        self.s3_client.put_object(Bucket=bucket_name, Key=key, Body=data)
+    def upload_file_to_s3(self, data, bucket_name, file_name):
+        self.s3_client.upload_fileobj(data, bucket_name, file_name)
 
 
+# Private class
 class ValidationFile:
 
     @staticmethod
     def create_file(submission_id, node_type, data_record, file_type="tsv"):
-        with StringIO() as output:
-            writer = csv.writer(output, delimiter='\t')
-            props = data_record.get(PROPERTIES)
-            if props:
-                # Write header
-                headers = []
-                for key in props.items():
-                    headers.append(key)
-                writer.writerow(headers)
+        """
+        Generates a file in TSV format from given data record. The file name is derived from submission_id and
+        node_type. The method writes headers and data rows based on the 'PROPERTIES' key in data_record.
 
-                # Write data rows
-                for _, value in props.items():
-                    writer.writerow(value)  # Replace with actual fields
-            # Reset buffer position to the beginning
-            output.seek(0)
-            tsv_file_name = f"{submission_id}-{node_type}.{file_type}"
-            return [output.getvalue(), tsv_file_name]
+        :param submission_id: String submission_id.
+        :param node_type: String node_type.
+        :param data_record: a data record object.
+        :param file_type: Format of the file, default is 'tsv'.
+        :return: A list with StringIO object of file content and the file name.
+        """
+
+        buf = io.BytesIO()
+        props = data_record.get(PROPERTIES)
+        buf.write('\t'.join(map(str, props.keys())).encode() + b'\n')
+        buf.write('\t'.join(map(str, props.values())).encode() + b'\n')
+        buf.seek(0)
+        buf.name = f"{submission_id}-{node_type}.{file_type}"
+        return buf
 
 
+# Private class
 class ExportValidator:
     def __init__(self, mongo_dao, submission, s3_service):
         self.log = get_logger(TYPE_EXPORT_METADATA)
@@ -118,12 +121,8 @@ class ExportValidator:
         submission_id, bucket_name = self.get_submission_info()
         # look up the db
         records = self.mongo_dao.get_dataRecords(submission_id, None)
-        files_to_export = [ValidationFile.create_file(submission_id, r.get("type"), r) for r in records]
+        files_to_export = [ValidationFile.create_file(submission_id, r.get(NODE_TYPE), r) for r in records]
 
-        for aRecord in records:
-            output = ValidationFile.create_file(submission_id, aRecord.get("type"), aRecord)
-            files_to_export.append(output)
-        # move the existing folder
         if files_to_export:
             self.s3_service.archive_s3_if_exists(bucket_name, submission_id)
 
@@ -132,9 +131,9 @@ class ExportValidator:
     def parallel_upload(self, files):
         submission_id, bucket_name = self.get_submission_info()
         threads = []
-        for data, file_name in files:
-            key = f"{ValidationDirectory.get_release(submission_id)}/{file_name}"
-            thread = threading.Thread(target=self.s3_service.upload_file_to_s3, args=(bucket_name, key, data))
+        for data in files:
+            file_name = f"{ValidationDirectory.get_release(submission_id)}/{data.name}"
+            thread = threading.Thread(target=self.s3_service.upload_file_to_s3, args=(data, bucket_name, file_name))
             threads.append(thread)
             thread.start()
 
@@ -145,11 +144,12 @@ class ExportValidator:
         return [self.submission.get(ID), self.submission.get(BATCH_BUCKET)]
 
 
+# Private class
 class ValidationDirectory:
     @staticmethod
     def get_archive(submission_id):
-        return f"submission/{submission_id}/archive_release"
+        return f"submission/{submission_id}/{ARCHIVE_RELEASE}"
 
     @staticmethod
     def get_release(submission_id):
-        return f"submission/{submission_id}/release"
+        return f"submission/{submission_id}/{RELEASE}"

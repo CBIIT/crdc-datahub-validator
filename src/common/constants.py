@@ -20,7 +20,8 @@ FILE_INVALID_REASON = "invalid_reason"
 
 #upload
 UPLOAD_STATUS ="upload_status"
-
+RELEASE = "release"
+ARCHIVE_RELEASE = "archive_release"
 #Batch
 BATCH_BUCKET = "bucketName"
 FILE_PREFIX = "filePrefix" #bucket folders

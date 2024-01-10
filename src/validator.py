@@ -15,6 +15,7 @@ from config import Config
 from essential_validator import essentialValidate
 from file_validator import fileValidate
 from metadata_validator import metadataValidate
+from metadata_export import metadata_export
 
 log = get_logger('Validator')
 # public function to received args and dispatch to different modules for different uploading types, file or metadata
@@ -26,9 +27,9 @@ def controller():
         log.error("Failed to start the service: missing required valid parameter(s)!")
         print("Failed to start the service: invalid parameter(s)!  Please check log file in tmp folder for details.")
         return 1
-    
+
     configs = config.data
-   
+
     #step 2 initialize sqs queue, mongo db access object and model store
     try:
         job_queue = Queue(configs[SQS_NAME])
@@ -46,7 +47,7 @@ def controller():
     elif configs[SERVICE_TYPE] == SERVICE_TYPE_METADATA:
         metadataValidate(configs, job_queue, mongo_dao)
     elif configs[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
-        metadataValidate(configs, job_queue, mongo_dao)
+        metadata_export(configs[SQS_NAME], job_queue, mongo_dao)
     else:
         log.error(f'Invalid service type: {configs[SERVICE_TYPE]}!')
         return 1
