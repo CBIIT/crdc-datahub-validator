@@ -120,7 +120,11 @@ class ExportValidator:
         submission_id, bucket_name = self.get_submission_info()
         records = self.mongo_dao.get_dataRecords(submission_id, None)
         # create file data and file name
-        files_to_export = [[ValidationFile.create_file(submission_id, r), f"{submission_id}-{r.get(NODE_TYPE)}"] for r in records]
+        files_to_export = []
+        for r in records:
+            filename = f"{submission_id}-{r.get(NODE_TYPE)}"
+            validation_file = ValidationFile.create_file(filename, r)
+            files_to_export.append(validation_file)
 
         if files_to_export:
             self.s3_service.archive_s3_if_exists(bucket_name, submission_id)
@@ -130,8 +134,8 @@ class ExportValidator:
     def parallel_upload(self, files):
         submission_id, bucket_name = self.get_submission_info()
         threads = []
-        for data, file_name in files:
-            full_name = f"{ValidationDirectory.get_release(submission_id)}/{file_name}"
+        for data in files:
+            full_name = f"{ValidationDirectory.get_release(submission_id)}/{data.name}"
             thread = threading.Thread(target=self.s3_service.upload_file_to_s3, args=(data, bucket_name, full_name))
             threads.append(thread)
             thread.start()
