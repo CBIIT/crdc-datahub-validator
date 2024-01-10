@@ -172,7 +172,7 @@ class MongoDao:
     """
     update errors in submissions collection
     """   
-    def set_submission_validation_status(self, submission, file_status, metadata_status, msgs, ):
+    def set_submission_validation_status(self, submission, file_status, metadata_status, msgs):
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
         try:
