@@ -22,7 +22,7 @@ UPLOAD_STATUS ="upload_status"
 
 #Batch
 BATCH_BUCKET = "bucketName"
-FILE_PREFIX = "filePrefix" #bucket folders
+FILE_PREFIX = "filePrefix"
 BATCH_COLLECTION = "batch"
 BATCH_ID = "batchID"
 SUCCEEDED = "succeeded"
@@ -31,10 +31,9 @@ WARNINGS = "warnings"
 CREATED_AT = "createdAt"
 UPDATED_AT = "updatedAt"
 STATUS= "status"
-BATCH_STATUS_FAILED = "Failed" #updated based on crdcdh-736
+BATCH_STATUS_FAILED = "Failed"
 BATCH_TYPE_METADATA ="metadata"
 BATCH_STATUS_UPLOADED = "Uploaded"
-#BATCH_STATUS_LOADED = "Loaded" #updated based on crdcdh-736
 SUBMISSION_COLLECTION="submissions"
 DATA_COMMON_NAME ="dataCommons"
 BATCH_INTENTION = "metadataIntention"
