@@ -88,13 +88,12 @@ class S3Service:
 class ValidationFile:
 
     @staticmethod
-    def create_file(submission_id, node_type, data_record, file_type="tsv"):
+    def create_file(file_name, data_record, file_type="tsv"):
         """
         Generates a file in TSV format from given data record. The file name is derived from submission_id and
         node_type. The method writes headers and data rows based on the 'PROPERTIES' key in data_record.
 
-        :param submission_id: String submission_id.
-        :param node_type: String node_type.
+        :param file_name: String file_name.
         :param data_record: a data record object.
         :param file_type: Format of the file, default is 'tsv'.
         :return: A list with StringIO object of file content and the file name.
@@ -105,7 +104,7 @@ class ValidationFile:
         buf.write('\t'.join(map(str, props.keys())).encode() + b'\n')
         buf.write('\t'.join(map(str, props.values())).encode() + b'\n')
         buf.seek(0)
-        buf.name = f"{submission_id}-{node_type}.{file_type}"
+        buf.name = f"{file_name}.{file_type}"
         return buf
 
 
