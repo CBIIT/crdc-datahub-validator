@@ -7,8 +7,9 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
-    BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_TYPE, MODEL_FILE_DIR, TIER_CONFIG
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
+    BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, \
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -63,16 +64,21 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao)
                             result, errors = data_loader.load_data(validator.download_file_list)
                             if result:
-                                batch[STATUS] = BATCH_STATUS_LOADED
+                                batch[STATUS] = BATCH_STATUS_UPLOADED
+                                submission_meta_status = STATUS_NEW
                             else:
                                 error = f'Failed to upsert data into or delete data from database!'
                                 errors.append(error)
                                 batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
+                                submission_meta_status = STATUS_ERROR
                         else:
-                            batch[STATUS] = BATCH_STATUS_REJECTED
+                            batch[STATUS] = BATCH_STATUS_FAILED
 
                         #4. update batch
                         result = mongo_dao.update_batch(batch)
+                        #5. update submission's metadataValidationStatus
+                        if result and validator.submission:
+                            mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -118,6 +124,7 @@ class EssentialValidator:
         self.model_store = model_store
         self.datacommon = None
         self.model = None
+        self.submission = None
         self.submission_id = None
         self.download_file_list = None
 
@@ -173,6 +180,7 @@ class EssentialValidator:
                 self.log.error(msg)
                 batch[ERRORS].append(msg)
                 return False
+            self.submission = submission
             self.datacommon = submission.get(DATA_COMMON_NAME)
             self.model = self.model_store.get_model_by_data_common(self.datacommon)
             self.submission_id  = submission[ID]

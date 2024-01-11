@@ -48,7 +48,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submissionID, scope) 
                         if status and status != "Failed": 
-                            mongo_dao.set_submission_error(validator.submission, status, None, False)
+                            mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
 

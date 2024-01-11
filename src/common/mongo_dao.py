@@ -1,7 +1,7 @@
 from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
-    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW
+    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS
 from common.utils import get_exception_msg, current_datetime
 
 MAX_SIZE = 10000
@@ -172,18 +172,17 @@ class MongoDao:
     """
     update errors in submissions collection
     """   
-    def set_submission_error(self, submission, status, msgs, isFile=True):
+    def set_submission_validation_status(self, submission, file_status, metadata_status, msgs):
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
         try:
             if msgs and len(msgs) > 0:
                 submission[FILE_ERRORS] =  list(submission[FILE_ERRORS]).extend(msgs) if submission.get(FILE_ERRORS) \
                         and isinstance(submission[FILE_ERRORS], list) else msgs
-            if status:
-                if isFile:
-                    submission["fileValidationStatus"] = status
-                else:
-                    submission["metadataValidationStatus"] = status
+            if file_status:
+                submission[FILE_VALIDATION_STATUS] = file_status
+            if metadata_status:
+                submission[METADATA_VALIDATION_STATUS] = metadata_status
             submission[UPDATED_AT] = current_datetime()
             result = file_collection.replace_one({ID : submission[ID]}, submission, False)
             return result.matched_count > 0 
