@@ -9,7 +9,7 @@ from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
