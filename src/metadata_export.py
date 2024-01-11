@@ -3,8 +3,8 @@
 import json
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
-from common.constants import SQS_TYPE, SUBMISSION_ID, PROPERTIES, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
-    RELEASE, ARCHIVE_RELEASE, PARENTS, PARENT_TYPE
+from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
+    RELEASE, ARCHIVE_RELEASE, RAW_DATA
 import threading
 import boto3
 import io
@@ -88,49 +88,27 @@ class S3Service:
 class ValidationFile:
 
     @staticmethod
-    def create_file(file_name, record_file, file_type="tsv"):
+    def create_file(file_name, header, values, file_type="tsv"):
         """
         Generates a file in TSV format from given data record. The file name is derived from submission_id and
         node_type. The method writes headers and data rows based on the 'PROPERTIES' key in data_record.
 
         :param file_name: String file_name.
-        :param record_file: a parsed file object.
+        :param header: a list string.
+        :param values: a list of list[string].
         :param file_type: Format of the file, default is 'tsv'.
         :return: A list with StringIO object of file content and the file name.
         """
 
         buf = io.BytesIO()
         # Headers
-        buf.write('\t'.join(map(str, record_file.header())).encode() + b'\n')
+        buf.write('\t'.join(map(str, header)).encode() + b'\n')
         # Values
-        buf.write('\t'.join(map(str, record_file.values())).encode() + b'\n')
+        for val in values:
+            buf.write('\t'.join(map(str, val)).encode() + b'\n')
         buf.seek(0)
         buf.name = f"{file_name}.{file_type}"
         return buf
-
-
-class FileData:
-    def __init__(self, data_record):
-        self.props = data_record.get(PROPERTIES)
-        self.parents = data_record.get(PARENTS)
-
-    def header(self):
-        node_header = list(self.props.keys())
-        for node in self.parents:
-            parent_type = node.get(PARENT_TYPE)
-            if parent_type:
-                for parent in node.keys():
-                    node_header.append(f"{parent_type}.{parent}")
-        return node_header
-
-    def values(self):
-        node_values = list(self.props.values())
-        for node in self.parents:
-            if node.get(PARENT_TYPE):
-                for parent_key in node.values():
-                    node_values.append(parent_key)
-        return node_values
-
 
 # Private class
 class ExportMetadata:
@@ -143,12 +121,28 @@ class ExportMetadata:
     def export_data_to_file(self):
         submission_id, bucket_name = self.get_submission_info()
         records = self.mongo_dao.get_dataRecords(submission_id, None)
+        #  group by node_type
+        nodes = {}
+        for r in records:
+            node_type = r.get(NODE_TYPE)
+            node_raw_data = r.get(RAW_DATA)
+            header = list(node_raw_data.keys())
+            if not header:
+                continue
+
+            values = list(node_raw_data.values())
+            if not nodes.get(node_type):
+                file_name = f"{submission_id}-{node_type}"
+                nodes[node_type] = [file_name, header, [values]]
+                continue
+            # append values for the node values
+            nodes[node_type][2].append(values)
+
         # create file data and file name
         files_to_export = []
-        for r in records:
-            formatted_file = FileData(r)
-            filename = f"{submission_id}-{r.get(NODE_TYPE)}"
-            validation_file = ValidationFile.create_file(filename, formatted_file)
+        for node in nodes.values():
+            # each file name, header, values
+            validation_file = ValidationFile.create_file(node[0], node[1], node[2])
             files_to_export.append(validation_file)
 
         if files_to_export:
