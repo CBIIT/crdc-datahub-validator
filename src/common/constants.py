@@ -62,6 +62,8 @@ NODE_TYPE = "nodeType"
 S3_BUCKET_DIR = "s3_bucket_drive"
 FILE_ERRORS = "fileErrors"
 PROPERTIES = "props"
+PARENTS = "parents"
+PARENT_TYPE = "parentType"
 
 FILE_NAME_FIELD = "name-field"
 FILE_SIZE_FIELD = "size-field"
