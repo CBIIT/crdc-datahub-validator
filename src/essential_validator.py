@@ -65,12 +65,12 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             result, errors = data_loader.load_data(validator.download_file_list)
                             if result:
                                 batch[STATUS] = BATCH_STATUS_UPLOADED
-                                submissionMetaStatus = STATUS_NEW
+                                submission_meta_status = STATUS_NEW
                             else:
                                 error = f'Failed to upsert data into or delete data from database!'
                                 errors.append(error)
                                 batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
-                                submissionMetaStatus = STATUS_ERROR
+                                submission_meta_status = STATUS_ERROR
                         else:
                             batch[STATUS] = BATCH_STATUS_FAILED
 
@@ -78,7 +78,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         result = mongo_dao.update_batch(batch)
                         #5. update submission's metadataValidationStatus
                         if result and validator.submission:
-                            mongo_dao.set_submission_validation_status(validator.submission, None, submissionMetaStatus, None)
+                            mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
 
