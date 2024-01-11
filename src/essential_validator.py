@@ -9,7 +9,7 @@ from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -143,6 +143,7 @@ class EssentialValidator:
             if not self.validate_data(file_info):
                 file_info[STATUS] = "failed"
                 return False
+        
         return True
 
     
@@ -222,6 +223,7 @@ class EssentialValidator:
         When metadata intention is "New", all IDs must not exist in the database
         """
         msg = None
+        type= None
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
         # check if missing "type" column
         if not TYPE in self.df.columns:
@@ -230,7 +232,9 @@ class EssentialValidator:
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
             return False
-        
+        else: 
+            type = self.df[TYPE][0]
+            file_info[NODE_TYPE] = type
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
@@ -251,9 +255,6 @@ class EssentialValidator:
         # When metadata intention is "New", all IDs must not exist in the database
         if self.batch[BATCH_INTENTION] == INTENTION_NEW:
             # verify if ids in the df in the mongo db.
-            # get node type
-            type = self.df[TYPE][0]
-
             # get id data fields for the type, the domain for mvp2/m3 is cds.
             id_field = self.model.get_node_id(type)
             if not id_field: return True
