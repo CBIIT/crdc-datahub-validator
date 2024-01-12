@@ -9,7 +9,6 @@ import threading
 import boto3
 import io
 
-s3_client = boto3.client('s3')
 VISIBILITY_TIMEOUT = 20
 """
 Interface for validate files via SQS
@@ -18,7 +17,7 @@ Interface for validate files via SQS
 
 def metadata_export(sqs_name, job_queue, mongo_dao):
     log = get_logger(TYPE_EXPORT_METADATA)
-    s3_service = S3Service(s3_client)
+    s3_service = S3Service()
     while True:
         try:
             log.info(f'Waiting for jobs on queue: {sqs_name}')
@@ -49,6 +48,13 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
                         log.debug(e1)
                         log.critical(
                             f'Something wrong happened while exporting file sqs message! Check debug log for details.')
+                    try:
+                        s3_service.s3_client.close()
+                    except Exception as e1:
+                        log.debug(e1)
+                        log.critical(
+                            f'An error occurred while attempting to close the s3 client! Check debug log for details.')
+
                     if extender:
                         extender.stop()
         except KeyboardInterrupt:
@@ -58,8 +64,8 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
 
 # Private class
 class S3Service:
-    def __init__(self, client):
-        self.s3_client = client
+    def __init__(self):
+        self.s3_client = boto3.client('s3')
 
     def archive_s3_if_exists(self, bucket_name, submission_id):
         prev_directory = ValidationDirectory.get_release(submission_id)
