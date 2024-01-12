@@ -35,7 +35,6 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
                     submission = mongo_dao.get_submission(submission_id)
                     export_validator = ExportMetadata(mongo_dao, submission, S3Service())
                     export_validator.export_data_to_file()
-                    export_validator.close()
                 except Exception as e:
                     log.debug(e)
                     log.critical(
@@ -48,6 +47,7 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
                         log.critical(
                             f'Something wrong happened while exporting file sqs message! Check debug log for details.')
                     # De-allocation memory
+                    export_validator.close()
                     export_validator = None
 
                     if extender:
