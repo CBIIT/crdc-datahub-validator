@@ -75,9 +75,7 @@ class Config():
             sqs = os.environ.get(LOADER_QUEUE, self.data.get(SQS_NAME))
         elif self.data[SERVICE_TYPE] == SERVICE_TYPE_FILE:
             sqs = os.environ.get(FILE_QUEUE, self.data.get(SQS_NAME))
-        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_METADATA:
-            sqs = os.environ.get(METADATA_QUEUE, self.data.get(SQS_NAME))
-        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
+        elif self.data[SERVICE_TYPE] in [SERVICE_TYPE_METADATA, SERVICE_TYPE_EXPORT]:
             sqs = os.environ.get(METADATA_QUEUE, self.data.get(SQS_NAME))
         else:
             sqs = None
@@ -90,7 +88,7 @@ class Config():
                 self.data[SQS_NAME] = sqs
 
         tier = os.environ.get(TIER, self.data.get(TIER_CONFIG))
-        if not tier and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE and self.data[SERVICE_TYPE] != SERVICE_TYPE_EXPORT:
+        if not tier and self.data[SERVICE_TYPE] not in [SERVICE_TYPE_FILE, SERVICE_TYPE_EXPORT]:
             self.log.critical(f'No tier is configured in both env and args!')
             return False
         else:

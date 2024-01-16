@@ -4,7 +4,7 @@ import json
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
-    RELEASE, ARCHIVE_RELEASE, RAW_DATA
+    RELEASE, ARCHIVE_RELEASE, RAW_DATA, EXPORT_METADATA, EXPORT_ROOT_PATH
 import threading
 import boto3
 import io
@@ -16,10 +16,12 @@ Interface for validate files via SQS
 
 
 def metadata_export(sqs_name, job_queue, mongo_dao):
+    export_processed = 0
     log = get_logger(TYPE_EXPORT_METADATA)
     while True:
         try:
-            log.info(f'Waiting for jobs on queue: {sqs_name}')
+            log.info(f'Waiting for jobs on queue: {sqs_name}, '
+                     f'{export_processed} metadata export have been processed so far')
 
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
@@ -35,6 +37,7 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
                     submission = mongo_dao.get_submission(submission_id)
                     export_validator = ExportMetadata(mongo_dao, submission, S3Service())
                     export_validator.export_data_to_file()
+                    export_processed += 1
                 except Exception as e:
                     log.debug(e)
                     log.critical(
@@ -71,9 +74,9 @@ class S3Service:
                 f'An error occurred while attempting to close the s3 client! Check debug log for details.')
 
 
-    def archive_s3_if_exists(self, bucket_name, submission_id):
-        prev_directory = ValidationDirectory.get_release(submission_id)
-        new_directory = ValidationDirectory.get_archive(submission_id)
+    def archive_s3_if_exists(self, bucket_name, rootpath):
+        prev_directory = ValidationDirectory.get_release(rootpath)
+        new_directory = ValidationDirectory.get_archive(rootpath)
         # 1. List all objects in the old folder
         paginator = self.s3_client.get_paginator('list_objects_v2')
 
@@ -105,7 +108,10 @@ class ExportMetadata:
         self.s3_service.close(self.log)
 
     def export_data_to_file(self):
-        submission_id, bucket_name = self.get_submission_info()
+        submission_id, rootpath, bucket_name = self.get_submission_info()
+        if not rootpath or not submission_id or not bucket_name:
+            self.log("The process of exporting metadata stopped due to incomplete data in the submission.")
+
         records = self.mongo_dao.get_dataRecords(submission_id, None)
         #  group by node_type
         nodes = {}
@@ -132,15 +138,15 @@ class ExportMetadata:
             files_to_export.append(validation_file)
 
         if len(files_to_export) > 0:
-            self.s3_service.archive_s3_if_exists(bucket_name, submission_id)
+            self.s3_service.archive_s3_if_exists(bucket_name, rootpath)
 
         self.parallel_upload(files_to_export)
 
     def parallel_upload(self, files):
-        submission_id, bucket_name = self.get_submission_info()
+        _, rootpath, bucket_name = self.get_submission_info()
         threads = []
         for data in files:
-            full_name = f"{ValidationDirectory.get_release(submission_id)}/{data.name}"
+            full_name = f"{ValidationDirectory.get_release(rootpath)}/{data.name}"
             thread = threading.Thread(target=self.s3_service.upload_file_to_s3, args=(data, bucket_name, full_name))
             threads.append(thread)
             thread.start()
@@ -149,7 +155,7 @@ class ExportMetadata:
             thread.join()
 
     def get_submission_info(self):
-        return [self.submission.get(ID), self.submission.get(BATCH_BUCKET)]
+        return [self.submission.get(ID), self.submission.get(EXPORT_ROOT_PATH), self.submission.get(BATCH_BUCKET)]
 
     def create_file(self, file_name, header, values, file_type="tsv"):
         """
@@ -176,9 +182,9 @@ class ExportMetadata:
 # Private class
 class ValidationDirectory:
     @staticmethod
-    def get_archive(submission_id):
-        return f"submission/{submission_id}/{ARCHIVE_RELEASE}"
+    def get_archive(rootpath):
+        return f"{rootpath}/{EXPORT_METADATA}/{ARCHIVE_RELEASE}"
 
     @staticmethod
-    def get_release(submission_id):
-        return f"submission/{submission_id}/{RELEASE}"
+    def get_release(rootpath):
+        return f"{rootpath}/{EXPORT_METADATA}/{RELEASE}"

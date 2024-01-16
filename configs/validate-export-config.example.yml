@@ -15,4 +15,3 @@ Config:
     db: crdc-datahub
     #sqs configuration
     sqs: test.fifo
-    tier: test-tier

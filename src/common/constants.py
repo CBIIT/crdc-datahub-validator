@@ -44,6 +44,10 @@ INTENTION_NEW = "New"
 INTENTION_DELETE = "Delete"
 INTENTION_UPDATE = "Update"
 
+# export
+EXPORT_METADATA = "metadata"
+EXPORT_ROOT_PATH = "rootPath"
+
 # file 
 FILE_ID = "dataRecordID"
 S3_FILE_INFO = "s3FileInfo"
