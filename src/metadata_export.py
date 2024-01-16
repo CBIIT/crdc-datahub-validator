@@ -131,7 +131,7 @@ class ExportMetadata:
             validation_file = self.create_file(node[0], node[1], node[2])
             files_to_export.append(validation_file)
 
-        if files_to_export:
+        if len(files_to_export) > 0:
             self.s3_service.archive_s3_if_exists(bucket_name, submission_id)
 
         self.parallel_upload(files_to_export)
