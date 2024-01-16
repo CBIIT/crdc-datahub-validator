@@ -6,9 +6,10 @@ from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
-from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_LOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
-    BATCH_STATUS_REJECTED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, TIER_CONFIG
+from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, ROOT_PATH, \
+    S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
+    BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, \
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -33,8 +34,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
         log.debug(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
-    validator = EssentialValidator(mongo_dao, model_store)
-
+    validator = None
     #step 3: run validator as a service
     while True:
         try:
@@ -57,22 +57,28 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             log.error(f"No batch find for {data[BATCH_ID]}")
                             continue
                         #2. validate batch and files.
+                        validator = EssentialValidator(mongo_dao, model_store)
                         result = validator.validate(batch)
                         if result and len(validator.download_file_list) > 0:
                             #3. call mongo_dao to load data
-                            data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao)
+                            data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao, validator.bucket, validator.root_path )
                             result, errors = data_loader.load_data(validator.download_file_list)
                             if result:
-                                batch[STATUS] = BATCH_STATUS_LOADED
+                                batch[STATUS] = BATCH_STATUS_UPLOADED
+                                submission_meta_status = STATUS_NEW
                             else:
                                 error = f'Failed to upsert data into or delete data from database!'
                                 errors.append(error)
                                 batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
+                                submission_meta_status = STATUS_ERROR
                         else:
-                            batch[STATUS] = BATCH_STATUS_REJECTED
+                            batch[STATUS] = BATCH_STATUS_FAILED
 
                         #4. update batch
                         result = mongo_dao.update_batch(batch)
+                        #5. update submission's metadataValidationStatus
+                        if result and validator.submission:
+                            mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -92,8 +98,11 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     if extender:
                         extender.stop()
                         extender = None
+
+                    validator = None
                     #cleanup contents in the s3 download dir
                     cleanup_s3_download_dir(S3_DOWNLOAD_DIR)
+
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
@@ -115,8 +124,11 @@ class EssentialValidator:
         self.model_store = model_store
         self.datacommon = None
         self.model = None
+        self.submission = None
         self.submission_id = None
+        self.root_path = None
         self.download_file_list = None
+        self.bucket = None
 
     def validate(self,batch):
         self.bucket = S3Bucket(batch.get("bucketName"))
@@ -133,6 +145,7 @@ class EssentialValidator:
             if not self.validate_data(file_info):
                 file_info[STATUS] = "failed"
                 return False
+        
         return True
 
     
@@ -169,9 +182,11 @@ class EssentialValidator:
                 self.log.error(msg)
                 batch[ERRORS].append(msg)
                 return False
+            self.submission = submission
             self.datacommon = submission.get(DATA_COMMON_NAME)
             self.model = self.model_store.get_model_by_data_common(self.datacommon)
             self.submission_id  = submission[ID]
+            self.root_path = submission.get(ROOT_PATH)
             self.download_file_list = []
             return True
     
@@ -211,6 +226,7 @@ class EssentialValidator:
         When metadata intention is "New", all IDs must not exist in the database
         """
         msg = None
+        type= None
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
         # check if missing "type" column
         if not TYPE in self.df.columns:
@@ -219,7 +235,9 @@ class EssentialValidator:
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
             return False
-        
+        else: 
+            type = self.df[TYPE][0]
+            file_info[NODE_TYPE] = type
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
@@ -240,9 +258,6 @@ class EssentialValidator:
         # When metadata intention is "New", all IDs must not exist in the database
         if self.batch[BATCH_INTENTION] == INTENTION_NEW:
             # verify if ids in the df in the mongo db.
-            # get node type
-            type = self.df[TYPE][0]
-
             # get id data fields for the type, the domain for mvp2/m3 is cds.
             id_field = self.model.get_node_id(type)
             if not id_field: return True

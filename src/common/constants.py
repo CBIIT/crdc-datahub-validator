@@ -24,7 +24,7 @@ RELEASE = "release"
 ARCHIVE_RELEASE = "archive_release"
 #Batch
 BATCH_BUCKET = "bucketName"
-FILE_PREFIX = "filePrefix" #bucket folders
+FILE_PREFIX = "filePrefix"
 BATCH_COLLECTION = "batch"
 BATCH_ID = "batchID"
 SUCCEEDED = "succeeded"
@@ -33,10 +33,9 @@ WARNINGS = "warnings"
 CREATED_AT = "createdAt"
 UPDATED_AT = "updatedAt"
 STATUS= "status"
-BATCH_STATUS_REJECTED = "Rejected"
+BATCH_STATUS_FAILED = "Failed"
 BATCH_TYPE_METADATA ="metadata"
 BATCH_STATUS_UPLOADED = "Uploaded"
-BATCH_STATUS_LOADED = "Loaded"
 SUBMISSION_COLLECTION="submissions"
 DATA_COMMON_NAME ="dataCommons"
 BATCH_INTENTION = "metadataIntention"
@@ -48,7 +47,7 @@ INTENTION_UPDATE = "Update"
 EXPORT_METADATA = "metadata"
 EXPORT_ROOT_PATH = "rootPath"
 
-# file 
+# file
 FILE_ID = "dataRecordID"
 S3_FILE_INFO = "s3FileInfo"
 ID = "_id"
@@ -66,6 +65,9 @@ NODE_TYPE = "nodeType"
 S3_BUCKET_DIR = "s3_bucket_drive"
 FILE_ERRORS = "fileErrors"
 PROPERTIES = "props"
+PARENTS = "parents"
+PARENT_TYPE = "parentType"
+PARENT_ID_VAL = "parentIDValue"
 RAW_DATA = "rawData"
 
 FILE_NAME_FIELD = "name-field"
@@ -109,9 +111,11 @@ VALID_PROP_TYPE_LIST = [
 ]
 VALIDATION_RESULT = "result"
 VALIDATED_AT = "validatedAt"
-
+FILE_VALIDATION_STATUS = "fileValidationStatus"
+METADATA_VALIDATION_STATUS = "metadataValidationStatus"
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
+ROOT_PATH = "rootPath"
 # sqs message
 SCOPE = "scope"
 SQS_TYPE = "type"

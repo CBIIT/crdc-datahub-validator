@@ -25,7 +25,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
         log.debug(e)
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
-    validator = MetaDataValidator(mongo_dao, model_store)
+    validator = None
 
     #step 3: run validator as a service
     while True:
@@ -45,9 +45,10 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         scope = data[SCOPE]
                         submissionID = data[SUBMISSION_ID]
+                        validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submissionID, scope) 
                         if status and status != "Failed": 
-                            mongo_dao.set_submission_error(validator.submission, status, None, False)
+                            mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -67,6 +68,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     if extender:
                         extender.stop()
                         extender = None
+                    validator = None
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
@@ -85,6 +87,7 @@ class MetaDataValidator:
         self.mongo_dao = mongo_dao
         self.model_store = model_store
         self.submission = None
+        self.dataRecords = None
 
     def validate(self, submissionID, scope):
         #1. # get data common from submission
@@ -108,6 +111,8 @@ class MetaDataValidator:
             msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
             return None
+        
+        self.dataRecords = dataRecords
         #2. loop through all records and call validateNode
         updated_records = []
         isError = False
