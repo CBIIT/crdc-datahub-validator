@@ -103,6 +103,7 @@ VALIDATION_RESULT = "result"
 VALIDATED_AT = "validatedAt"
 FILE_VALIDATION_STATUS = "fileValidationStatus"
 METADATA_VALIDATION_STATUS = "metadataValidationStatus"
+MODEL_VERSION = "modelVersion"
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
 # sqs message

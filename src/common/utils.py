@@ -64,9 +64,9 @@ Dump list of dictionary to json file, caller needs handle exception.
 :return: boolean
 """
 def dump_dict_to_json(dict, file_path):
-    if not dict or len(dict.items) == 0:
+    if not dict or len(dict.items()) == 0:
         return False 
-    for k, v in dict:
+    for k, v in dict.items():
         path = file_path.replace("data", f'{k}')
         output_file = open(path, 'w', encoding='utf-8')
         json.dump(v, output_file, default=set_default) 
@@ -108,6 +108,8 @@ def download_file_to_dict(url):
     # NOTE the stream=True parameter below
     file_ext = url.split('.')[-1]
     with requests.get(url) as r:
+        if r.status_code > 400: 
+            raise Exception(f"Can't find model file at {url}, {r.content}!")
         if file_ext == "json":
             return r.json()
         elif file_ext == "yml": 

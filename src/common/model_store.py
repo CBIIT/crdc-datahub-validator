@@ -3,7 +3,7 @@ from bento.common.utils import get_logger
 from common.model_reader import YamlModelParser
 from common.model import DataModel
 from common.constants import DATA_COMMON, IDS, MODELS_DEFINITION_FILE, MODEL
-from common.utils import download_file_to_dict
+from common.utils import download_file_to_dict, get_exception_msg
 
 
 YML_FILE_EXT = ".yml"
@@ -20,8 +20,8 @@ class ModelFactory:
         self.models = None
         msg = None
         # get models definition file, content.json in models dir
-        model_def_dir = os.path.join(model_def_loc, tier)
-        models_def_file_path = os.path.join(model_def_dir, MODELS_DEFINITION_FILE)
+        self.model_def_dir = os.path.join(model_def_loc, tier)
+        models_def_file_path = os.path.join(self.model_def_dir, MODELS_DEFINITION_FILE)
         self.models_def = download_file_to_dict(models_def_file_path)
         # to do check if  self.models_def is a dict
         if not isinstance(self.models_def, dict):
@@ -47,7 +47,7 @@ class ModelFactory:
         #process model files for the data common
         model_reader = YamlModelParser([file_name, props_file_name], dc, version)
         model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES]})
-        self.models.append({dc + version: model_reader.model})
+        self.models.update({model_key(dc, version): model_reader.model})
 
     """
     get model by data common
@@ -56,19 +56,31 @@ class ModelFactory:
         dc = data_common.upper()
         v = self.models_def[dc]
         version = v[DEF_VERSION]
-        model = self.models.get(dc + version )
+        model = self.models.get(model_key(dc, version))
         return DataModel(model)
     
     """
     get model by data common and version
     """       
     def get_model_by_data_common_version(self, data_common, version):
-        dc = data_common.upper()
-        model = self.models.get(dc + version)
-        if not model:
-            self.create_model(data_common, version)
-            model = self.models.get(dc + version)
-        return DataModel(model)
+        if version:
+            model = self.models.get(model_key(data_common, version))
+            if not model:
+                try:
+                    self.create_model(data_common, version)
+                    model = self.models.get(model_key(data_common, version))
+                except Exception as e:
+                    self.log.debug(e)
+                    msg = f"Failed to create data model: {data_common}/{version}!"
+                    self.log.exception(f"{msg} {get_exception_msg()}")
+                return DataModel(model)  
+        else:
+            return self.get_model_by_data_common(data_common)
+        
+def model_key(data_common, version):
+    return f"{data_common.upper()}_{version}"
+        
+       
         
 
    

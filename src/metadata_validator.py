@@ -5,8 +5,8 @@ import json
 from datetime import datetime
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
-from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
-    STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
+from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, NODES_LABEL, \
+    STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION,\
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
@@ -86,6 +86,7 @@ class MetaDataValidator:
         self.log = get_logger('MetaData Validator')
         self.mongo_dao = mongo_dao
         self.model_store = model_store
+        self.model = None
         self.submission = None
         self.dataRecords = None
 
@@ -104,7 +105,12 @@ class MetaDataValidator:
             return "Failed"
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
-        model = self.model_store.get_model_by_data_common(datacommon)
+        model_version = submission.get(MODEL_VERSION)
+        self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
+        if not self.model.model or not self.model.get_nodes():
+            msg = f'No data model found for {datacommon} at {model_version}!'
+            self.log.error(msg)
+            return STATUS_ERROR
         #1. call mongo_dao to get dataRecords based on submissionID and scope
         dataRecords = self.mongo_dao.get_dataRecords(submissionID, scope)
         if not dataRecords or len(dataRecords) == 0:
@@ -119,7 +125,7 @@ class MetaDataValidator:
         isWarning = False
         try:
             for record in dataRecords:
-                status, errors, warnings = self.validate_node(record, model)
+                status, errors, warnings = self.validate_node(record)
                 # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
                     record[ERRORS] = record[ERRORS] + errors if record.get(ERRORS) else errors
@@ -148,17 +154,17 @@ class MetaDataValidator:
             # submission[ERRORS].append(error)
         return STATUS_ERROR if isError else STATUS_WARNING if isWarning else STATUS_PASSED  
 
-    def validate_node(self, dataRecord, model):
+    def validate_node(self, dataRecord):
         # set default return values
         errors = []
         warnings = []
 
         # call validate_required_props
-        result_required= self.validate_required_props(dataRecord, model)
+        result_required= self.validate_required_props(dataRecord)
         # call validate_prop_value
-        result_prop_value = self.validate_props(dataRecord, model)
+        result_prop_value = self.validate_props(dataRecord)
         # call validate_relationship
-        result_rel = self.validate_relationship(dataRecord, model)
+        result_rel = self.validate_relationship(dataRecord)
 
         # concatenation of all errors
         errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
@@ -173,7 +179,7 @@ class MetaDataValidator:
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors, warnings
     
-    def validate_required_props(self, data_record, node_definition):
+    def validate_required_props(self, data_record):
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         # check the correct format from the data_record
         if "nodeType" not in data_record.keys() or "props" not in data_record.keys() or len(data_record["props"].items()) == 0:
@@ -181,7 +187,7 @@ class MetaDataValidator:
             return result
 
         # validation start
-        nodes = node_definition.model[MODEL].get("nodes", {})
+        nodes = self.model.get_nodes()
         node_type = data_record["nodeType"]
         # extract a node from the data record
         if node_type not in nodes.keys():
@@ -217,10 +223,10 @@ class MetaDataValidator:
             result["result"] = STATUS_PASSED
         return result
     
-    def validate_props(self, dataRecord, model):
+    def validate_props(self, dataRecord):
         # set default return values
         errors = []
-        props_def = model.get_node_props(dataRecord.get(NODE_TYPE))
+        props_def = self.model.get_node_props(dataRecord.get(NODE_TYPE))
         props = dataRecord.get(PROPERTIES)
         for k, v in props.items():
             prop_def = props_def.get(k)
@@ -255,7 +261,7 @@ class MetaDataValidator:
         return parent_node_cache
 
 
-    def validate_relationship(self, data_record, model):
+    def validate_relationship(self, data_record):
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         if not data_record.get("parents"):
@@ -264,10 +270,10 @@ class MetaDataValidator:
             return result
 
         data_record_parent_nodes = data_record.get("parents")
-        node_keys = model.get_node_keys()
+        node_keys = self.model.get_node_keys()
 
         node_type = data_record.get("nodeType")
-        node_relationships = model.get_node_relationships(node_type)
+        node_relationships = self.model.get_node_relationships(node_type)
         if not node_type or node_type not in node_keys:
             node_type = f'\'{node_type}\'' if node_type else ''
             result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Current node property {node_type} does not exist."))
@@ -280,7 +286,7 @@ class MetaDataValidator:
                 continue
 
             parent_id_property = parent_node.get("parentIDPropName")
-            model_properties = model.get_node_props(parent_type)
+            model_properties = self.model.get_node_props(parent_type)
 
             if not model_properties or parent_id_property not in model_properties:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist."))
@@ -291,7 +297,7 @@ class MetaDataValidator:
                 continue
 
             # these should be defined in the data model in the properties
-            is_parent_id_valid_format = model.get_node_props(parent_type)
+            is_parent_id_valid_format = self.model.get_node_props(parent_type)
             is_parent_id_exist = is_parent_id_valid_format and is_parent_id_valid_format.get(parent_id_property)
             if not is_parent_id_valid_format or not is_parent_id_exist:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist"))
