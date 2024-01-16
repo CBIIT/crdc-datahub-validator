@@ -63,14 +63,13 @@ Dump list of dictionary to json file, caller needs handle exception.
 :param: file_path as str
 :return: boolean
 """
-def dump_dict_to_json(dict_list, file_path):
-    if not dict_list or len(dict_list) == 0:
+def dump_dict_to_json(dict, file_path):
+    if not dict or len(dict.items) == 0:
         return False 
-    
-    for dic in dict_list:
-        path = file_path.replace("data", f'{dic["model"][DATA_COMMON]}_{dic["model"][VERSION]}')
+    for k, v in dict:
+        path = file_path.replace("data", f'{k}')
         output_file = open(path, 'w', encoding='utf-8')
-        json.dump(dic, output_file, default=set_default) 
+        json.dump(v, output_file, default=set_default) 
     return True
 
 def set_default(obj):
