@@ -8,7 +8,8 @@ SERVICE_TYPE = "service-type"
 SERVICE_TYPE_ESSENTIAL = "essential"
 SERVICE_TYPE_FILE= "file"
 SERVICE_TYPE_METADATA= "metadata"
-SERVICE_TYPES = [SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA]
+SERVICE_TYPE_EXPORT = "export"
+SERVICE_TYPES = [SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, SERVICE_TYPE_EXPORT]
 
 MODEL_FILE_DIR = "models-loc"
 LOADER_QUEUE = "LOADER_QUEUE"
@@ -19,7 +20,8 @@ FILE_INVALID_REASON = "invalid_reason"
 
 #upload
 UPLOAD_STATUS ="upload_status"
-
+RELEASE = "release"
+ARCHIVE_RELEASE = "archive_release"
 #Batch
 BATCH_BUCKET = "bucketName"
 FILE_PREFIX = "filePrefix"
@@ -41,7 +43,11 @@ INTENTION_NEW = "New"
 INTENTION_DELETE = "Delete"
 INTENTION_UPDATE = "Update"
 
-# file 
+# export
+EXPORT_METADATA = "metadata"
+EXPORT_ROOT_PATH = "rootPath"
+
+# file
 FILE_ID = "dataRecordID"
 S3_FILE_INFO = "s3FileInfo"
 ID = "_id"
@@ -62,6 +68,7 @@ PROPERTIES = "props"
 PARENTS = "parents"
 PARENT_TYPE = "parentType"
 PARENT_ID_VAL = "parentIDValue"
+RAW_DATA = "rawData"
 
 FILE_NAME_FIELD = "name-field"
 FILE_SIZE_FIELD = "size-field"
@@ -116,8 +123,7 @@ TYPE_LOAD = "Load Metadata"
 TYPE_METADATA_VALIDATE = "Validate Metadata"
 TYPE_FILE_VALIDATE = "Validate Single File"
 TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
-
-
+TYPE_EXPORT_METADATA = "Export Metadata"
 
 
 
