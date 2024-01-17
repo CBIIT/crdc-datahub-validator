@@ -31,7 +31,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
     while True:
         try:
             log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
-                            f'{batches_processed} batches have been processed so far')
+                            f'{batches_processed} metadata validation(s) have been processed so far')
             
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
