@@ -123,11 +123,12 @@ class DataLoader:
         if len(deleted_nodes) == 0:
             return True
         if self.mongo_dao.delete_data_records(deleted_nodes):
-                self.delete_files_in_s3(deleted_file_nodes)
-                self.process_children(deleted_nodes) 
+            self.delete_files_in_s3(deleted_file_nodes)
+            self.process_children(deleted_nodes) 
+            return True
         else:
             self.errors.append(f"Failed to delete data records!")
-            returnVal = False
+            return False
         
     """
     process related children record in dataRecords
