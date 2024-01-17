@@ -61,7 +61,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         result = validator.validate(batch)
                         if result and len(validator.download_file_list) > 0:
                             #3. call mongo_dao to load data
-                            data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao)
+                            data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao, validator.bucket, validator.root_path )
                             result, errors = data_loader.load_data(validator.download_file_list)
                             if result:
                                 batch[STATUS] = BATCH_STATUS_UPLOADED
@@ -127,7 +127,9 @@ class EssentialValidator:
         self.model = None
         self.submission = None
         self.submission_id = None
+        self.root_path = None
         self.download_file_list = None
+        self.bucket = None
 
     def validate(self,batch):
         self.bucket = S3Bucket(batch.get("bucketName"))
@@ -184,6 +186,7 @@ class EssentialValidator:
             self.submission = submission
             self.datacommon = submission.get(DATA_COMMON_NAME)
             self.submission_id  = submission[ID]
+            self.root_path = submission.get(ROOT_PATH)
             self.download_file_list = []
             model_version = submission.get(MODEL_VERSION) 
             self.model = self.model_store.get_model_by_data_common_version(self.datacommon, model_version)

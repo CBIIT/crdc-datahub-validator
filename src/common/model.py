@@ -50,5 +50,8 @@ class DataModel:
             return None
         return {k: v for (k, v) in props.items() if v.get("required") == True}
     
+    """
+    get file nodes in the model
+    """
     def get_file_nodes(self):
         return self.model.get("file-nodes", {})

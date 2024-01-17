@@ -3,7 +3,7 @@ import os
 import yaml
 from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, \
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
-        SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG
+    SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT
 from bento.common.utils import get_logger
 from common.utils import clean_up_key_value
 
@@ -66,7 +66,7 @@ class Config():
             self.data[MONGO_DB] = f"mongodb://{db_user_id}:{db_user_password}@{db_server}:{db_port}/?authMechanism=DEFAULT"
 
         models_loc= self.data.get(MODEL_FILE_DIR)
-        if models_loc is None and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE:
+        if models_loc is None and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE and self.data[SERVICE_TYPE] != SERVICE_TYPE_EXPORT:
             self.log.critical(f'Metadata models location is required!')
             return False
         
@@ -75,7 +75,7 @@ class Config():
             sqs = os.environ.get(LOADER_QUEUE, self.data.get(SQS_NAME))
         elif self.data[SERVICE_TYPE] == SERVICE_TYPE_FILE:
             sqs = os.environ.get(FILE_QUEUE, self.data.get(SQS_NAME))
-        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_METADATA:
+        elif self.data[SERVICE_TYPE] in [SERVICE_TYPE_METADATA, SERVICE_TYPE_EXPORT]:
             sqs = os.environ.get(METADATA_QUEUE, self.data.get(SQS_NAME))
         else:
             sqs = None
@@ -88,7 +88,7 @@ class Config():
                 self.data[SQS_NAME] = sqs
 
         tier = os.environ.get(TIER, self.data.get(TIER_CONFIG))
-        if not tier and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE:
+        if not tier and self.data[SERVICE_TYPE] not in [SERVICE_TYPE_FILE, SERVICE_TYPE_EXPORT]:
             self.log.critical(f'No tier is configured in both env and args!')
             return False
         else:
