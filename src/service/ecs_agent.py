@@ -19,7 +19,7 @@ def set_scale_in_protection(status):
         response = requests.put(url, headers={'Content-Type': 'application/json'}, json={"ProtectionEnabled": status})
         if response.status_code != 200:
             log.exception(f'Failed to set scale-in protection. HTTP status code: {response.status_code}')
-            log.exception(f'Failed error messages: {response}')
+            log.exception(f'Failed error messages setting scale-in protection: {response}')
 
     except Exception as e:
         log.debug(e)
@@ -37,7 +37,7 @@ def get_scale_in_protection():
         response = requests.get(url)
         if response.status_code != 200:
             log.exception(f'Failed to get scale-in protection. HTTP status code: {response.status_code}')
-            log.exception(f'Failed error messages: {response}')
+            log.exception(f'Failed error messages getting scale-in protection: {response}')
         log.info(f'scale-in protection info. {response}')
     except Exception as e:
         log.debug(e)
