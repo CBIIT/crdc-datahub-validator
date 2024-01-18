@@ -1,7 +1,7 @@
 import requests
 import os
-from src.bento.common.utils import get_logger
-from src.common.utils import get_exception_msg
+from bento.common.utils import get_logger
+from common.utils import get_exception_msg
 
 ecs_agent_uri = os.environ.get("ECS_AGENT_URI")
 url = f"{ecs_agent_uri}/task-protection/v1/state" if ecs_agent_uri else ""
