@@ -74,3 +74,6 @@ Usage of the CLI tool:
 
 4) Start metadata validation service command:
     $ python src/validator.py configs/validator-metadata-config.yml
+
+5) Start file export service command:
+    $ python src/validator.py configs/validator-export-config.yml

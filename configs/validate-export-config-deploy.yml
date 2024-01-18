@@ -1,0 +1,4 @@
+Config:
+    # service type value in essential, export, file and metadata
+    service-type: export
+   

@@ -1,7 +1,8 @@
 from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
-    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS
+    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
+    PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS
 from common.utils import get_exception_msg, current_datetime
 
 MAX_SIZE = 10000
@@ -243,7 +244,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                DeleteOne( { "nodeID": str(m["nodeID"]), "nodeType": m["nodeType"] })
+                DeleteOne( { SUBMISSION_ID: m[SUBMISSION_ID], NODE_ID: str(m[NODE_ID]), NODE_TYPE: m[NODE_TYPE] })
                     for m in list(nodes)
                 ])
             self.log.info(f'Total {result.deleted_count} dataRecords are deleted!')
@@ -301,11 +302,11 @@ class MongoDao:
     """
     retrieve dataRecord nby nodeID
     """
-    def get_dataRecord_nodeId(self, nodeID):
+    def get_dataRecord_by_node(self, nodeID, nodeType, submissionID):
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
-            result = file_collection.find_one({"nodeID": nodeID})
+            result = file_collection.find_one({SUBMISSION_ID: submissionID, NODE_ID: nodeID, NODE_TYPE: nodeType})
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -315,3 +316,25 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to retrieve data record, {get_exception_msg()}")
             return None 
+        
+    """
+    find child node by type and id
+    """
+    def get_nodes_by_parents(self, parent_ids, submissionID):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        query = []
+        for id in parent_ids:
+            node_type, node_id = id.get(NODE_TYPE), id.get(NODE_ID)
+            query.append({SUBMISSION_ID: submissionID, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
+        try:
+            results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
+            return True, results
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to retrieve child nodes: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to retrieve child  nodes: {get_exception_msg()}")
+            return False, None
