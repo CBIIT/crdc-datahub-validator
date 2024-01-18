@@ -28,6 +28,7 @@ class Config():
                 self.data = yaml.safe_load(c_file)['Config']
         else: 
             self.log.critical(f'No configuration file is found!  Please check the file path: "{args.config}"')
+            return
 
         self._override(args)
 
