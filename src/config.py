@@ -11,7 +11,7 @@ class Config():
     def __init__(self):
         self.log = get_logger('Upload Config')
         parser = argparse.ArgumentParser(description='Upload files to AWS s3 bucket')
-        parser.add_argument('-t', '--service-type', type=str, choices=["essential", "file", "metadata"], help='validation type, required')
+        parser.add_argument('-t', '--service-type', type=str, choices=["essential", "file", "metadata", "export"], help='validation type, required')
         parser.add_argument('-s', '--server', help='Mongo database host, optional, it can be acquired from env.')
         parser.add_argument('-o', '--port', help='Mongo database port, optional, it can be acquired from env.')
         parser.add_argument('-u', '--user', help='Mongo database user id, optional, it can be acquired from env.')
@@ -28,8 +28,8 @@ class Config():
                 self.data = yaml.safe_load(c_file)['Config']
         else: 
             self.log.critical(f'No configuration file is found!  Please check the file path: "{args.config}"')
-            return None
-        
+            return
+
         self._override(args)
 
     def _override(self, args):
@@ -49,7 +49,7 @@ class Config():
         self.data = clean_up_key_value(self.data)
         service_type = self.data.get(SERVICE_TYPE)
         if service_type is None or service_type not in SERVICE_TYPES:
-            self.log.critical(f'Service type is required and must be "essential", "file" or "metadata"!')
+            self.log.critical(f'Service type is required and must be "essential", "file" or "metadata" or "export"!')
             return False
         
         db_server = self.data.get("server", os.environ.get("MONGO_DB_HOST"))
