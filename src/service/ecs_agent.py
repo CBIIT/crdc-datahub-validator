@@ -8,9 +8,10 @@ url = f"{ecs_agent_uri}/task-protection/v1/state" if ecs_agent_uri else ""
 
 
 def set_scale_in_protection(status):
+    log = get_logger('ECS Scale In Protection Service')
+    log.info(f'scale-in protection info. {url}')
     if not url:
         return
-    log = get_logger('ECS Scale In Protection Service')
     """
     Sets the scale-in protection status by making an HTTP request to the provided url.
     """
@@ -25,6 +26,8 @@ def set_scale_in_protection(status):
 
 
 def get_scale_in_protection():
+    if not url:
+        return
     log = get_logger('ECS Scale In Protection Service')
     """
     Get the scale-in protection status by making an HTTP request to the provided url.
