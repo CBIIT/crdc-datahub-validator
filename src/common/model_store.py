@@ -73,7 +73,7 @@ class ModelFactory:
                     self.log.debug(e)
                     msg = f"Failed to create data model: {data_common}/{version}!"
                     self.log.exception(f"{msg} {get_exception_msg()}")
-                return DataModel(model)  
+            return DataModel(model)   
         else:
             return self.get_model_by_data_common(data_common)
         

@@ -83,6 +83,14 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     else:
                         log.error(f'Invalid message: {data}!')
 
+                    try:
+                        msg.delete()
+                    except Exception as e1:
+                        log.debug(e1)
+                        log.critical(
+                            f'Something wrong happened while delete sqs message! Check debug log for details.')
+
+                    
                     batches_processed +=1
                     
                 except Exception as e:
@@ -90,12 +98,6 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
-                    try:
-                        msg.delete()
-                    except Exception as e1:
-                        log.debug(e1)
-                        log.critical(
-                        f'Something wrong happened while delete sqs message! Check debug log for details.')
                     if extender:
                         extender.stop()
                         extender = None

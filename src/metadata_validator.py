@@ -47,24 +47,26 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         submissionID = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submissionID, scope) 
-                        if status and status != "Failed": 
-                            mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
+                        if not status: 
+                            status = STATUS_ERROR
+                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
+                        
                     else:
                         log.error(f'Invalid message: {data}!')
-
-                    batches_processed +=1
                     
-                except Exception as e:
-                    log.debug(e)
-                    log.critical(
-                        f'Something wrong happened while processing file! Check debug log for details.')
-                finally:
                     try:
                         msg.delete()
                     except Exception as e1:
                         log.debug(e1)
                         log.critical(
                         f'Something wrong happened while delete sqs message! Check debug log for details.')
+
+                    batches_processed +=1
+                except Exception as e:
+                    log.debug(e)
+                    log.critical(
+                        f'Something wrong happened while processing file! Check debug log for details.')
+                finally:
                     if extender:
                         extender.stop()
                         extender = None
@@ -96,13 +98,13 @@ class MetaDataValidator:
         if not submission:
             msg = f'Invalid submissionID, no submission found, {submissionID}!'
             self.log.error(msg)
-            return "Failed"
+            return STATUS_ERROR
         # submission[ERRORS] = [] if not submission.get(ERRORS) else submission[ERRORS]
         if not submission.get(DATA_COMMON_NAME):
             msg = f'Invalid submission, no datacommon found, {submissionID}!'
             self.log.error(msg)
             # error = {"title": "Invalid submission", "description": msg}
-            return "Failed"
+            return STATUS_ERROR
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
         model_version = submission.get(MODEL_VERSION)
@@ -116,7 +118,7 @@ class MetaDataValidator:
         if not dataRecords or len(dataRecords) == 0:
             msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
-            return None
+            return STATUS_ERROR
         
         self.dataRecords = dataRecords
         #2. loop through all records and call validateNode
@@ -397,7 +399,7 @@ class MetaDataValidator:
 def check_permissive(value, permissive_vals):
     result = True,
     error = None
-    if permissive_vals and len(permissive_vals) and value not in permissive_vals:
+    if permissive_vals and len(permissive_vals) > 0 and value not in permissive_vals:
        result = False
        error = create_error("Not permitted value", f"The value, {value} is not allowed!")
     return result, error
