@@ -3,7 +3,7 @@ import os
 import yaml
 from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, \
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
-    SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT
+    SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE
 from bento.common.utils import get_logger
 from common.utils import clean_up_key_value
 
@@ -75,8 +75,10 @@ class Config():
             sqs = os.environ.get(LOADER_QUEUE, self.data.get(SQS_NAME))
         elif self.data[SERVICE_TYPE] == SERVICE_TYPE_FILE:
             sqs = os.environ.get(FILE_QUEUE, self.data.get(SQS_NAME))
-        elif self.data[SERVICE_TYPE] in [SERVICE_TYPE_METADATA, SERVICE_TYPE_EXPORT]:
+        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_METADATA:
             sqs = os.environ.get(METADATA_QUEUE, self.data.get(SQS_NAME))
+        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
+            sqs = os.environ.get(EXPORTER_QUEUE, self.data.get(SQS_NAME))
         else:
             sqs = None
         
