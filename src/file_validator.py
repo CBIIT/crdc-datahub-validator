@@ -8,7 +8,7 @@ from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, BATCH_BUCKET
 from common.utils import cleanup_s3_download_dir, get_exception_msg, current_datetime, get_file_md5_size, create_error
-from src.service.ecs_agent import set_scale_in_protection, get_scale_in_protection
+from service.ecs_agent import set_scale_in_protection, get_scale_in_protection
 
 VISIBILITY_TIMEOUT = 20
 """

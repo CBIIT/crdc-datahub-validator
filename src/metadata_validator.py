@@ -6,7 +6,7 @@ from datetime import datetime
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
-    STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
+    STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, NODE_ID, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
@@ -238,14 +238,20 @@ class MetaDataValidator:
         return {VALIDATION_RESULT: STATUS_ERROR if len(errors) > 0 else STATUS_PASSED, ERRORS: errors, WARNINGS: []}
 
     def get_parent_node_cache(self, data_record_parent_nodes):
-        parent_nodes = []
+        search_db = False
+        parent_nodes = [] if search_db else None
+        exist_parent_nodes = None if search_db else []
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
             parent_id_property = parent_node.get("parentIDPropName")
             parent_id_value = parent_node.get("parentIDValue")
             if parent_type and parent_id_value and parent_id_value is not None:
-                parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": parent_id_value})
-        exist_parent_nodes = self.mongo_dao.search_nodes_by_type_and_value(parent_nodes)
+                if not search_db: # parentId in a relationship is the ID property of parent node.
+                    exist_parent_nodes.extend([ node for node in self.dataRecords if node[NODE_TYPE] == parent_type and node[NODE_ID] == parent_id_value ]) 
+                else:   
+                    parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": parent_id_value})
+        if search_db:
+            exist_parent_nodes = self.mongo_dao.search_nodes_by_type_and_value(parent_nodes)
 
         parent_node_cache = set()
         for node in exist_parent_nodes:
@@ -331,29 +337,26 @@ class MetaDataValidator:
             elif type == "integer":
                 try:
                     val = int(value)
+                    result, error = check_permissive(val, permissive_vals)
+                    if not result:
+                        errors.append(error)
+                    errs = check_boundary(val, minimum, maximum)
+                    if len(errs) > 0:
+                        errors.extend(errs)
                 except ValueError as e:
                     errors.append(create_error("Not a integer", f"The value, {value}, is not a integer!"))
-
-                result, error = check_permissive(val, permissive_vals)
-                if not result:
-                    errors.append(error)
-
-                errs = check_boundary(val, minimum, maximum)
-                if len(errs) > 0:
-                    errors.extend(errs)
 
             elif type == "number":
                 try:
                     val = float(value)
+                    result, error = check_permissive(val, permissive_vals)
+                    if not result:
+                        errors.append(error)
+                    errs = check_boundary(val, minimum, maximum)
+                    if len(errs) > 0:
+                        errors.extend(errs)
                 except ValueError as e:
                     errors.append(create_error("Not a number", f"The value, {value}, is not a number!"))
-                result, error = check_permissive(val, permissive_vals)
-                if not result:
-                    errors.append(error)
-
-                errs = check_boundary(val, minimum, maximum)
-                if len(errs) > 0:
-                    errors.extend(errs)
 
             elif type == "datetime":
                 try:
