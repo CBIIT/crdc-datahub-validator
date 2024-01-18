@@ -27,6 +27,7 @@ def fileValidate(configs, job_queue, mongo_dao):
             set_scale_in_protection(True)
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
+                get_scale_in_protection()
                 set_scale_in_protection(True)
                 extender = None
                 data = None
