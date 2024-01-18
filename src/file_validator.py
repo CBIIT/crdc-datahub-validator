@@ -8,6 +8,7 @@ from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, BATCH_BUCKET
 from common.utils import cleanup_s3_download_dir, get_exception_msg, current_datetime, get_file_md5_size, create_error
+from src.service.ecs_agent import set_scale_in_protection, get_scale_in_protection
 
 VISIBILITY_TIMEOUT = 20
 """
@@ -23,9 +24,11 @@ def fileValidate(configs, job_queue, mongo_dao):
         try:
             log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
                             f'{file_processed} file(s) have been processed so far')
-            
+            set_scale_in_protection(True)
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
+                get_scale_in_protection()
+                set_scale_in_protection(True)
                 extender = None
                 data = None
                 try:
@@ -73,6 +76,8 @@ def fileValidate(configs, job_queue, mongo_dao):
                 finally:
                     try:
                         msg.delete()
+                        set_scale_in_protection(False)
+                        get_scale_in_protection()
                     except Exception as e1:
                         log.debug(e1)
                         log.critical(
