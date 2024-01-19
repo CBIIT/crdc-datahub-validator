@@ -66,16 +66,14 @@ def fileValidate(configs, job_queue, mongo_dao):
                             mongo_dao.set_submission_validation_status(validator.submission, status, None, msgs)
                     else:
                         log.error(f'Invalid message: {data}!')
-
                     file_processed +=1
-                    
+                    msg.delete()
                 except Exception as e:
                     log.debug(e)
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
                     try:
-                        msg.delete()
                         set_scale_in_protection(False)
                         get_scale_in_protection()
                     except Exception as e1:

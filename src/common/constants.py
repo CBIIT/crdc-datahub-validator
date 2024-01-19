@@ -114,6 +114,7 @@ VALIDATION_RESULT = "result"
 VALIDATED_AT = "validatedAt"
 FILE_VALIDATION_STATUS = "fileValidationStatus"
 METADATA_VALIDATION_STATUS = "metadataValidationStatus"
+MODEL_VERSION = "modelVersion"
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
 ROOT_PATH = "rootPath"
@@ -125,6 +126,7 @@ TYPE_METADATA_VALIDATE = "Validate Metadata"
 TYPE_FILE_VALIDATE = "Validate Single File"
 TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
 TYPE_EXPORT_METADATA = "Export Metadata"
+FAILED = "Failed"
 
 
 

@@ -7,8 +7,8 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, ROOT_PATH, \
-    S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
-    BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, NODE_LABEL, MODEL_FILE_DIR, \
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
+    BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
@@ -73,6 +73,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                                 submission_meta_status = STATUS_ERROR
                         else:
                             batch[STATUS] = BATCH_STATUS_FAILED
+                            submission_meta_status = STATUS_ERROR
 
                         #4. update batch
                         result = mongo_dao.update_batch(batch)
@@ -83,18 +84,12 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         log.error(f'Invalid message: {data}!')
 
                     batches_processed +=1
-                    
+                    msg.delete()
                 except Exception as e:
                     log.debug(e)
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
-                    try:
-                        msg.delete()
-                    except Exception as e1:
-                        log.debug(e1)
-                        log.critical(
-                        f'Something wrong happened while delete sqs message! Check debug log for details.')
                     if extender:
                         extender.stop()
                         extender = None
@@ -184,10 +179,16 @@ class EssentialValidator:
                 return False
             self.submission = submission
             self.datacommon = submission.get(DATA_COMMON_NAME)
-            self.model = self.model_store.get_model_by_data_common(self.datacommon)
             self.submission_id  = submission[ID]
             self.root_path = submission.get(ROOT_PATH)
             self.download_file_list = []
+            model_version = submission.get(MODEL_VERSION) 
+            self.model = self.model_store.get_model_by_data_common_version(self.datacommon, model_version)
+            if not self.model.model or not self.model.get_nodes():
+                msg = f'No data model found for {self.datacommon} at {model_version}!'
+                self.log.error(msg)
+                batch[ERRORS].append(msg)
+                return False
             return True
     
     def download_file(self, file_info):

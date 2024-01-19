@@ -5,8 +5,8 @@ import json
 from datetime import datetime
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
-from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, \
-    STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, \
+from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, NODES_LABEL, FAILED, \
+    STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION,\
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
@@ -31,7 +31,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
     while True:
         try:
             log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
-                            f'{batches_processed} batches have been processed so far')
+                            f'{batches_processed} metadata validation(s) have been processed so far')
             
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
@@ -47,24 +47,19 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         submissionID = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submissionID, scope) 
-                        if status and status != "Failed": 
-                            mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
+                        if not status or status == FAILED: 
+                            status = None
+                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None) 
                     else:
                         log.error(f'Invalid message: {data}!')
 
                     batches_processed +=1
-                    
+                    msg.delete()
                 except Exception as e:
                     log.debug(e)
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
-                    try:
-                        msg.delete()
-                    except Exception as e1:
-                        log.debug(e1)
-                        log.critical(
-                        f'Something wrong happened while delete sqs message! Check debug log for details.')
                     if extender:
                         extender.stop()
                         extender = None
@@ -86,6 +81,7 @@ class MetaDataValidator:
         self.log = get_logger('MetaData Validator')
         self.mongo_dao = mongo_dao
         self.model_store = model_store
+        self.model = None
         self.submission = None
         self.dataRecords = None
 
@@ -95,31 +91,37 @@ class MetaDataValidator:
         if not submission:
             msg = f'Invalid submissionID, no submission found, {submissionID}!'
             self.log.error(msg)
-            return "Failed"
+            return FAILED
         # submission[ERRORS] = [] if not submission.get(ERRORS) else submission[ERRORS]
         if not submission.get(DATA_COMMON_NAME):
             msg = f'Invalid submission, no datacommon found, {submissionID}!'
             self.log.error(msg)
             # error = {"title": "Invalid submission", "description": msg}
-            return "Failed"
+            return FAILED
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
-        model = self.model_store.get_model_by_data_common(datacommon)
+        model_version = submission.get(MODEL_VERSION)
+        self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
+        if not self.model.model or not self.model.get_nodes():
+            msg = f'No data model found for {datacommon} at {model_version}!'
+            self.log.error(msg)
+            return STATUS_ERROR
         #1. call mongo_dao to get dataRecords based on submissionID and scope
         dataRecords = self.mongo_dao.get_dataRecords(submissionID, scope)
         if not dataRecords or len(dataRecords) == 0:
             msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
-            return None
+            return FAILED
         
         self.dataRecords = dataRecords
         #2. loop through all records and call validateNode
         updated_records = []
         isError = False
         isWarning = False
+        validated_count = 0
         try:
             for record in dataRecords:
-                status, errors, warnings = self.validate_node(record, model)
+                status, errors, warnings = self.validate_node(record)
                 # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
                     record[ERRORS] = record[ERRORS] + errors if record.get(ERRORS) else errors
@@ -130,35 +132,40 @@ class MetaDataValidator:
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
+                validated_count += 1
         except Exception as e:
             self.log.debug(e)
             msg = f'Failed to validate dataRecords for the submission, {submissionID} at scope, {scope}!'
             self.log.exception(msg)
-            # error = {"title": "Failed to validate dataRecords", "description": msg}
-            # submission[ERRORS].append(error)
-            return "Failed"
+            self.log.info(f"{submissionID}: {validated_count} nodes are validated after error occurred.")
+            result = self.mongo_dao.update_files(updated_records)
+            if not result:
+                #4. set errors in submission
+                msg = f'Failed to update dataRecords for the submission, {submissionID} at scope, {scope}!'
+                self.log.error(msg)
+            return STATUS_ERROR
+            
+        self.log.info(f"{submissionID}: {validated_count} nodes are validated.")
         #3. update data records based on record's _id
         result = self.mongo_dao.update_files(updated_records)
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
-            return None
-            # error = {"title": "Failed to update dataRecords", "description": msg}
-            # submission[ERRORS].append(error)
+            return STATUS_ERROR
         return STATUS_ERROR if isError else STATUS_WARNING if isWarning else STATUS_PASSED  
 
-    def validate_node(self, dataRecord, model):
+    def validate_node(self, dataRecord):
         # set default return values
         errors = []
         warnings = []
 
         # call validate_required_props
-        result_required= self.validate_required_props(dataRecord, model)
+        result_required= self.validate_required_props(dataRecord)
         # call validate_prop_value
-        result_prop_value = self.validate_props(dataRecord, model)
+        result_prop_value = self.validate_props(dataRecord)
         # call validate_relationship
-        result_rel = self.validate_relationship(dataRecord, model)
+        result_rel = self.validate_relationship(dataRecord)
 
         # concatenation of all errors
         errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
@@ -173,7 +180,7 @@ class MetaDataValidator:
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors, warnings
     
-    def validate_required_props(self, data_record, node_definition):
+    def validate_required_props(self, data_record):
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         # check the correct format from the data_record
         if "nodeType" not in data_record.keys() or "props" not in data_record.keys() or len(data_record["props"].items()) == 0:
@@ -181,7 +188,7 @@ class MetaDataValidator:
             return result
 
         # validation start
-        nodes = node_definition.model[MODEL].get("nodes", {})
+        nodes = self.model.get_nodes()
         node_type = data_record["nodeType"]
         # extract a node from the data record
         if node_type not in nodes.keys():
@@ -217,10 +224,10 @@ class MetaDataValidator:
             result["result"] = STATUS_PASSED
         return result
     
-    def validate_props(self, dataRecord, model):
+    def validate_props(self, dataRecord):
         # set default return values
         errors = []
-        props_def = model.get_node_props(dataRecord.get(NODE_TYPE))
+        props_def = self.model.get_node_props(dataRecord.get(NODE_TYPE))
         props = dataRecord.get(PROPERTIES)
         for k, v in props.items():
             prop_def = props_def.get(k)
@@ -255,7 +262,7 @@ class MetaDataValidator:
         return parent_node_cache
 
 
-    def validate_relationship(self, data_record, model):
+    def validate_relationship(self, data_record):
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         if not data_record.get("parents"):
@@ -264,10 +271,10 @@ class MetaDataValidator:
             return result
 
         data_record_parent_nodes = data_record.get("parents")
-        node_keys = model.get_node_keys()
+        node_keys = self.model.get_node_keys()
 
         node_type = data_record.get("nodeType")
-        node_relationships = model.get_node_relationships(node_type)
+        node_relationships = self.model.get_node_relationships(node_type)
         if not node_type or node_type not in node_keys:
             node_type = f'\'{node_type}\'' if node_type else ''
             result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Current node property {node_type} does not exist."))
@@ -280,7 +287,7 @@ class MetaDataValidator:
                 continue
 
             parent_id_property = parent_node.get("parentIDPropName")
-            model_properties = model.get_node_props(parent_type)
+            model_properties = self.model.get_node_props(parent_type)
 
             if not model_properties or parent_id_property not in model_properties:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist."))
@@ -291,7 +298,7 @@ class MetaDataValidator:
                 continue
 
             # these should be defined in the data model in the properties
-            is_parent_id_valid_format = model.get_node_props(parent_type)
+            is_parent_id_valid_format = self.model.get_node_props(parent_type)
             is_parent_id_exist = is_parent_id_valid_format and is_parent_id_valid_format.get(parent_id_property)
             if not is_parent_id_valid_format or not is_parent_id_exist:
                 result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist"))
@@ -320,6 +327,7 @@ class MetaDataValidator:
         if not type or not type in VALID_PROP_TYPE_LIST:
             errors.append(f"Invalid property type, {type}!")
         else:
+            val = None
             permissive_vals = prop_def.get("permissible_values")
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
@@ -391,7 +399,7 @@ class MetaDataValidator:
 def check_permissive(value, permissive_vals):
     result = True,
     error = None
-    if permissive_vals and len(permissive_vals) and value not in permissive_vals:
+    if permissive_vals and len(permissive_vals) > 0 and value not in permissive_vals:
        result = False
        error = create_error("Not permitted value", f"The value, {value} is not allowed!")
     return result, error
