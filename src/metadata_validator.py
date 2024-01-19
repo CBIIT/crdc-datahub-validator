@@ -5,7 +5,7 @@ import json
 from datetime import datetime
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
-from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, NODES_LABEL, \
+from common.constants import SQS_NAME, SQS_TYPE, SCOPE, MODEL, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, NODES_LABEL, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION,\
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
@@ -47,10 +47,9 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         submissionID = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submissionID, scope) 
-                        if not status: 
-                            status = STATUS_ERROR
-                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
-                        
+                        if not status or status == FAILED: 
+                            status = None
+                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None) 
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -92,13 +91,13 @@ class MetaDataValidator:
         if not submission:
             msg = f'Invalid submissionID, no submission found, {submissionID}!'
             self.log.error(msg)
-            return STATUS_ERROR
+            return FAILED
         # submission[ERRORS] = [] if not submission.get(ERRORS) else submission[ERRORS]
         if not submission.get(DATA_COMMON_NAME):
             msg = f'Invalid submission, no datacommon found, {submissionID}!'
             self.log.error(msg)
             # error = {"title": "Invalid submission", "description": msg}
-            return STATUS_ERROR
+            return FAILED
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
         model_version = submission.get(MODEL_VERSION)
@@ -112,7 +111,7 @@ class MetaDataValidator:
         if not dataRecords or len(dataRecords) == 0:
             msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
-            return STATUS_ERROR
+            return FAILED
         
         self.dataRecords = dataRecords
         #2. loop through all records and call validateNode
@@ -138,16 +137,15 @@ class MetaDataValidator:
             self.log.debug(e)
             msg = f'Failed to validate dataRecords for the submission, {submissionID} at scope, {scope}!'
             self.log.exception(msg)
-            self.log.debug(f"{submissionID}: {validated_count} nodes are validated.")
+            self.log.info(f"{submissionID}: {validated_count} nodes are validated after error occurred.")
             result = self.mongo_dao.update_files(updated_records)
             if not result:
                 #4. set errors in submission
                 msg = f'Failed to update dataRecords for the submission, {submissionID} at scope, {scope}!'
                 self.log.error(msg)
-                return STATUS_ERROR
-                return STATUS_ERROR
+            return STATUS_ERROR
             
-        self.log.debug(f"{submissionID}: {validated_count} nodes are validated.")
+        self.log.info(f"{submissionID}: {validated_count} nodes are validated.")
         #3. update data records based on record's _id
         result = self.mongo_dao.update_files(updated_records)
         if not result:

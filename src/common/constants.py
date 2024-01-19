@@ -15,6 +15,7 @@ MODEL_FILE_DIR = "models-loc"
 LOADER_QUEUE = "LOADER_QUEUE"
 FILE_QUEUE = "FILE_QUEUE"
 METADATA_QUEUE = "METADATA_QUEUE"
+EXPORTER_QUEUE = "EXPORTER_QUEUE"
 #file validation 
 FILE_INVALID_REASON = "invalid_reason"
 
@@ -125,6 +126,7 @@ TYPE_METADATA_VALIDATE = "Validate Metadata"
 TYPE_FILE_VALIDATE = "Validate Single File"
 TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
 TYPE_EXPORT_METADATA = "Export Metadata"
+FAILED = "Failed"
 
 
 
