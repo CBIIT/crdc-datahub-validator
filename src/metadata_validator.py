@@ -53,15 +53,9 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         
                     else:
                         log.error(f'Invalid message: {data}!')
-                    
-                    try:
-                        msg.delete()
-                    except Exception as e1:
-                        log.debug(e1)
-                        log.critical(
-                        f'Something wrong happened while delete sqs message! Check debug log for details.')
 
                     batches_processed +=1
+                    msg.delete()
                 except Exception as e:
                     log.debug(e)
                     log.critical(
@@ -125,6 +119,7 @@ class MetaDataValidator:
         updated_records = []
         isError = False
         isWarning = False
+        validated_count = 0
         try:
             for record in dataRecords:
                 status, errors, warnings = self.validate_node(record)
@@ -138,22 +133,28 @@ class MetaDataValidator:
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
+                validated_count += 1
         except Exception as e:
             self.log.debug(e)
             msg = f'Failed to validate dataRecords for the submission, {submissionID} at scope, {scope}!'
             self.log.exception(msg)
-            # error = {"title": "Failed to validate dataRecords", "description": msg}
-            # submission[ERRORS].append(error)
-            return "Failed"
+            self.log.debug(f"{submissionID}: {validated_count} nodes are validated.")
+            result = self.mongo_dao.update_files(updated_records)
+            if not result:
+                #4. set errors in submission
+                msg = f'Failed to update dataRecords for the submission, {submissionID} at scope, {scope}!'
+                self.log.error(msg)
+                return STATUS_ERROR
+                return STATUS_ERROR
+            
+        self.log.debug(f"{submissionID}: {validated_count} nodes are validated.")
         #3. update data records based on record's _id
         result = self.mongo_dao.update_files(updated_records)
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
-            return None
-            # error = {"title": "Failed to update dataRecords", "description": msg}
-            # submission[ERRORS].append(error)
+            return STATUS_ERROR
         return STATUS_ERROR if isError else STATUS_WARNING if isWarning else STATUS_PASSED  
 
     def validate_node(self, dataRecord):
@@ -328,6 +329,7 @@ class MetaDataValidator:
         if not type or not type in VALID_PROP_TYPE_LIST:
             errors.append(f"Invalid property type, {type}!")
         else:
+            val = None
             permissive_vals = prop_def.get("permissible_values")
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
