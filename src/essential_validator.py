@@ -263,7 +263,10 @@ class EssentialValidator:
             id_field = self.model.get_node_id(type)
             if not id_field: return True
             # extract ids from df.
-            ids = self.df[id_field].tolist()  
+            ids = self.df[id_field]
+            if not ids or len(ids.tolist()) == 0:
+                return True
+            ids = ids.tolist()  
             # query db.         
             if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
                 msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'
