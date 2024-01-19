@@ -66,8 +66,8 @@ def fileValidate(configs, job_queue, mongo_dao):
                     else:
                         log.error(f'Invalid message: {data}!')
                     file_processed += 1
-                    msg.delete()
                     set_scale_in_protection(False)
+                    msg.delete()
                 except Exception as e:
                     log.debug(e)
                     log.critical(

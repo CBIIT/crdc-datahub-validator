@@ -43,8 +43,8 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
                     export_validator = ExportMetadata(mongo_dao, submission, S3Service())
                     export_validator.export_data_to_file()
                     export_processed += 1
-                    msg.delete()
                     set_scale_in_protection(False)
+                    msg.delete()
                 except Exception as e:
                     log.debug(e)
                     log.critical(
