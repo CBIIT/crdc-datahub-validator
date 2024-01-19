@@ -8,6 +8,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
 import threading
 import boto3
 import io
+from service.ecs_agent import set_scale_in_protection
 
 VISIBILITY_TIMEOUT = 20
 """
@@ -17,7 +18,10 @@ Interface for validate files via SQS
 
 def metadata_export(sqs_name, job_queue, mongo_dao):
     export_processed = 0
+    export_validator = None
     log = get_logger(TYPE_EXPORT_METADATA)
+    # activate container protection
+    set_scale_in_protection(True)
     while True:
         try:
             log.info(f'Waiting for jobs on queue: {sqs_name}, '
@@ -25,6 +29,7 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
 
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
+                set_scale_in_protection(True)
                 extender = None
                 try:
                     data = json.loads(msg.body)
@@ -38,17 +43,13 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
                     export_validator = ExportMetadata(mongo_dao, submission, S3Service())
                     export_validator.export_data_to_file()
                     export_processed += 1
+                    set_scale_in_protection(False)
+                    msg.delete()
                 except Exception as e:
                     log.debug(e)
                     log.critical(
                         f'Something wrong happened while exporting file! Check debug log for details.')
                 finally:
-                    try:
-                        msg.delete()
-                    except Exception as e1:
-                        log.debug(e1)
-                        log.critical(
-                            f'Something wrong happened while exporting file sqs message! Check debug log for details.')
                     # De-allocation memory
                     export_validator.close()
                     export_validator = None
