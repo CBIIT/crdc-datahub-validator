@@ -55,6 +55,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         batch = mongo_dao.get_batch(data[BATCH_ID])
                         if not batch:
                             log.error(f"No batch find for {data[BATCH_ID]}")
+                            batches_processed +=1
+                            msg.delete()
                             continue
                         #2. validate batch and files.
                         validator = EssentialValidator(mongo_dao, model_store)
@@ -263,10 +265,14 @@ class EssentialValidator:
             id_field = self.model.get_node_id(type)
             if not id_field: return True
             # extract ids from df.
-            ids = self.df[id_field]
-            if not ids or len(ids.tolist()) == 0:
-                return True
-            ids = ids.tolist()  
+            if not id_field in self.df: 
+                msg = f'Invalid metadata, missing nodeID, {id_field}, {self.batch[ID]}!'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+                return False
+
+            ids = self.df[id_field].tolist()
             # query db.         
             if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
                 msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'

@@ -332,7 +332,7 @@ class MongoDao:
             query = {'submissionID': {'$eq': submissionID}} 
             if scope == STATUS_NEW:
                 query[STATUS] = STATUS_NEW
-            result = list(file_collection.find(query)).sort({"submissionID": 1, "nodeType": 1, "nodeID": 1}).skip(start).limit(size)
+            result = list(file_collection.find(query).sort({"submissionID": 1, "nodeType": 1, "nodeID": 1}).skip(start).limit(size))
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)

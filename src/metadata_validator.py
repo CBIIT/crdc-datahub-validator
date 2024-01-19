@@ -13,7 +13,7 @@ from common.model_store import ModelFactory
 from common.error_messages import FAILED_VALIDATE_RECORDS
 
 VISIBILITY_TIMEOUT = 20
-BATCH_SIZE = 100
+BATCH_SIZE = 10000
 
 def metadataValidate(configs, job_queue, mongo_dao):
     batches_processed = 0
@@ -121,6 +121,7 @@ class MetaDataValidator:
             count = len(dataRecords) 
             self.validate_nodes(dataRecords, submissionID, scope)
             if count < BATCH_SIZE: 
+                self.log.info(f"{submissionID}: {count + start_index} nodes are validated.")
                 return STATUS_ERROR if len(self.errors) > 0  else STATUS_WARNING if len(self.warnings) > 0  else STATUS_PASSED 
             start_index += count
             continue 
@@ -150,15 +151,8 @@ class MetaDataValidator:
             self.log.debug(e)
             msg = f'Failed to validate dataRecords for the submission, {submissionID} at scope, {scope}!'
             self.log.exception(msg)
-            self.log.info(f"{submissionID}: {validated_count} nodes are validated after error occurred.")
-            result = self.mongo_dao.update_files(updated_records)
-            if not result:
-                #4. set errors in submission
-                msg = f'Failed to update dataRecords for the submission, {submissionID} at scope, {scope}!'
-                self.log.error(msg)
             return STATUS_ERROR
             
-        self.log.info(f"{submissionID}: {validated_count} nodes are validated.")
         #3. update data records based on record's _id
         result = self.mongo_dao.update_files(updated_records)
         if not result:
