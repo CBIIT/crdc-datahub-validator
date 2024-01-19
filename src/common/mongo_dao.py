@@ -332,9 +332,7 @@ class MongoDao:
             query = {'submissionID': {'$eq': submissionID}} 
             if scope == STATUS_NEW:
                 query[STATUS] = STATUS_NEW
-            result = list(file_collection.find(query))
-            count = len(result)
-            self.log.info(f'Total {count} dataRecords are found for the submission, {submissionID} and scope of {scope}!')
+            result = list(file_collection.find(query)).sort({"submissionID": 1, "nodeType": 1, "nodeID": 1}).skip(start).limit(size)
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -344,7 +342,7 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to retrieve data records, {get_exception_msg()}")
             return None 
-     """
+    """
     retrieve dataRecord by nodeID
     """
     def get_dataRecord_by_node(self, nodeID, nodeType, submissionID):

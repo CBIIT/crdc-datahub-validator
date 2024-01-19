@@ -13,7 +13,7 @@ from common.model_store import ModelFactory
 from common.error_messages import FAILED_VALIDATE_RECORDS
 
 VISIBILITY_TIMEOUT = 20
-BATCH_SIZE = 10000
+BATCH_SIZE = 100
 
 def metadataValidate(configs, job_queue, mongo_dao):
     batches_processed = 0
@@ -122,7 +122,7 @@ class MetaDataValidator:
             self.validate_nodes(dataRecords, submissionID, scope)
             if count < BATCH_SIZE: 
                 return STATUS_ERROR if len(self.errors) > 0  else STATUS_WARNING if len(self.warnings) > 0  else STATUS_PASSED 
-
+            start_index += count
             continue 
             
 
