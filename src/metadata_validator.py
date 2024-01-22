@@ -14,7 +14,7 @@ from common.error_messages import FAILED_VALIDATE_RECORDS
 from service.ecs_agent import set_scale_in_protection
 
 VISIBILITY_TIMEOUT = 20
-BATCH_SIZE = 10000
+BATCH_SIZE = 1000
 
 def metadataValidate(configs, job_queue, mongo_dao):
     batches_processed = 0

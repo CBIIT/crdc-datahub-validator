@@ -390,8 +390,8 @@ class MongoDao:
         try:
             index_dict = data_collection.index_information()
             if not index_dict or not index_dict.get(index_name):
-                result = data_collection.create_index([(SUBMISSION_ID, TEXT), (NODE_TYPE, TEXT),(NODE_ID, TEXT)], \
-                            name=index_name, default_language='english')
+                result = data_collection.create_index([(SUBMISSION_ID), (NODE_TYPE),(NODE_ID)], \
+                            name=index_name)
                 return result
             else:
                 return True
