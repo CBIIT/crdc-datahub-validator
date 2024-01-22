@@ -378,7 +378,7 @@ class MongoDao:
             return False, None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to retrieve child  nodes: {get_exception_msg()}")
+            self.log.exception(f"Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
         
     """
@@ -397,9 +397,9 @@ class MongoDao:
                 return True
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to retrieve child nodes: {get_exception_msg()}")
+            self.log.exception(f"Failed to set search index: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to retrieve child  nodes: {get_exception_msg()}")
+            self.log.exception(f"Failed to set search index: {get_exception_msg()}")
             return False
