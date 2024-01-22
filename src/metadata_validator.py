@@ -6,8 +6,9 @@ from datetime import datetime
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, FAILED, \
-    STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION,\
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, VALIDATED_AT
+    STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, \
+    VALIDATED_AT, SERVICE_TYPE_METADATA
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.error_messages import FAILED_VALIDATE_RECORDS
@@ -16,7 +17,6 @@ from service.ecs_agent import set_scale_in_protection
 VISIBILITY_TIMEOUT = 20
 
 def metadataValidate(configs, job_queue, mongo_dao):
-    batches_processed = 0
     log = get_logger('Metadata Validation Service')
     try:
         model_store = ModelFactory(configs[MODEL_FILE_DIR], configs[TIER_CONFIG]) 
@@ -29,19 +29,21 @@ def metadataValidate(configs, job_queue, mongo_dao):
     validator = None
 
     #step 3: run validator as a service
+    log.info(f'{SERVICE_TYPE_METADATA} service started')
+    batches_processed = 0
     scale_in_protection_flag = False
     while True:
         try:
-            log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
-                            f'{batches_processed} metadata validation(s) have been processed so far')
-
             msgs = job_queue.receiveMsgs(VISIBILITY_TIMEOUT)
             if len(msgs) > 0:
+                log.info(f'New message is coming: {configs[SQS_NAME]}, '
+                         f'{batches_processed} {SERVICE_TYPE_METADATA} validation(s) have been processed so far')
                 scale_in_protection_flag = True
-                set_scale_in_protection(scale_in_protection_flag)
-            elif len(msgs) == 0 and scale_in_protection_flag is True:
-                scale_in_protection_flag = False
-                set_scale_in_protection(scale_in_protection_flag)
+                set_scale_in_protection(True)
+            else:
+                if scale_in_protection_flag is True:
+                    scale_in_protection_flag = False
+                    set_scale_in_protection(False)
 
             for msg in msgs:
                 log.info(f'Received a job!')
