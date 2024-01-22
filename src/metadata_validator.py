@@ -84,8 +84,8 @@ class MetaDataValidator:
         self.model_store = model_store
         self.model = None
         self.submission = None
-        self.errors = None
-        self.warnings = None
+        self.isError = None
+        self.isWarning = None
 
     def validate(self, submissionID, scope):
         #1. # get data common from submission
@@ -108,30 +108,27 @@ class MetaDataValidator:
             self.log.error(msg)
             return STATUS_ERROR
         #3 retrieve data batch by batch
-        self.errors = []
-        self.warnings = [] 
         start_index = 0
         count = 0
+        validated_count = 0
         while True:
             dataRecords = self.mongo_dao.get_dataRecords_in_batch(submissionID, scope, start_index, BATCH_SIZE)
             if start_index == 0 and (not dataRecords or len(dataRecords) == 0):
                 msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
                 self.log.error(msg)
                 return FAILED
-            count = len(dataRecords) 
-            self.validate_nodes(dataRecords, submissionID, scope)
-            if count < BATCH_SIZE: 
-                self.log.info(f"{submissionID}: {count + start_index} nodes are validated.")
-                return STATUS_ERROR if len(self.errors) > 0  else STATUS_WARNING if len(self.warnings) > 0  else STATUS_PASSED 
-            start_index += count
-            continue 
             
+            count = len(dataRecords) 
+            validated_count += self.validate_nodes(dataRecords, submissionID, scope)
+            if count < BATCH_SIZE: 
+                self.log.info(f"{submissionID}: {validated_count} out of {count + start_index} nodes are validated.")
+                return STATUS_ERROR if self.isError > 0  else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
+            start_index += count
+            continue     
 
     def validate_nodes(self, dataRecords, submissionID, scope):
         #2. loop through all records and call validateNode
         updated_records = []
-        isError = False
-        isWarning = False
         validated_count = 0
         try:
             for record in dataRecords:
@@ -139,10 +136,10 @@ class MetaDataValidator:
                 # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
                     record[ERRORS] = record[ERRORS] + errors if record.get(ERRORS) else errors
-                    self.errors.extend(errors)
+                    self.isError = True
                 if warnings and len(warnings)> 0: 
                     record[WARNINGS] = record[WARNINGS] + warnings if record.get(WARNINGS) else warnings
-                    self.warnings.extend(warnings)
+                    self.isWarning = True
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
@@ -150,17 +147,17 @@ class MetaDataValidator:
         except Exception as e:
             self.log.debug(e)
             msg = f'Failed to validate dataRecords for the submission, {submissionID} at scope, {scope}!'
-            self.log.exception(msg)
-            return STATUS_ERROR
-            
+            self.log.exception(msg) 
+            self.isError = True 
         #3. update data records based on record's _id
         result = self.mongo_dao.update_files(updated_records)
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {submissionID} at scope, {scope}!'
             self.log.error(msg)
-            return STATUS_ERROR
-        return STATUS_PASSED
+            self.isError = True
+
+        return validated_count
 
     def validate_node(self, dataRecord):
         # set default return values

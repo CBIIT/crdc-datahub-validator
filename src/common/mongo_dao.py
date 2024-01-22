@@ -1,4 +1,4 @@
-from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
+from pymongo import MongoClient, errors, ReplaceOne, DeleteOne, TEXT
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
@@ -247,7 +247,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                ReplaceOne( { "nodeID": m["nodeID"] },  m,  True)
+                ReplaceOne( { NODE_ID: m[NODE_ID] },  m,  True)
                     for m in list(data_records)
                 ])
             return result.matched_count > 0 
@@ -380,3 +380,26 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to retrieve child  nodes: {get_exception_msg()}")
             return False, None
+        
+    """
+    set dataRecords search index, 'submissionID_nodeType_nodeID'
+    """
+    def set_search_index(self, index_name):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            index_dict = data_collection.index_information()
+            if not index_dict or not index_dict.get(index_name):
+                result = data_collection.create_index([(SUBMISSION_ID, TEXT), (NODE_TYPE, TEXT),(NODE_ID, TEXT)], \
+                            name=index_name, default_language='english')
+                return result
+            else:
+                return True
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to retrieve child nodes: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to retrieve child  nodes: {get_exception_msg()}")
+            return False

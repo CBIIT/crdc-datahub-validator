@@ -17,7 +17,9 @@ from file_validator import fileValidate
 from metadata_validator import metadataValidate
 from metadata_export import metadata_export
 
+DATA_RECORDS_SEARCH_INDEX = "submissionID_nodeType_nodeID"
 log = get_logger('Validator')
+
 # public function to received args and dispatch to different modules for different uploading types, file or metadata
 def controller():
 
@@ -34,6 +36,11 @@ def controller():
     try:
         job_queue = Queue(configs[SQS_NAME])
         mongo_dao = MongoDao(configs[MONGO_DB], configs[DB])
+        # set dataRecord search index
+        if not mongo_dao.set_search_index(DATA_RECORDS_SEARCH_INDEX):
+            log.error("Failed to set dataRecords search index!")
+            return 1
+
     except Exception as e:
         log.debug(e)
         log.exception(f'Error occurred when initialize the application: {get_exception_msg()}')
