@@ -268,6 +268,13 @@ class EssentialValidator:
             id_field = self.model.get_node_id(type)
             if not id_field: return True
             # extract ids from df.
+            if not id_field in self.df: 
+                msg = f'Invalid metadata, missing nodeID, {id_field}, {self.batch[ID]}!'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+                return False
+            
             ids = self.df[id_field].tolist()  
             # query db.         
             if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
