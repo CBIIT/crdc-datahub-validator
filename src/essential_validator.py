@@ -6,13 +6,14 @@ from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
-from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ERRORS, ROOT_PATH, \
+from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
+from service.ecs_agent import set_scale_in_protection
 
 VISIBILITY_TIMEOUT = 20
 SEPARATOR_CHAR = '\t'
@@ -35,6 +36,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
     validator = None
+    # activate container protection
+    set_scale_in_protection(True)
     #step 3: run validator as a service
     while True:
         try:
@@ -43,6 +46,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
             
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
+                set_scale_in_protection(True)
                 extender = None
                 data = None
                 try:
@@ -85,7 +89,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     else:
                         log.error(f'Invalid message: {data}!')
 
-                    batches_processed +=1
+                    batches_processed += 1
+                    set_scale_in_protection(False)
                     msg.delete()
                 except Exception as e:
                     log.debug(e)

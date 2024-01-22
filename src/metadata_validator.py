@@ -11,6 +11,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.error_messages import FAILED_VALIDATE_RECORDS
+from service.ecs_agent import set_scale_in_protection
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 10000
@@ -27,6 +28,8 @@ def metadataValidate(configs, job_queue, mongo_dao):
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
     validator = None
+    # activate container protection
+    set_scale_in_protection(True)
 
     #step 3: run validator as a service
     while True:
@@ -36,6 +39,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
             
             for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
                 log.info(f'Received a job!')
+                set_scale_in_protection(True)
                 extender = None
                 data = None
                 try:
@@ -45,16 +49,17 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     if data.get(SQS_TYPE) == "Validate Metadata" and data.get(SUBMISSION_ID) and data.get(SCOPE):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         scope = data[SCOPE]
-                        submissionID = data[SUBMISSION_ID]
+                        submission_id = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
-                        status = validator.validate(submissionID, scope) 
+                        status = validator.validate(submission_id, scope)
                         if not status or status == FAILED: 
                             status = None
                         mongo_dao.set_submission_validation_status(validator.submission, None, status, None) 
                     else:
                         log.error(f'Invalid message: {data}!')
 
-                    batches_processed +=1
+                    batches_processed += 1
+                    set_scale_in_protection(False)
                     msg.delete()
                 except Exception as e:
                     log.debug(e)
@@ -112,7 +117,7 @@ class MetaDataValidator:
         count = 0
         validated_count = 0
         while True:
-            dataRecords = self.mongo_dao.get_dataRecords_in_batch(submissionID, scope, start_index, BATCH_SIZE)
+            dataRecords = self.mongo_dao.get_dataRecords_chunk(submissionID, scope, start_index, BATCH_SIZE)
             if start_index == 0 and (not dataRecords or len(dataRecords) == 0):
                 msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
                 self.log.error(msg)
@@ -256,7 +261,7 @@ class MetaDataValidator:
             parent_id_value = parent_node.get("parentIDValue")
             if parent_type and parent_id_value and parent_id_value is not None:
                 parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": parent_id_value})
-        exist_parent_nodes = self.mongo_dao.search_nodes_by_node_id(parent_nodes, self.submission[ID])
+        exist_parent_nodes = self.mongo_dao.search_nodes_by_index(parent_nodes, self.submission[ID])
         parent_node_cache = set()
         for node in exist_parent_nodes:
             if node.get("props"):

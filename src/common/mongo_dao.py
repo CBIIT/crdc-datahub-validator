@@ -72,7 +72,7 @@ class MongoDao:
     """
     check node exists by node name and its value
     """
-    def search_nodes_by_node_id(self, nodes, submission_id):
+    def search_nodes_by_index(self, nodes, submission_id):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         query = []
@@ -325,7 +325,7 @@ class MongoDao:
     """
     retrieve dataRecord by submissionID and scope either New dataRecords or All in batch
     """
-    def get_dataRecords_in_batch(self, submissionID, scope, start, size):
+    def get_dataRecords_chunk(self, submissionID, scope, start, size):
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
