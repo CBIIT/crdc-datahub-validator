@@ -27,18 +27,24 @@ def metadataValidate(configs, job_queue, mongo_dao):
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
     validator = None
-    # activate container protection
-    set_scale_in_protection(True)
 
     #step 3: run validator as a service
+    scale_in_protection_flag = False
     while True:
         try:
             log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
                             f'{batches_processed} metadata validation(s) have been processed so far')
-            
-            for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
+
+            msgs = job_queue.receiveMsgs(VISIBILITY_TIMEOUT)
+            if len(msgs) > 0:
+                scale_in_protection_flag = True
+                set_scale_in_protection(scale_in_protection_flag)
+            elif len(msgs) == 0 and scale_in_protection_flag is True:
+                scale_in_protection_flag = False
+                set_scale_in_protection(scale_in_protection_flag)
+
+            for msg in msgs:
                 log.info(f'Received a job!')
-                set_scale_in_protection(True)
                 extender = None
                 data = None
                 try:
@@ -51,14 +57,13 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         submission_id = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submission_id, scope)
-                        if not status or status == FAILED: 
+                        if not status or status == FAILED:
                             status = None
-                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None) 
+                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
 
                     batches_processed += 1
-                    set_scale_in_protection(False)
                     msg.delete()
                 except Exception as e:
                     log.debug(e)
