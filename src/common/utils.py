@@ -10,7 +10,7 @@ import boto3
 from bento.common.utils import get_stream_md5
 from datetime import datetime
 import uuid
-from common.constants import DATA_COMMON, VERSION
+from common.constants import DATA_COMMON, VERSION, LAST_MODIFIED
 
 """ 
 clean_up_key_value(dict)
@@ -138,14 +138,34 @@ def get_uuid_str():
 """
 get MD5 and object size by object stream 
 """
-def get_file_md5_size(bucket_name, key):
-    s3 = boto3.client('s3') 
-    response = s3.get_object(Bucket=bucket_name, Key=key) 
-    object_data = response['Body'] 
-    md5 = get_stream_md5(object_data)
-    res = s3.head_object(Bucket=bucket_name, Key=key)
-    size = res['ContentLength']
-    return size, md5
+def get_s3_file_info(bucket_name, key):
+    s3 = None
+    try:
+        s3 = boto3.client('s3') 
+        res = s3.head_object(Bucket=bucket_name, Key=key)
+        size = res['ContentLength']
+        last_updated = res[LAST_MODIFIED]
+        return size, last_updated, 
+    except Exception as e:
+        raise e
+    finally:
+        s3 = None
+
+"""
+get MD5 and object size by object stream 
+"""
+def get_s3_file_md5(bucket_name, key):
+    s3 = None
+    try:
+        s3 = boto3.client('s3') 
+        response = s3.get_object(Bucket=bucket_name, Key=key) 
+        object_data = response['Body'] 
+        md5 = get_stream_md5(object_data)
+        return md5, 
+    except Exception as e:
+        raise e
+    finally:
+        s3 = None
 
 """
 create error dict

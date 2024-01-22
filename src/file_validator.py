@@ -6,8 +6,9 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
-    FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, BATCH_BUCKET
-from common.utils import get_exception_msg, current_datetime, get_file_md5_size, create_error
+    FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
+    BATCH_BUCKET, LAST_MODIFIED
+from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error
 from service.ecs_agent import set_scale_in_protection
 
 VISIBILITY_TIMEOUT = 20
@@ -195,7 +196,16 @@ class FileValidator:
                 return STATUS_ERROR, error
             
             # 2. check file integrity
-            size, md5 = get_file_md5_size(self.bucket_name, key)
+            size, last_updated = get_s3_file_info(self.bucket_name, key)
+            #check cached md5
+            cached_md5 = self.mongo_dao.get_file_md5(self.submission[ID], file_name)
+            md5 = None
+            if last_updated <= cached_md5.get(LAST_MODIFIED):
+                md5 = cached_md5.get(MD5)
+            else:
+                md5 = get_s3_file_md5(self.bucket_name, key)
+                self.mongo_dao.save_file_md5(self.submission[ID], file_name, md5, last_updated)
+
             if org_size != size or org_md5 != md5:
                 msg = f'The file in s3 bucket does not matched with the file record, {fileRecord[ID]}/{file_name}!'
                 self.log.error(msg)

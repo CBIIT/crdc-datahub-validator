@@ -2,8 +2,9 @@ from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
-    PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS
-from common.utils import get_exception_msg, current_datetime
+    PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, \
+    FILE_MD5_COLLECTION, FILE_NAME, LAST_MODIFIED, CREATED_AT, UPDATED_AT, MD5
+from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
 
@@ -279,62 +280,108 @@ class MongoDao:
     """
     retrieve dataRecords by submissionID and scope either New dataRecords or All
     """
-    def get_dataRecords(self, submissionID, scope):
+    def get_dataRecords(self, submission_id, scope):
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
-            query = {'submissionID': {'$eq': submissionID}} 
+            query = {'submissionID': {'$eq': submission_id}} 
             if scope == STATUS_NEW:
                 query[STATUS] = STATUS_NEW
             result = list(file_collection.find(query))
             count = len(result)
-            self.log.info(f'Total {count} dataRecords are found for the submission, {submissionID} and scope of {scope}!')
+            self.log.info(f'Total {count} dataRecords are found for the submission, {submission_id} and scope of {scope}!')
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to retrieve data records, {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to retrieve data records, {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None 
 
     """
     retrieve dataRecord nby nodeID
     """
-    def get_dataRecord_by_node(self, nodeID, nodeType, submissionID):
+    def get_dataRecord_by_node(self, nodeID, nodeType, submission_id):
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
-            result = file_collection.find_one({SUBMISSION_ID: submissionID, NODE_ID: nodeID, NODE_TYPE: nodeType})
+            result = file_collection.find_one({SUBMISSION_ID: submission_id, NODE_ID: nodeID, NODE_TYPE: nodeType})
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to retrieve data record, {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to retrieve data record, {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None 
         
     """
     find child node by type and id
     """
-    def get_nodes_by_parents(self, parent_ids, submissionID):
+    def get_nodes_by_parents(self, parent_ids, submission_id):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         query = []
         for id in parent_ids:
             node_type, node_id = id.get(NODE_TYPE), id.get(NODE_ID)
-            query.append({SUBMISSION_ID: submissionID, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
+            query.append({SUBMISSION_ID: submission_id, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
         try:
             results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
             return True, results
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to retrieve child nodes: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to retrieve child  nodes: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve child  nodes: {get_exception_msg()}")
             return False, None
+        
+    """
+    find cached file md5 by submissionID and fileName
+    """
+    def get_file_md5(self, submission_id, file_name):
+        db = self.client[self.db_name]
+        data_collection = db[FILE_MD5_COLLECTION]
+        try:
+            md5_info = data_collection.find_one({SUBMISSION_ID: submission_id, FILE_NAME: file_name})
+            return md5_info
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve file md5: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve file md5: {get_exception_msg()}")
+            return None
+        
+    """
+    save file md5 with submissionID and fileName
+    """
+    def save_file_md5(self, submission_id, file_name, md5, last_modified):
+        db = self.client[self.db_name]
+        data_collection = db[FILE_MD5_COLLECTION]
+        current_date_time = current_datetime()
+        md5_info = {
+            ID: get_uuid_str(),
+            SUBMISSION_ID : submission_id,
+            FILE_NAME: file_name,
+            MD5: md5,
+            LAST_MODIFIED: last_modified,
+            CREATED_AT: current_date_time,
+            UPDATED_AT: current_date_time
+        }
+        try:
+            result = data_collection.insert_one(md5_info)
+            return (result and result.inserted_id)
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to save file md5: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to save file md5: {get_exception_msg()}")
+            return False
