@@ -121,7 +121,6 @@ class MetaDataValidator:
             return STATUS_ERROR
         #3 retrieve data batch by batch
         start_index = 0
-        count = 0
         validated_count = 0
         while True:
             dataRecords = self.mongo_dao.get_dataRecords_chunk(submissionID, scope, start_index, BATCH_SIZE)
@@ -134,7 +133,7 @@ class MetaDataValidator:
             validated_count += self.validate_nodes(dataRecords, submissionID, scope)
             if count < BATCH_SIZE: 
                 self.log.info(f"{submissionID}: {validated_count} out of {count + start_index} nodes are validated.")
-                return STATUS_ERROR if self.isError > 0  else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
+                return STATUS_ERROR if self.isError else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
             start_index += count
             continue     
 
