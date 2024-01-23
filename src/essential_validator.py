@@ -66,6 +66,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         batch = mongo_dao.get_batch(data[BATCH_ID])
                         if not batch:
                             log.error(f"No batch find for {data[BATCH_ID]}")
+                            batches_processed +=1
+                            msg.delete()
                             continue
                         #2. validate batch and files.
                         validator = EssentialValidator(mongo_dao, model_store)
