@@ -7,9 +7,9 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW,  SQS_TYPE, TYPE_LOAD,\
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE, SERVICE_TYPE_ESSENTIAL
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -36,17 +36,24 @@ def essentialValidate(configs, job_queue, mongo_dao):
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
     validator = None
-    # activate container protection
-    set_scale_in_protection(True)
     #step 3: run validator as a service
+    scale_in_protection_flag = False
+    log.info(f'{SERVICE_TYPE_ESSENTIAL} service started')
     while True:
         try:
-            log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
-                            f'{batches_processed} batches have been processed so far')
-            
-            for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
-                log.info(f'Received a job!')
+            msgs = job_queue.receiveMsgs(VISIBILITY_TIMEOUT)
+            if len(msgs) > 0:
+                log.info(f'New message is coming: {configs[SQS_NAME]}, '
+                         f'{batches_processed} batches have been processed so far')
+                scale_in_protection_flag = True
                 set_scale_in_protection(True)
+            else:
+                if scale_in_protection_flag is True:
+                    scale_in_protection_flag = False
+                    set_scale_in_protection(False)
+
+            for msg in msgs:
+                log.info(f'Received a job!')
                 extender = None
                 data = None
                 try:
@@ -90,7 +97,6 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         log.error(f'Invalid message: {data}!')
 
                     batches_processed += 1
-                    set_scale_in_protection(False)
                     msg.delete()
                 except Exception as e:
                     log.debug(e)
@@ -276,8 +282,8 @@ class EssentialValidator:
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
                 return False
-
-            ids = self.df[id_field].tolist()
+            
+            ids = self.df[id_field].tolist()  
             # query db.         
             if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
                 msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'

@@ -4,7 +4,7 @@ import json
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
-    RELEASE, ARCHIVE_RELEASE, RAW_DATA, EXPORT_METADATA, EXPORT_ROOT_PATH
+    RELEASE, ARCHIVE_RELEASE, RAW_DATA, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT
 import threading
 import boto3
 import io
@@ -20,16 +20,23 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
     export_processed = 0
     export_validator = None
     log = get_logger(TYPE_EXPORT_METADATA)
-    # activate container protection
-    set_scale_in_protection(True)
+    scale_in_protection_flag = False
+    log.info(f'{SERVICE_TYPE_EXPORT} service started')
     while True:
         try:
-            log.info(f'Waiting for jobs on queue: {sqs_name}, '
-                     f'{export_processed} metadata export have been processed so far')
-
-            for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
-                log.info(f'Received a job!')
+            msgs = job_queue.receiveMsgs(VISIBILITY_TIMEOUT)
+            if len(msgs) > 0:
+                log.info(f'New message is coming: {sqs_name}, '
+                         f'{export_processed} {SERVICE_TYPE_EXPORT} validation(s) have been processed so far')
+                scale_in_protection_flag = True
                 set_scale_in_protection(True)
+            else:
+                if scale_in_protection_flag is True:
+                    scale_in_protection_flag = False
+                    set_scale_in_protection(False)
+
+            for msg in msgs:
+                log.info(f'Received a job!')
                 extender = None
                 try:
                     data = json.loads(msg.body)
@@ -43,7 +50,6 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
                     export_validator = ExportMetadata(mongo_dao, submission, S3Service())
                     export_validator.export_data_to_file()
                     export_processed += 1
-                    set_scale_in_protection(False)
                     msg.delete()
                 except Exception as e:
                     log.debug(e)

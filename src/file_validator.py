@@ -6,7 +6,8 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
-    FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, BATCH_BUCKET
+    FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, BATCH_BUCKET, \
+    SERVICE_TYPE_FILE
 from common.utils import get_exception_msg, current_datetime, get_file_md5_size, create_error
 from service.ecs_agent import set_scale_in_protection
 
@@ -18,16 +19,24 @@ def fileValidate(configs, job_queue, mongo_dao):
     file_processed = 0
     log = get_logger('File Validation Service')
     validator = None
-    # activate container protection
-    set_scale_in_protection(True)
     #run file validator as a service
+    scale_in_protection_flag = False
+    log.info(f'{SERVICE_TYPE_FILE} service started')
     while True:
         try:
-            log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
-                            f'{file_processed} file(s) have been processed so far')
-            for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
-                log.info(f'Received a job!')
+            msgs = job_queue.receiveMsgs(VISIBILITY_TIMEOUT)
+            if len(msgs) > 0:
+                log.info(f'New message is coming: {configs[SQS_NAME]}, '
+                         f'{file_processed} file(s) have been processed so far')
+                scale_in_protection_flag = True
                 set_scale_in_protection(True)
+            else:
+                if scale_in_protection_flag is True:
+                    scale_in_protection_flag = False
+                    set_scale_in_protection(False)
+
+            for msg in msgs:
+                log.info(f'Received a job!')
                 extender = None
                 data = None
                 try:
@@ -66,7 +75,6 @@ def fileValidate(configs, job_queue, mongo_dao):
                     else:
                         log.error(f'Invalid message: {data}!')
                     file_processed += 1
-                    set_scale_in_protection(False)
                     msg.delete()
                 except Exception as e:
                     log.debug(e)
