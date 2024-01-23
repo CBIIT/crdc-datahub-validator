@@ -325,60 +325,60 @@ class MongoDao:
     """
     retrieve dataRecord by submissionID and scope either New dataRecords or All in batch
     """
-    def get_dataRecords_chunk(self, submissionID, scope, start, size):
+    def get_dataRecords_chunk(self, submission_id, scope, start, size):
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
-            query = {'submissionID': {'$eq': submissionID}} 
+            query = {SUBMISSION_ID: {'$eq': submission_id}} 
             if scope == STATUS_NEW:
                 query[STATUS] = STATUS_NEW
-            result = list(file_collection.find(query).sort({"submissionID": 1, "nodeType": 1, "nodeID": 1}).skip(start).limit(size))
+            result = list(file_collection.find(query).sort({SUBMISSION_ID: 1, "nodeType": 1, "nodeID": 1}).skip(start).limit(size))
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to retrieve data records, {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to retrieve data records, {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None 
     """
     retrieve dataRecord by nodeID
     """
-    def get_dataRecord_by_node(self, nodeID, nodeType, submissionID):
+    def get_dataRecord_by_node(self, nodeID, nodeType, submission_id):
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
-            result = file_collection.find_one({SUBMISSION_ID: submissionID, NODE_ID: nodeID, NODE_TYPE: nodeType})
+            result = file_collection.find_one({SUBMISSION_ID: submission_id, NODE_ID: nodeID, NODE_TYPE: nodeType})
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to retrieve data record, {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to retrieve data record, {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None   
     """
     find child node by type and id
     """
-    def get_nodes_by_parents(self, parent_ids, submissionID):
+    def get_nodes_by_parents(self, parent_ids, submission_id):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         query = []
         for id in parent_ids:
             node_type, node_id = id.get(NODE_TYPE), id.get(NODE_ID)
-            query.append({SUBMISSION_ID: submissionID, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
+            query.append({SUBMISSION_ID: submission_id, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
         try:
             results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
             return True, results
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to retrieve child nodes: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to retrieve child nodes: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
         
     """

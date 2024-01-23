@@ -99,15 +99,15 @@ class MetaDataValidator:
         self.isError = None
         self.isWarning = None
 
-    def validate(self, submissionID, scope):
+    def validate(self, submission_id, scope):
         #1. # get data common from submission
-        submission = self.mongo_dao.get_submission(submissionID)
+        submission = self.mongo_dao.get_submission(submission_id)
         if not submission:
-            msg = f'Invalid submissionID, no submission found, {submissionID}!'
+            msg = f'Invalid submissionID, no submission found, {submission_id}!'
             self.log.error(msg)
             return FAILED
         if not submission.get(DATA_COMMON_NAME):
-            msg = f'Invalid submission, no datacommon found, {submissionID}!'
+            msg = f'Invalid submission, no datacommon found, {submission_id}!'
             self.log.error(msg)
             return FAILED
         self.submission = submission
@@ -123,26 +123,25 @@ class MetaDataValidator:
         start_index = 0
         validated_count = 0
         while True:
-            dataRecords = self.mongo_dao.get_dataRecords_chunk(submissionID, scope, start_index, BATCH_SIZE)
-            if start_index == 0 and (not dataRecords or len(dataRecords) == 0):
-                msg = f'No dataRecords found for the submission, {submissionID} at scope, {scope}!'
+            data_records = self.mongo_dao.get_dataRecords_chunk(submission_id, scope, start_index, BATCH_SIZE)
+            if start_index == 0 and (not data_records or len(data_records) == 0):
+                msg = f'No dataRecords found for the submission, {submission_id} at scope, {scope}!'
                 self.log.error(msg)
                 return FAILED
             
-            count = len(dataRecords) 
-            validated_count += self.validate_nodes(dataRecords, submissionID, scope)
+            count = len(data_records) 
+            validated_count += self.validate_nodes(data_records, submission_id, scope)
             if count < BATCH_SIZE: 
-                self.log.info(f"{submissionID}: {validated_count} out of {count + start_index} nodes are validated.")
+                self.log.info(f"{submission_id}: {validated_count} out of {count + start_index} nodes are validated.")
                 return STATUS_ERROR if self.isError else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
-            start_index += count
-            continue     
+            start_index += count  
 
-    def validate_nodes(self, dataRecords, submissionID, scope):
+    def validate_nodes(self, data_records, submission_id, scope):
         #2. loop through all records and call validateNode
         updated_records = []
         validated_count = 0
         try:
-            for record in dataRecords:
+            for record in data_records:
                 status, errors, warnings = self.validate_node(record)
                 # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
@@ -157,30 +156,30 @@ class MetaDataValidator:
                 validated_count += 1
         except Exception as e:
             self.log.debug(e)
-            msg = f'Failed to validate dataRecords for the submission, {submissionID} at scope, {scope}!'
+            msg = f'Failed to validate dataRecords for the submission, {submission_id} at scope, {scope}!'
             self.log.exception(msg) 
             self.isError = True 
         #3. update data records based on record's _id
         result = self.mongo_dao.update_files(updated_records)
         if not result:
             #4. set errors in submission
-            msg = f'Failed to update dataRecords for the submission, {submissionID} at scope, {scope}!'
+            msg = f'Failed to update dataRecords for the submission, {submission_id} at scope, {scope}!'
             self.log.error(msg)
             self.isError = True
 
         return validated_count
 
-    def validate_node(self, dataRecord):
+    def validate_node(self, data_record):
         # set default return values
         errors = []
         warnings = []
 
         # call validate_required_props
-        result_required= self.validate_required_props(dataRecord)
+        result_required= self.validate_required_props(data_record)
         # call validate_prop_value
-        result_prop_value = self.validate_props(dataRecord)
+        result_prop_value = self.validate_props(data_record)
         # call validate_relationship
-        result_rel = self.validate_relationship(dataRecord)
+        result_rel = self.validate_relationship(data_record)
 
         # concatenation of all errors
         errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
