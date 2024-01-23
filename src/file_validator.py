@@ -200,7 +200,7 @@ class FileValidator:
             #check cached md5
             cached_md5 = self.mongo_dao.get_file_md5(self.submission[ID], file_name)
             md5 = None
-            if last_updated <= cached_md5.get(LAST_MODIFIED):
+            if cached_md5 and last_updated.replace(tzinfo=None) <= cached_md5.get(LAST_MODIFIED).replace(tzinfo=None):
                 md5 = cached_md5.get(MD5)
             else:
                 md5 = get_s3_file_md5(self.bucket_name, key)

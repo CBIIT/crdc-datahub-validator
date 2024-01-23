@@ -161,7 +161,7 @@ def get_s3_file_md5(bucket_name, key):
         response = s3.get_object(Bucket=bucket_name, Key=key) 
         object_data = response['Body'] 
         md5 = get_stream_md5(object_data)
-        return md5, 
+        return md5
     except Exception as e:
         raise e
     finally:
