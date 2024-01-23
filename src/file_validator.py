@@ -7,8 +7,8 @@ from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
-    BATCH_BUCKET, LAST_MODIFIED
-from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error
+    BATCH_BUCKET, LAST_MODIFIED, CREATED_AT
+from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error, get_uuid_str
 from service.ecs_agent import set_scale_in_protection
 
 VISIBILITY_TIMEOUT = 20
@@ -58,12 +58,15 @@ def fileValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         submission_id = data[SUBMISSION_ID]
                         validator = FileValidator(mongo_dao)
+                        status = None
+                        msgs = []
                         if not validator.get_root_path(submission_id):
                             log.error(f'Invalid submission, {submission_id}!')
+                            status = STATUS_ERROR
                         else:
                             status, msgs = validator.validate_all_files(data[SUBMISSION_ID])
                             #update submission
-                            mongo_dao.set_submission_validation_status(validator.submission, status, None, msgs)
+                        mongo_dao.set_submission_validation_status(validator.submission, status, None, msgs)
                     else:
                         log.error(f'Invalid message: {data}!')
                     file_processed += 1
@@ -204,7 +207,17 @@ class FileValidator:
                 md5 = cached_md5.get(MD5)
             else:
                 md5 = get_s3_file_md5(self.bucket_name, key)
-                self.mongo_dao.save_file_md5(self.submission[ID], file_name, md5, last_updated)
+                current_date_time = current_datetime()
+                md5_info = {
+                    ID: get_uuid_str() if not cached_md5 else cached_md5[ID],
+                    SUBMISSION_ID : self.submission[ID],
+                    FILE_NAME: file_name,
+                    MD5: md5,
+                    LAST_MODIFIED: last_updated,
+                    CREATED_AT: current_date_time if not cached_md5 else cached_md5[CREATED_AT],
+                    UPDATED_AT: current_date_time
+                }
+                self.mongo_dao.save_file_md5(md5_info)
 
             if org_size != size or org_md5 != md5:
                 msg = f'The file in s3 bucket does not matched with the file record, {fileRecord[ID]}/{file_name}!'

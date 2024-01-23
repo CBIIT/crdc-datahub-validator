@@ -359,29 +359,19 @@ class MongoDao:
             return None
         
     """
-    save file md5 with submissionID and fileName
+    save file md5 info to fileMD5 collection
     """
-    def save_file_md5(self, submission_id, file_name, md5, last_modified):
+    def save_file_md5(self, md5_info):
         db = self.client[self.db_name]
         data_collection = db[FILE_MD5_COLLECTION]
-        current_date_time = current_datetime()
-        md5_info = {
-            ID: get_uuid_str(),
-            SUBMISSION_ID : submission_id,
-            FILE_NAME: file_name,
-            MD5: md5,
-            LAST_MODIFIED: last_modified,
-            CREATED_AT: current_date_time,
-            UPDATED_AT: current_date_time
-        }
         try:
-            result = data_collection.insert_one(md5_info)
-            return (result and result.inserted_id)
+            result = data_collection.replace_one({ID: md5_info[ID]}, md5_info,  upsert=True)
+            return (result and result.upserted_id)
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"{submission_id}: Failed to save file md5: {get_exception_msg()}")
+            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save file md5: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"{submission_id}: Failed to save file md5: {get_exception_msg()}")
+            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save file md5: {get_exception_msg()}")
             return False
