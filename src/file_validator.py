@@ -75,7 +75,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                     else:
                         log.error(f'Invalid message: {data}!')
                     
-                    log.info(f'Processed the job!')
+                    log.info(f'Processed {SERVICE_TYPE_FILE} validation!')
                     file_processed += 1
                     msg.delete()
                 except Exception as e:

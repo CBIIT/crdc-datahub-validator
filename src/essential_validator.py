@@ -9,7 +9,7 @@ from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, FAILED
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -95,7 +95,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
-                    log.info(f'Processed the job!')
+                    log.info(f'Processed {SERVICE_TYPE_ESSENTIAL} validation!')
                     batches_processed += 1
                     msg.delete()
                 except Exception as e:
@@ -147,11 +147,11 @@ class EssentialValidator:
             for file_info in self.file_info_list: 
                 #1. download the file in s3 and load tsv file into dataframe
                 if not self.download_file(file_info):
-                    file_info[STATUS] = "failed"
+                    file_info[STATUS] = STATUS_ERROR
                     return False
                 #2. validate meatadata in self.df
                 if not self.validate_data(file_info):
-                    file_info[STATUS] = "failed"
+                    file_info[STATUS] = STATUS_ERROR
                     return False
         except Exception as e:
             self.log.debug(e)
