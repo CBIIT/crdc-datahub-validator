@@ -96,13 +96,16 @@ class DataLoader:
                     returnVal = returnVal and self.mongo_dao.update_data_records(records)
                 
             except Exception as e:
-                    df = None
                     self.log.debug(e)
                     msg = f"Failed to load data in file, {file} at {failed_at + 1}! {get_exception_msg()}."
                     self.log.exception(msg)
                     self.errors.append(msg)
                     return False, self.errors
-            
+            finally:
+                del df
+                del records
+
+        del file_path_list
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:
             try:
@@ -114,6 +117,9 @@ class DataLoader:
                     self.log.exception(msg)
                     self.errors.append(msg)
                     return False, self.errors
+            finally:
+                del deleted_nodes
+                del deleted_file_nodes
 
         return returnVal, self.errors
     """

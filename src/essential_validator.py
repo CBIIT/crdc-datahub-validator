@@ -9,7 +9,7 @@ from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE, SERVICE_TYPE_ESSENTIAL
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, FAILED
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -72,7 +72,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         #2. validate batch and files.
                         validator = EssentialValidator(mongo_dao, model_store)
                         result = validator.validate(batch)
-                        if result and len(validator.download_file_list) > 0:
+                        if result and validator.download_file_list and len(validator.download_file_list) > 0:
                             #3. call mongo_dao to load data
                             data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao, validator.bucket, validator.root_path )
                             result, errors = data_loader.load_data(validator.download_file_list)
@@ -95,7 +95,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
-
+                    log.info(f'Processed {SERVICE_TYPE_ESSENTIAL} validation!')
                     batches_processed += 1
                     msg.delete()
                 except Exception as e:
@@ -143,19 +143,26 @@ class EssentialValidator:
 
         if not self.validate_batch(batch):
             return False
-
-        for file_info in self.file_info_list: 
-            #1. download the file in s3 and load tsv file into dataframe
-            if not self.download_file(file_info):
-                file_info[STATUS] = "failed"
-                return False
-            #2. validate meatadata in self.df
-            if not self.validate_data(file_info):
-                file_info[STATUS] = "failed"
-                return False
-        
+        try:
+            for file_info in self.file_info_list: 
+                #1. download the file in s3 and load tsv file into dataframe
+                if not self.download_file(file_info):
+                    file_info[STATUS] = STATUS_ERROR
+                    return False
+                #2. validate meatadata in self.df
+                if not self.validate_data(file_info):
+                    file_info[STATUS] = STATUS_ERROR
+                    return False
+        except Exception as e:
+            self.log.debug(e)
+            msg = f'Failed to validate the batch files, {get_exception_msg()}!'
+            self.log.exception(msg)
+            file_info[ERRORS] = [msg]
+            self.batch[ERRORS].append(f'Failed to validate the batch files, {get_exception_msg()}!')
+            return False
+        finally:
+            self.bucket = None
         return True
-
     
     def validate_batch(self, batch):
         msg = None
@@ -184,7 +191,7 @@ class EssentialValidator:
             self.file_info_list = file_info_list
             self.batch = batch
             # get data common from submission
-            submission = self.mongo_dao.get_submission(batch.get("submissionID"))
+            submission = self.mongo_dao.get_submission(batch.get(SUBMISSION_ID))
             if not submission or not submission.get(DATA_COMMON_NAME):
                 msg = f'Invalid batch, no datacommon found, {batch[ID]}!'
                 self.log.error(msg)
@@ -215,7 +222,6 @@ class EssentialValidator:
                     df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
                     self.df = df
                     self.download_file_list.append(download_file)
-
                 return True # if no exception
         except ClientError as ce:
             self.df = None
@@ -227,9 +233,9 @@ class EssentialValidator:
         except Exception as e:
             self.df = None
             self.log.debug(e)
-            self.log.exception('Downloading file failed! Check debug log for detailed information.')
-            file_info[ERRORS] = [f"Downloading file failed! {get_exception_msg()}."]
-            self.batch[ERRORS].append('Downloading file failed!')
+            self.log.exception('Invalid metadata file! Check debug log for detailed information.')
+            file_info[ERRORS] = [f"Invalid metadata file, {get_exception_msg()}!"]
+            self.batch[ERRORS].append(f'Invalid metadata file, {get_exception_msg()}! ')
             return False
     
     def validate_data(self, file_info):
@@ -252,6 +258,7 @@ class EssentialValidator:
         else: 
             type = self.df[TYPE][0]
             file_info[NODE_TYPE] = type
+
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
@@ -262,8 +269,10 @@ class EssentialValidator:
             return False
         
         # Each row in a metadata file must have same number of columns as the header row
-        if '' in self.df.columns:
-            msg = f'Invalid metadata, headers are match row columns, {self.batch[ID]}!'
+        # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
+        empty_cols = [col for col in self.df.columns.tolist() if "Unnamed:" in col or not col]
+        if empty_cols and len(empty_cols) > 0:
+            msg = f'Invalid metadata, headers are not match row columns, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)

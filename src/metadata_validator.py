@@ -66,6 +66,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     else:
                         log.error(f'Invalid message: {data}!')
 
+                    log.info(f'Processed {SERVICE_TYPE_METADATA} validation!')
                     batches_processed += 1
                     msg.delete()
                 except Exception as e:
