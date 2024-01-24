@@ -102,10 +102,10 @@ class DataLoader:
                     self.errors.append(msg)
                     return False, self.errors
             finally:
-                df = None
-                records = None
+                del df
+                del records
 
-        file_path_list = None #cleanup memory
+        del file_path_list
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:
             try:
@@ -118,8 +118,8 @@ class DataLoader:
                     self.errors.append(msg)
                     return False, self.errors
             finally:
-                deleted_nodes = None
-                deleted_file_nodes = None
+                del deleted_nodes
+                del deleted_file_nodes
 
         return returnVal, self.errors
     """
