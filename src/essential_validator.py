@@ -269,6 +269,7 @@ class EssentialValidator:
             return False
         
         # Each row in a metadata file must have same number of columns as the header row
+        # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
         empty_cols = [col for col in self.df.columns.tolist() if "Unnamed:" in col or not col]
         if empty_cols and len(empty_cols) > 0:
             msg = f'Invalid metadata, headers are not match row columns, {self.batch[ID]}!'
