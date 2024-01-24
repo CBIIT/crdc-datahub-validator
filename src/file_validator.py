@@ -7,7 +7,7 @@ from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
-    BATCH_BUCKET, LAST_MODIFIED, CREATED_AT
+    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT
 from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error, get_uuid_str
 from service.ecs_agent import set_scale_in_protection
 
@@ -18,19 +18,27 @@ Interface for validate files via SQS
 def fileValidate(configs, job_queue, mongo_dao):
     file_processed = 0
     log = get_logger('File Validation Service')
-    validator = None
-    # activate container protection
-    set_scale_in_protection(True)
     #run file validator as a service
+    scale_in_protection_flag = False
+    log.info(f'{SERVICE_TYPE_FILE} service started')
     while True:
         try:
-            log.info(f'Waiting for jobs on queue: {configs[SQS_NAME]}, '
-                            f'{file_processed} file(s) have been processed so far')
-            for msg in job_queue.receiveMsgs(VISIBILITY_TIMEOUT):
-                log.info(f'Received a job!')
+            msgs = job_queue.receiveMsgs(VISIBILITY_TIMEOUT)
+            if len(msgs) > 0:
+                log.info(f'New message is coming: {configs[SQS_NAME]}, '
+                         f'{file_processed} file(s) have been processed so far')
+                scale_in_protection_flag = True
                 set_scale_in_protection(True)
+            else:
+                if scale_in_protection_flag is True:
+                    scale_in_protection_flag = False
+                    set_scale_in_protection(False)
+
+            for msg in msgs:
+                log.info(f'Received a job!')
                 extender = None
                 data = None
+                validator = None
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
@@ -69,18 +77,20 @@ def fileValidate(configs, job_queue, mongo_dao):
                         mongo_dao.set_submission_validation_status(validator.submission, status, None, msgs)
                     else:
                         log.error(f'Invalid message: {data}!')
+                    
+                    log.info(f'Processed {SERVICE_TYPE_FILE} validation for the {"file, "+ data.get(FILE_ID) if data.get(FILE_ID) else "submission, " + data.get(SUBMISSION_ID)}!')
                     file_processed += 1
-                    set_scale_in_protection(False)
                     msg.delete()
                 except Exception as e:
                     log.debug(e)
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
+                    if validator:
+                        del validator
                     if extender:
                         extender.stop()
                         extender = None
-                    validator = None
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
@@ -277,11 +287,11 @@ class FileValidator:
     1. Extra files, validate if there are files in files folder of the submission that are not specified in any manifests of the submission. 
     This may happen if submitter uploaded files (via CLI) but forgot to upload the manifest. (error) included in total count.
     """
-    def validate_all_files(self, submissionId):
+    def validate_all_files(self, submission_id):
         errors = []
         missing_count = 0
-        if not self.get_root_path(submissionId):
-            msg = f'Invalid submission object, no rootPath found, {submissionId}!'
+        if not self.get_root_path(submission_id):
+            msg = f'Invalid submission object, no rootPath found, {submission_id}!'
             self.log.error(msg)
             error = create_error("Invalid submission", msg)
             return STATUS_ERROR, [error]
@@ -289,9 +299,9 @@ class FileValidator:
 
         try:
             # get manifest info for the submission
-            manifest_info_list = self.mongo_dao.get_files_by_submission(submissionId)
+            manifest_info_list = self.mongo_dao.get_files_by_submission(submission_id)
             if not manifest_info_list or  len(manifest_info_list) == 0:
-                msg = f"No file records found for the submission, {submissionId}!"
+                msg = f"No file records found for the submission, {submission_id}!"
                 self.log.error(msg)
                 error = create_error("No file records found for the submission", msg)
                 return STATUS_ERROR, [error]
@@ -313,7 +323,7 @@ class FileValidator:
                 file_name = file.key.split('/')[-1]
                 
                 if file_name not in manifest_file_names:
-                    msg = f"File, {file_name}, in s3 bucket is not specified by the manifests in the submission, {submissionId}!"
+                    msg = f"File, {file_name}, in s3 bucket is not specified by the manifests in the submission, {submission_id}!"
                     self.log.error(msg)
                     error = create_error("No file records found for the submission", msg)
                     errors.append(error)
@@ -334,7 +344,7 @@ class FileValidator:
    
         except Exception as e:
             self.log.debug(e)
-            msg = f"Failed to validate files! {get_exception_msg()}!"
+            msg = f"{submission_id}: Failed to validate files! {get_exception_msg()}!"
             self.log.exception(msg)
             error = create_error("Exception", msg)
             return None, [error]

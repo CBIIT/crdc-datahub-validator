@@ -1,4 +1,4 @@
-from pymongo import MongoClient, errors, ReplaceOne, DeleteOne
+from pymongo import MongoClient, errors, ReplaceOne, DeleteOne, TEXT
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
@@ -69,6 +69,29 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to search nodes: {get_exception_msg()}")
             return None
+        
+    """
+    check node exists by node name and its value
+    """
+    def search_nodes_by_index(self, nodes, submission_id):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        query = []
+        for node in nodes:
+            node_type, node_key, node_value = node.get("type"), node.get("key"), node.get("value")
+            if node_type and node_key and node_value is not None: 
+                query.append({SUBMISSION_ID: submission_id, NODE_TYPE: node_type, NODE_ID: node_value})
+        try:
+            return list(data_collection.find({"$or": query})) if len(query) > 0 else []
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to search nodes: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to search nodes: {get_exception_msg()}")
+            return None
+        
     """
     get file in dataRecord collection by fileId
     """ 
@@ -104,18 +127,18 @@ class MongoDao:
     """
     get file records in dataRecords collection by submissionID
     """
-    def get_files_by_submission(self, submissionID):
+    def get_files_by_submission(self, submission_id):
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
-            return list(file_collection.find({SUBMISSION_ID: submissionID, S3_FILE_INFO: {"$nin": [None, ""]}}))
+            return list(file_collection.find({SUBMISSION_ID: submission_id, S3_FILE_INFO: {"$nin": [None, ""]}}))
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to find file for the submission, {submissionID}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find file for the submission, {submission_id}: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to find file for the submission, {submissionID}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find file for the submission, {submission_id}: {get_exception_msg()}")
             return None
     
     def update_batch(self, batch):
@@ -148,10 +171,10 @@ class MongoDao:
             return False if result else True
         except errors.OperationFailure as oe: 
             self.log.debug(oe)
-            self.log.exception(f"Failed to query DB, {nodeType}: {get_exception_msg()}!")
+            self.log.exception(f"{submission_id}: Failed to query DB, {nodeType}: {get_exception_msg()}!")
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to query DB, {nodeType}: {get_exception_msg()}!")
+            self.log.exception(f"{submission_id}: Failed to query DB, {nodeType}: {get_exception_msg()}!")
         return True
     
     """
@@ -225,7 +248,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                ReplaceOne( { "nodeID": m["nodeID"] },  m,  True)
+                ReplaceOne( { NODE_ID: m[NODE_ID] },  m,  True)
                     for m in list(data_records)
                 ])
             return result.matched_count > 0 
@@ -301,7 +324,27 @@ class MongoDao:
             return None 
 
     """
-    retrieve dataRecord nby nodeID
+    retrieve dataRecord by submissionID and scope either New dataRecords or All in batch
+    """
+    def get_dataRecords_chunk(self, submission_id, scope, start, size):
+        db = self.client[self.db_name]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            query = {SUBMISSION_ID: {'$eq': submission_id}} 
+            if scope == STATUS_NEW:
+                query[STATUS] = STATUS_NEW
+            result = list(file_collection.find(query).sort({SUBMISSION_ID: 1, "nodeType": 1, "nodeID": 1}).skip(start).limit(size))
+            return result
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
+            return None 
+    """
+    retrieve dataRecord by nodeID
     """
     def get_dataRecord_by_node(self, nodeID, nodeType, submission_id):
         db = self.client[self.db_name]
@@ -316,8 +359,7 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
-            return None 
-        
+            return None   
     """
     find child node by type and id
     """
@@ -337,6 +379,31 @@ class MongoDao:
             return False, None
         except Exception as e:
             self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
+            return False, None
+        
+    """
+    set dataRecords search index, 'submissionID_nodeType_nodeID'
+    """
+    def set_search_index(self, index_name):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            index_dict = data_collection.index_information()
+            if not index_dict or not index_dict.get(index_name):
+                result = data_collection.create_index([(SUBMISSION_ID), (NODE_TYPE),(NODE_ID)], \
+                            name=index_name)
+                return result
+            else:
+                return True
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to set search index: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to set search index: {get_exception_msg()}")
+            return False
             self.log.exception(f"{submission_id}: Failed to retrieve child  nodes: {get_exception_msg()}")
             return False, None
         

@@ -5,8 +5,8 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
-    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_ID_VAL, PARENT_TYPE, \
-    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_ID, NODE_TYPE, PARENTS
+    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, \
+    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -96,13 +96,16 @@ class DataLoader:
                     returnVal = returnVal and self.mongo_dao.update_data_records(records)
                 
             except Exception as e:
-                    df = None
                     self.log.debug(e)
                     msg = f"Failed to load data in file, {file} at {failed_at + 1}! {get_exception_msg()}."
                     self.log.exception(msg)
                     self.errors.append(msg)
                     return False, self.errors
-            
+            finally:
+                del df
+                del records
+
+        del file_path_list
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:
             try:
@@ -114,6 +117,9 @@ class DataLoader:
                     self.log.exception(msg)
                     self.errors.append(msg)
                     return False, self.errors
+            finally:
+                del deleted_nodes
+                del deleted_file_nodes
 
         return returnVal, self.errors
     """
