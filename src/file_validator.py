@@ -113,15 +113,26 @@ class FileValidator:
 
         fileRecord[ERRORS] =  fileRecord[ERRORS] if fileRecord.get(ERRORS) else []
         fileRecord[WARNINGS] =  fileRecord[WARNINGS] if fileRecord.get(WARNINGS) else []
+        try: 
+            #check if the file record is valid
+            if not self.validate_fileRecord(fileRecord):
+                return STATUS_ERROR
+            # validate individual file
+            status, error = self.validate_file(fileRecord)
+            self.set_status(fileRecord, status, error)
+            return status
+        except Exception as e: #catch all unhandled exception
+            self.log.debug(e)
+            msg = f"{fileRecord.get(SUBMISSION_ID)}: Failed to validate file, {fileRecord.get(ID)}! {get_exception_msg()}!"
+            self.log.exception(msg)
+            error = create_error("Exception", msg)
+            fileRecord[ERRORS].append(error)
+            fileRecord[STATUS] = STATUS_ERROR
+            return STATUS_ERROR
+        finally:
+            if self.bucket:
+                del self.bucket
 
-        #check if the file record is valid
-        if not self.validate_fileRecord(fileRecord):
-            return False
-        
-        # validate individual file
-        status, error = self.validate_file(fileRecord)
-        self.set_status(fileRecord, status, error)
-        return status
     
     def validate_fileRecord(self, fileRecord):
         #This service only processes metadata batches, if a file batch is passed, it should be ignored (output an error message in the log).
@@ -133,8 +144,8 @@ class FileValidator:
             fileRecord[STATUS] = STATUS_ERROR
             return False
         else:
-            if not fileRecord[S3_FILE_INFO][FILE_NAME] or not fileRecord[S3_FILE_INFO][SIZE] \
-                    or not fileRecord[S3_FILE_INFO][MD5]:
+            if not fileRecord[S3_FILE_INFO].get(FILE_NAME) or not fileRecord[S3_FILE_INFO].get(SIZE) \
+                    or not fileRecord[S3_FILE_INFO].get(MD5):
                 msg = f'Invalid file object, invalid s3 file info, {fileRecord[ID]}!'
                 self.log.error(msg)
                 error = create_error("Invalid file info", msg)
@@ -190,84 +201,76 @@ class FileValidator:
         org_md5 = file_info[MD5]
         file_name = file_info[FILE_NAME]
 
-        try:
-            # 1. check if exists
-            if not self.bucket.file_exists_on_s3(key):
-                msg = f'The file does not exist in s3 bucket, {fileRecord[ID]}/{file_name}!'
-                self.log.error(msg)
-                error = create_error("The file does not exist in s3 bucket", msg)
-                return STATUS_ERROR, error
-            
-            # 2. check file integrity
-            size, last_updated = get_s3_file_info(self.bucket_name, key)
-            #check cached md5
-            cached_md5 = self.mongo_dao.get_file_md5(self.submission[ID], file_name)
-            md5 = None
-            if cached_md5 and last_updated.replace(tzinfo=None) <= cached_md5.get(LAST_MODIFIED).replace(tzinfo=None):
-                md5 = cached_md5.get(MD5)
-            else:
-                md5 = get_s3_file_md5(self.bucket_name, key)
-                current_date_time = current_datetime()
-                md5_info = {
-                    ID: get_uuid_str() if not cached_md5 else cached_md5[ID],
-                    SUBMISSION_ID : self.submission[ID],
-                    FILE_NAME: file_name,
-                    MD5: md5,
-                    LAST_MODIFIED: last_updated,
-                    CREATED_AT: current_date_time if not cached_md5 else cached_md5[CREATED_AT],
-                    UPDATED_AT: current_date_time
-                }
-                self.mongo_dao.save_file_md5(md5_info)
-
-            if org_size != size or org_md5 != md5:
-                msg = f'The file in s3 bucket does not matched with the file record, {fileRecord[ID]}/{file_name}!'
-                self.log.error(msg)
-                error = create_error("File is not integrity", msg)
-                return STATUS_ERROR, error
-            
-            # check duplicates in manifest
-            manifest_info_list = self.mongo_dao.get_files_by_submission(fileRecord[SUBMISSION_ID])
-            if not manifest_info_list or  len(manifest_info_list) == 0:
-                msg = f"No file records found for the submission, {SUBMISSION_ID}!"
-                self.log.error(msg)
-                error = create_error("No file records found", msg)
-                return STATUS_ERROR, error
-            
-            # 3. check if Same MD5 checksum and same filename 
-            temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] == file_name and file[S3_FILE_INFO][MD5] == org_md5]
-            if len(temp_list) > 1:
-                msg = f'Duplicate files with the same name and md5 exist, {fileRecord[ID]}/{file_name}/{org_md5}!'
-                self.log.warning(msg)
-                error = create_error("Duplicate files with the same name and md5", msg)
-                return STATUS_WARNING, error 
-            
-            # 4. check if Same filename but different MD5 checksum 
-            temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] == file_name and file[S3_FILE_INFO][MD5] != org_md5]
-            if len(temp_list) > 0:
-                msg = f'Duplicate files with the same name but different md5 exist, {fileRecord[ID]}/{file_name}/{org_md5}!'
-                self.log.warning(msg)
-                error = create_error("Duplicate files with the same name and but different md5", msg)
-                return STATUS_WARNING, error
-            
-            # 5. check if Same MD5 checksum but different filename
-            temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] != file_name and file[S3_FILE_INFO][MD5] == org_md5]
-            if len(temp_list) > 0:
-                msg = f'Duplicate files with the same md5 but different name exist in s3 bucket, {fileRecord[ID]}/{file_name}/{org_md5}!'
-                error = create_error("Duplicate files with the same md5 but different name", msg)
-                if fileRecord[STATUS] == STATUS_NEW:
-                    self.log.error(msg)
-                    return STATUS_ERROR, error
-                self.log.warning(msg)
-                return STATUS_WARNING, error 
-              
-            return STATUS_PASSED, None
-        
-        except Exception as e:
-            self.log.debug(e)
-            self.log.exception('Downloading file failed! Check debug log for detailed information.')
-            msg = f"File validating file failed! {get_exception_msg()}."
-            error = create_error("Exception", msg)
+        # 1. check if exists
+        if not self.bucket.file_exists_on_s3(key):
+            msg = f'The file does not exist in s3 bucket, {fileRecord[ID]}/{file_name}!'
+            self.log.error(msg)
+            error = create_error("The file does not exist in s3 bucket", msg)
             return STATUS_ERROR, error
+        
+        # 2. check file integrity
+        size, last_updated = get_s3_file_info(self.bucket_name, key)
+        #check cached md5
+        cached_md5 = self.mongo_dao.get_file_md5(self.submission[ID], file_name)
+        md5 = None
+        if cached_md5 and last_updated.replace(tzinfo=None) <= cached_md5.get(LAST_MODIFIED).replace(tzinfo=None):
+            md5 = cached_md5.get(MD5)
+        else:
+            md5 = get_s3_file_md5(self.bucket_name, key)
+            current_date_time = current_datetime()
+            md5_info = {
+                ID: get_uuid_str() if not cached_md5 else cached_md5[ID],
+                SUBMISSION_ID : self.submission[ID],
+                FILE_NAME: file_name,
+                MD5: md5,
+                LAST_MODIFIED: last_updated,
+                CREATED_AT: current_date_time if not cached_md5 else cached_md5[CREATED_AT],
+                UPDATED_AT: current_date_time
+            }
+            self.mongo_dao.save_file_md5(md5_info)
+
+        if org_size != size or org_md5 != md5:
+            msg = f'The file in s3 bucket does not matched with the file record, {fileRecord[ID]}/{file_name}!'
+            self.log.error(msg)
+            error = create_error("File is not integrity", msg)
+            return STATUS_ERROR, error
+        
+        # check duplicates in manifest
+        manifest_info_list = self.mongo_dao.get_files_by_submission(fileRecord[SUBMISSION_ID])
+        if not manifest_info_list or  len(manifest_info_list) == 0:
+            msg = f"No file records found for the submission, {SUBMISSION_ID}!"
+            self.log.error(msg)
+            error = create_error("No file records found", msg)
+            return STATUS_ERROR, error
+        
+        # 3. check if Same MD5 checksum and same filename 
+        temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] == file_name and file[S3_FILE_INFO][MD5] == org_md5]
+        if len(temp_list) > 1:
+            msg = f'Duplicate files with the same name and md5 exist, {fileRecord[ID]}/{file_name}/{org_md5}!'
+            self.log.warning(msg)
+            error = create_error("Duplicate files with the same name and md5", msg)
+            return STATUS_WARNING, error 
+        
+        # 4. check if Same filename but different MD5 checksum 
+        temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] == file_name and file[S3_FILE_INFO][MD5] != org_md5]
+        if len(temp_list) > 0:
+            msg = f'Duplicate files with the same name but different md5 exist, {fileRecord[ID]}/{file_name}/{org_md5}!'
+            self.log.warning(msg)
+            error = create_error("Duplicate files with the same name and but different md5", msg)
+            return STATUS_WARNING, error
+        
+        # 5. check if Same MD5 checksum but different filename
+        temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] != file_name and file[S3_FILE_INFO][MD5] == org_md5]
+        if len(temp_list) > 0:
+            msg = f'Duplicate files with the same md5 but different name exist in s3 bucket, {fileRecord[ID]}/{file_name}/{org_md5}!'
+            error = create_error("Duplicate files with the same md5 but different name", msg)
+            if fileRecord[STATUS] == STATUS_NEW:
+                self.log.error(msg)
+                return STATUS_ERROR, error
+            self.log.warning(msg)
+            return STATUS_WARNING, error 
+            
+        return STATUS_PASSED, None
     
     """
     Validate all file in a submission:
