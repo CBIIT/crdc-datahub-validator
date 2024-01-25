@@ -9,7 +9,7 @@ from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, FAILED
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -35,7 +35,6 @@ def essentialValidate(configs, job_queue, mongo_dao):
         log.debug(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
-    validator = None
     #step 3: run validator as a service
     scale_in_protection_flag = False
     log.info(f'{SERVICE_TYPE_ESSENTIAL} service started')
@@ -56,6 +55,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
                 log.info(f'Received a job!')
                 extender = None
                 data = None
+                validator = None
+                data_loader = None
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
@@ -95,7 +96,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
-                    log.info(f'Processed {SERVICE_TYPE_ESSENTIAL} validation!')
+                    log.info(f'Processed {SERVICE_TYPE_ESSENTIAL} validation for the batch, {data.get(BATCH_ID)}!')
                     batches_processed += 1
                     msg.delete()
                 except Exception as e:
@@ -103,11 +104,14 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
+                    if data_loader:
+                        del data_loader
+                    if validator:
+                        validator.close()
+                        del validator
                     if extender:
                         extender.stop()
                         extender = None
-
-                    validator = None
                     #cleanup contents in the s3 download dir
                     cleanup_s3_download_dir(S3_DOWNLOAD_DIR)
 
@@ -140,7 +144,6 @@ class EssentialValidator:
 
     def validate(self,batch):
         self.bucket = S3Bucket(batch.get("bucketName"))
-
         if not self.validate_batch(batch):
             return False
         try:
@@ -160,8 +163,6 @@ class EssentialValidator:
             file_info[ERRORS] = [msg]
             self.batch[ERRORS].append(f'Failed to validate the batch files, {get_exception_msg()}!')
             return False
-        finally:
-            self.bucket = None
         return True
     
     def validate_batch(self, batch):
@@ -250,7 +251,7 @@ class EssentialValidator:
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
         # check if missing "type" column
         if not TYPE in self.df.columns:
-            msg = f'Invalid metadata, missing "type" column, {self.batch[ID]}!'
+            msg = f'Invalid metadata, missing "type" column, in the batch, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
@@ -262,7 +263,7 @@ class EssentialValidator:
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
-            msg = f'Invalid metadata, contains empty rows, {self.batch[ID]}!'
+            msg = f'Invalid metadata, contains empty rows, in the batch, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
@@ -270,9 +271,9 @@ class EssentialValidator:
         
         # Each row in a metadata file must have same number of columns as the header row
         # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
-        empty_cols = [col for col in self.df.columns.tolist() if "Unnamed:" in col or not col]
+        empty_cols = [col for col in self.df.columns.tolist() if not col or "Unnamed:" in col ]
         if empty_cols and len(empty_cols) > 0:
-            msg = f'Invalid metadata, headers are not match row columns, {self.batch[ID]}!'
+            msg = f'Invalid metadata, headers are not match row columns, in the batch, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
@@ -286,7 +287,7 @@ class EssentialValidator:
             if not id_field: return True
             # extract ids from df.
             if not id_field in self.df: 
-                msg = f'Invalid metadata, missing nodeID, {id_field}, {self.batch[ID]}!'
+                msg = f'Invalid metadata, missing id property, {id_field},in the batch,{self.batch[ID]}!'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
@@ -295,7 +296,7 @@ class EssentialValidator:
             ids = self.df[id_field].tolist()  
             # query db.         
             if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
-                msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'
+                msg = f'Invalid metadata, identical data exists, in the batch, {self.batch[ID]}!'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
@@ -304,5 +305,9 @@ class EssentialValidator:
             return True
         
         return True
+    
+    def close(self):
+        if self.bucket:
+            del self.bucket
 
 

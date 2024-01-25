@@ -74,6 +74,8 @@ RAW_DATA = "rawData"
 FILE_NAME_FIELD = "name-field"
 FILE_SIZE_FIELD = "size-field"
 FILE_MD5_FIELD = "md5-field"
+FILE_MD5_COLLECTION = "fileMD5"
+LAST_MODIFIED = "LastModified"
 
 #data model
 DATA_COMMON = "data_commons"

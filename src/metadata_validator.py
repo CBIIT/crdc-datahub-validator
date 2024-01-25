@@ -66,7 +66,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     else:
                         log.error(f'Invalid message: {data}!')
 
-                    log.info(f'Processed {SERVICE_TYPE_METADATA} validation!')
+                    log.info(f'Processed {SERVICE_TYPE_METADATA} validation for the submission: {data[SUBMISSION_ID]}!')
                     batches_processed += 1
                     msg.delete()
                 except Exception as e:
@@ -74,10 +74,11 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
+                    if validator:
+                        del validator
                     if extender:
                         extender.stop()
                         extender = None
-                    validator = None
         except KeyboardInterrupt:
             log.info('Good bye!')
             return

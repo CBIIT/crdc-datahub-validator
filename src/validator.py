@@ -18,6 +18,9 @@ from metadata_validator import metadataValidate
 from metadata_export import metadata_export
 
 DATA_RECORDS_SEARCH_INDEX = "submissionID_nodeType_nodeID"
+#Set log file prefix for bento logger
+if LOG_PREFIX not in os.environ:
+    os.environ[LOG_PREFIX] = 'Validation Service'
 log = get_logger('Validator')
 
 # public function to received args and dispatch to different modules for different uploading types, file or metadata
