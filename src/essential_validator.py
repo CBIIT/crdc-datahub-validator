@@ -251,7 +251,7 @@ class EssentialValidator:
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
         # check if missing "type" column
         if not TYPE in self.df.columns:
-            msg = f'Invalid metadata, missing "type" column, {self.batch[ID]}!'
+            msg = f'Invalid metadata, missing "type" column, in the batch, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
@@ -263,7 +263,7 @@ class EssentialValidator:
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
-            msg = f'Invalid metadata, contains empty rows, {self.batch[ID]}!'
+            msg = f'Invalid metadata, contains empty rows, in the batch, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
@@ -273,7 +273,7 @@ class EssentialValidator:
         # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
         empty_cols = [col for col in self.df.columns.tolist() if not col or "Unnamed:" in col ]
         if empty_cols and len(empty_cols) > 0:
-            msg = f'Invalid metadata, headers are not match row columns, {self.batch[ID]}!'
+            msg = f'Invalid metadata, headers are not match row columns, in the batch, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
@@ -287,7 +287,7 @@ class EssentialValidator:
             if not id_field: return True
             # extract ids from df.
             if not id_field in self.df: 
-                msg = f'Invalid metadata, missing nodeID, {id_field}, {self.batch[ID]}!'
+                msg = f'Invalid metadata, missing id property, {id_field},in the batch,{self.batch[ID]}!'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
@@ -296,7 +296,7 @@ class EssentialValidator:
             ids = self.df[id_field].tolist()  
             # query db.         
             if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
-                msg = f'Invalid metadata, identical data exists, {self.batch[ID]}!'
+                msg = f'Invalid metadata, identical data exists, in the batch, {self.batch[ID]}!'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
