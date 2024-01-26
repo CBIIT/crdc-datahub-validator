@@ -122,21 +122,29 @@ class MetaDataValidator:
             self.log.error(msg)
             return STATUS_ERROR
         #3 retrieve data batch by batch
-        start_index = 0
+        # start_index = 0
         validated_count = 0
-        while True:
-            data_records = self.mongo_dao.get_dataRecords_chunk(submission_id, scope, start_index, BATCH_SIZE)
-            if start_index == 0 and (not data_records or len(data_records) == 0):
-                msg = f'No dataRecords found for the submission, {submission_id} at scope, {scope}!'
-                self.log.error(msg)
-                return FAILED
+        # while True:
+        #     data_records = self.mongo_dao.get_dataRecords_chunk(submission_id, scope, start_index, BATCH_SIZE)
+        #     if start_index == 0 and (not data_records or len(data_records) == 0):
+        #         msg = f'No dataRecords found for the submission, {submission_id} at scope, {scope}!'
+        #         self.log.error(msg)
+        #         return FAILED
             
-            count = len(data_records) 
-            validated_count += self.validate_nodes(data_records, submission_id, scope)
-            if count < BATCH_SIZE: 
-                self.log.info(f"{submission_id}: {validated_count} out of {count + start_index} nodes are validated.")
-                return STATUS_ERROR if self.isError else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
-            start_index += count  
+        #     count = len(data_records) 
+        #     validated_count += self.validate_nodes(data_records, submission_id, scope)
+        #     if count < BATCH_SIZE: 
+        #         self.log.info(f"{submission_id}: {validated_count} out of {count + start_index} nodes are validated.")
+        #         return STATUS_ERROR if self.isError else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
+        #     start_index += count 
+        data_records = self.mongo_dao.get_dataRecords_cursor(submission_id, scope) 
+        if not data_records:
+            msg = f'No dataRecords found for the submission, {submission_id} at scope, {scope}!'
+            self.log.error(msg)
+            return FAILED
+        validated_count += self.validate_nodes(data_records, submission_id, scope)
+        self.log.info(f"{submission_id}: {validated_count} nodes are validated.")
+        return STATUS_ERROR if self.isError else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
 
     def validate_nodes(self, data_records, submission_id, scope):
         #2. loop through all records and call validateNode
@@ -154,20 +162,21 @@ class MetaDataValidator:
                     self.isWarning = True
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
-                updated_records.append(record)
+                # updated_records.append(record)
                 validated_count += 1
+                self.mongo_dao.update_files([record])
         except Exception as e:
             self.log.debug(e)
             msg = f'Failed to validate dataRecords for the submission, {submission_id} at scope, {scope}!'
             self.log.exception(msg) 
             self.isError = True 
         #3. update data records based on record's _id
-        result = self.mongo_dao.update_files(updated_records)
-        if not result:
-            #4. set errors in submission
-            msg = f'Failed to update dataRecords for the submission, {submission_id} at scope, {scope}!'
-            self.log.error(msg)
-            self.isError = True
+        #result = self.mongo_dao.update_files(updated_records)
+        # if not result:
+        #     #4. set errors in submission
+        #     msg = f'Failed to update dataRecords for the submission, {submission_id} at scope, {scope}!'
+        #     self.log.error(msg)
+        #     self.isError = True
 
         return validated_count
 

@@ -3,15 +3,18 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, \
-    FILE_MD5_COLLECTION, FILE_NAME, LAST_MODIFIED, CREATED_AT, UPDATED_AT, MD5
-from common.utils import get_exception_msg, current_datetime, get_uuid_str
+    FILE_MD5_COLLECTION, FILE_NAME, UPDATED_AT
+from common.utils import get_exception_msg, current_datetime
+from common.mongo_clients import DBClientFactory
 
 MAX_SIZE = 10000
 
 class MongoDao:
     def __init__(self, connectionStr, db_name):
       self.log = get_logger("Mongo DAO")
-      self.client = MongoClient(connectionStr)
+      self.db_client_factory = DBClientFactory(connectionStr)
+    #    create client for top level process
+      self.client = self.db_client_factory.create_mongo_client(0) 
       self.db_name = db_name
     """
     get batch by id
@@ -217,7 +220,7 @@ class MongoDao:
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to update file, {submission[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update submission, {submission[ID]}: {get_exception_msg()}")
             return False  
 
     """
@@ -254,11 +257,11 @@ class MongoDao:
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
+            self.log.exception(f"Failed to update records, {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
+            self.log.exception(f"Failed to update records, {get_exception_msg()}")
             return False  
     """
     delete dataRecords by nodeIDs
@@ -275,11 +278,11 @@ class MongoDao:
             return result.deleted_count > 0
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to delete file records, {get_exception_msg()}")
+            self.log.exception(f"Failed to delete records, {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to delete file records, {get_exception_msg()}")
+            self.log.exception(f"Failed to delete records, {get_exception_msg()}")
             return False 
     """
     insert batch dataRecords
@@ -345,6 +348,31 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None 
+    
+    """
+    retrieve dataRecords cursor by submissionID and scope either New dataRecords or All
+    """
+    def get_dataRecords_cursor(self, submission_id, scope):
+        client_level = 1
+        client = self.db_client_factory.create_mongo_client(client_level)
+        db = client[self.db_name]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            query = {'submissionID': {'$eq': submission_id}} 
+            if scope == STATUS_NEW:
+                query[STATUS] = STATUS_NEW
+            return file_collection.find(query)
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
+            return None 
+        finally:
+            self.db_client_factory.create_mongo_client(client_level)
+
     """
     retrieve dataRecord by nodeID
     """
@@ -362,6 +390,7 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None   
+        
     """
     find child node by type and id
     """
@@ -406,8 +435,6 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to set search index: {get_exception_msg()}")
             return False
-            self.log.exception(f"{submission_id}: Failed to retrieve child  nodes: {get_exception_msg()}")
-            return False, None
         
     """
     find cached file md5 by submissionID and fileName
