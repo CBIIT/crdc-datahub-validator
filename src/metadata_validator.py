@@ -145,7 +145,6 @@ class MetaDataValidator:
         try:
             for record in data_records:
                 status, errors, warnings = self.validate_node(record)
-                # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
                     record[ERRORS] = record[ERRORS] + errors if record.get(ERRORS) else errors
                     self.isError = True
@@ -154,7 +153,7 @@ class MetaDataValidator:
                     self.isWarning = True
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
-                # updated_records.append(record)
+                updated_records.append(record)
                 validated_count += 1
         except Exception as e:
             self.log.debug(e)
