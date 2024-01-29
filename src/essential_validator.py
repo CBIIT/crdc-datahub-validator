@@ -256,7 +256,14 @@ class EssentialValidator:
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
             return False
-        else: 
+        else:
+            nan_count = self.df.isnull().sum()[TYPE] #check if any rows with empty node type
+            if nan_count > 0: 
+                msg = f'Invalid metadata, contains row with empty node type, in the batch, {self.batch[ID]}!'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+                return False
             type = self.df[TYPE][0]
             file_info[NODE_TYPE] = type
 
@@ -274,6 +281,14 @@ class EssentialValidator:
         empty_cols = [col for col in self.df.columns.tolist() if not col or "Unnamed:" in col ]
         if empty_cols and len(empty_cols) > 0:
             msg = f'Invalid metadata, headers are not match row columns, in the batch, {self.batch[ID]}!'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False
+        
+        # check node type is valid
+        if not self.model.check_node_type(type):
+            msg = f'Invalid node type, {type} in the batch, {self.batch[ID]}!'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
