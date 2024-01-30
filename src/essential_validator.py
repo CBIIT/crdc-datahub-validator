@@ -257,13 +257,6 @@ class EssentialValidator:
             self.batch[ERRORS].append(msg)
             return False
         else:
-            nan_count = self.df.isnull().sum()[TYPE] #check if any rows with empty node type
-            if nan_count > 0: 
-                msg = f'Invalid metadata, contains row with empty node type, in the batch, {self.batch[ID]}!'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False
             type = self.df[TYPE][0]
             file_info[NODE_TYPE] = type
 
