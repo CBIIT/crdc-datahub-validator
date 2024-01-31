@@ -251,15 +251,17 @@ class MongoDao:
                 ReplaceOne( { NODE_ID: m[NODE_ID] },  m,  True)
                     for m in list(data_records)
                 ])
-            return result.matched_count > 0 
+            return result.matched_count > 0, None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
-            return False
+            msg = f"Failed to update file records, data are not updated!"
+            self.log.exception(msg)
+            return False, msg
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
-            return False  
+            msg = f"Failed to update file records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg 
     """
     delete dataRecords by nodeIDs
     """  
@@ -272,15 +274,17 @@ class MongoDao:
                     for m in list(nodes)
                 ])
             self.log.info(f'Total {result.deleted_count} dataRecords are deleted!')
-            return result.deleted_count > 0
+            return result.deleted_count > 0, None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to delete file records, {get_exception_msg()}")
-            return False
+            msg = f"Failed to delete file records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to delete file records, {get_exception_msg()}")
-            return False 
+            msg = f"Failed to delete file records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg
     """
     insert batch dataRecords
     """ 
@@ -291,15 +295,17 @@ class MongoDao:
             result = file_collection.insert_many(file_records)
             count = len(result.inserted_ids)
             self.log.info(f'Total {count} dataRecords are inserted!')
-            return count > 0 
+            return count > 0, None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
-            return False
+            msg = f"Failed to insert data records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to insert data records, {get_exception_msg()}")
-            return False 
+            msg = f"Failed to insert data records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg
     """
     retrieve dataRecords by submissionID and scope either New dataRecords or All
     """

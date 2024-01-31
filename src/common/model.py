@@ -19,7 +19,9 @@ class DataModel:
     get id field of a given node in the model
     """   
     def get_node_id(self, node): 
-        return self.model[NODES_LABEL][node].get("id_property", None)
+        if self.model[NODES_LABEL].get(node):
+            self.model[NODES_LABEL][node].get("id_property", None)
+        return None
 
     """
     get all node keys in the model

@@ -72,30 +72,39 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             continue
                         #2. validate batch and files.
                         validator = EssentialValidator(mongo_dao, model_store)
-                        result = validator.validate(batch)
-                        if result and validator.download_file_list and len(validator.download_file_list) > 0:
-                            #3. call mongo_dao to load data
-                            data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao, validator.bucket, validator.root_path )
-                            result, errors = data_loader.load_data(validator.download_file_list)
-                            if result:
-                                batch[STATUS] = BATCH_STATUS_UPLOADED
-                                submission_meta_status = STATUS_NEW
+                        try:
+                            result = validator.validate(batch)
+                            if result and validator.download_file_list and len(validator.download_file_list) > 0:
+                                #3. call mongo_dao to load data
+                                data_loader = DataLoader(model_store.get_model_by_data_common(validator.datacommon), batch, mongo_dao, validator.bucket, validator.root_path )
+                                result, errors = data_loader.load_data(validator.download_file_list)
+                                if result:
+                                    batch[STATUS] = BATCH_STATUS_UPLOADED
+                                    submission_meta_status = STATUS_NEW
+                                else:
+                                    error = f'{batch[SUBMISSION_ID]}: Failed to upload metadata for the batch, {batch[ID]}!'
+                                    errors.append(error)
+                                    batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
+                                    batch[STATUS] = BATCH_STATUS_FAILED
+                                    submission_meta_status = STATUS_ERROR
                             else:
-                                error = f'Failed to upsert data into or delete data from database!'
-                                errors.append(error)
-                                batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
+                                batch[STATUS] = BATCH_STATUS_FAILED
                                 submission_meta_status = STATUS_ERROR
-                        else:
+
+                        except Exception as e:  # catch any unhandled errors
+                            error = f'{batch[SUBMISSION_ID]}: Failed to upload metadata for the batch, {batch[ID]}, {get_exception_msg()}!'
+                            errors.append(error)
+                            batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
                             batch[STATUS] = BATCH_STATUS_FAILED
                             submission_meta_status = STATUS_ERROR
-
-                        #4. update batch
-                        result = mongo_dao.update_batch(batch)
-                        #5. update submission's metadataValidationStatus
-                        if result and validator.submission:
-                            mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
+                        finally:
+                            #5. update submission's metadataValidationStatus
+                            mongo_dao.update_batch(batch)
+                            if validator.submission:
+                                mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
+
                     log.info(f'Processed {SERVICE_TYPE_ESSENTIAL} validation for the batch, {data.get(BATCH_ID)}!')
                     batches_processed += 1
                     msg.delete()
@@ -257,6 +266,13 @@ class EssentialValidator:
             self.batch[ERRORS].append(msg)
             return False
         else: 
+            nan_count = self.df.isnull().sum()[TYPE] #check if any rows with empty node type
+            if nan_count > 0: 
+                msg = f'Invalid metadata, contains row with empty node type, in the batch, {self.batch[ID]}!'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+                return False
             type = self.df[TYPE][0]
             file_info[NODE_TYPE] = type
 
