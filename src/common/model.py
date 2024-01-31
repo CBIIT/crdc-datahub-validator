@@ -20,7 +20,7 @@ class DataModel:
     """   
     def get_node_id(self, node): 
         if self.model[NODES_LABEL].get(node):
-            self.model[NODES_LABEL][node].get("id_property", None)
+            return self.model[NODES_LABEL][node].get("id_property", None)
         return None
 
     """
