@@ -303,7 +303,7 @@ class EssentialValidator:
             if not id_field: return True
             # extract ids from df.
             if not id_field in self.df: 
-                msg = f'Invalid metadata, missing id property, {id_field}, in the batch,{self.batch[ID]}!'
+                msg = f'Invalid metadata, missing id property, {id_field}, in the batch, {self.batch[ID]}!'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)

@@ -340,7 +340,7 @@ class MetaDataValidator:
         errors = []
         type = prop_def.get(TYPE)
         if not type or not type in VALID_PROP_TYPE_LIST:
-            errors.append(f"Invalid property type, {type}!")
+            errors.append(create_error("Invalid property", f"Invalid property type, {type}!"))
         else:
             val = None
             permissive_vals = prop_def.get("permissible_values")
