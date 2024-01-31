@@ -91,10 +91,17 @@ class DataLoader:
 
                 # 3-1. insert data in a tsv file into mongo DB
                 if intention == INTENTION_NEW:
-                    returnVal = returnVal and self.mongo_dao.insert_data_records(records)
+                    result, error = self.mongo_dao.insert_data_records(records)
+                    if error:
+                        self.errors.append(error)
+                    returnVal = returnVal and result
+                    
                 elif intention == INTENTION_UPDATE:
-                    returnVal = returnVal and self.mongo_dao.update_data_records(records)
-                
+                    result, error = self.mongo_dao.update_data_records(records)
+                    if error:
+                        self.errors.append(error)
+                    returnVal = returnVal and result
+
             except Exception as e:
                     self.log.debug(e)
                     msg = f"Failed to load data in file, {file} at {failed_at + 1}! {get_exception_msg()}."
@@ -109,7 +116,9 @@ class DataLoader:
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:
             try:
-                returnVal = self.delete_nodes(deleted_nodes, deleted_file_nodes)
+                returnVal, error = self.delete_nodes(deleted_nodes, deleted_file_nodes)
+                if error:
+                        self.errors.append(msg) 
             except Exception as e:
                     df = None
                     self.log.debug(e)
