@@ -60,8 +60,6 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         submission_id = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submission_id, scope)
-                        if not status or status == FAILED:
-                            status = None
                         mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
@@ -248,7 +246,7 @@ class MetaDataValidator:
         for k, v in props.items():
             prop_def = props_def.get(k)
             if not prop_def: 
-                errors.append(create_error("Property not defined", f"The property, {k}, is not defined in model!"))
+                errors.append(create_error("Property not defined", f"The property, {k}, is not defined in the node type, {dataRecord.get(NODE_TYPE)}!"))
                 continue
             else:
                 if v is None:
@@ -340,7 +338,7 @@ class MetaDataValidator:
         errors = []
         type = prop_def.get(TYPE)
         if not type or not type in VALID_PROP_TYPE_LIST:
-            errors.append(f"Invalid property type, {type}!")
+            errors.append(create_error("Invalid property", f"Invalid property type, {type}!"))
         else:
             val = None
             permissive_vals = prop_def.get("permissible_values")

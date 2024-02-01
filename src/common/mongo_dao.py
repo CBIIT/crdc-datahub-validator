@@ -3,7 +3,7 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, \
-    FILE_MD5_COLLECTION, FILE_NAME, LAST_MODIFIED, CREATED_AT, UPDATED_AT, MD5
+    FILE_MD5_COLLECTION, FILE_NAME, LAST_MODIFIED, CREATED_AT, UPDATED_AT, FAILED
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -207,6 +207,8 @@ class MongoDao:
             if file_status:
                 submission[FILE_VALIDATION_STATUS] = file_status
             if metadata_status:
+                if metadata_status == FAILED:
+                    metadata_status = None
                 submission[METADATA_VALIDATION_STATUS] = metadata_status
             submission[UPDATED_AT] = current_datetime()
             result = file_collection.replace_one({ID : submission[ID]}, submission, False)
