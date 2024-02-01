@@ -248,7 +248,7 @@ class MetaDataValidator:
         for k, v in props.items():
             prop_def = props_def.get(k)
             if not prop_def: 
-                errors.append(create_error("Property not defined", f"The property, {k}, is not defined in model!"))
+                errors.append(create_error("Property not defined", f"The property, {k}, is not defined in the node type, {dataRecord.get(NODE_TYPE)}!"))
                 continue
             else:
                 if v is None:
