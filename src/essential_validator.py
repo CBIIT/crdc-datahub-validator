@@ -86,10 +86,10 @@ def essentialValidate(configs, job_queue, mongo_dao):
                                     errors.append(error)
                                     batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
                                     batch[STATUS] = BATCH_STATUS_FAILED
-                                    submission_meta_status = STATUS_ERROR
+                                    submission_meta_status = BATCH_STATUS_FAILED
                             else:
                                 batch[STATUS] = BATCH_STATUS_FAILED
-                                submission_meta_status = STATUS_ERROR
+                                submission_meta_status = BATCH_STATUS_FAILED
 
                         except Exception as e:  # catch any unhandled errors
                             error = f'{batch[SUBMISSION_ID]}: Failed to upload metadata for the batch, {batch[ID]}, {get_exception_msg()}!'
