@@ -245,7 +245,7 @@ class EssentialValidator:
             self.log.debug(e)
             self.log.exception('Invalid metadata file! Check debug log for detailed information.')
             file_info[ERRORS] = [f"Invalid metadata file, {get_exception_msg()}!"]
-            self.batch[ERRORS].append(f'Invalid metadata file, {get_exception_msg()}! ')
+            self.batch[ERRORS].append(f'Invalid metadata file, {get_exception_msg()}!')
             return False
     
     def validate_data(self, file_info):
