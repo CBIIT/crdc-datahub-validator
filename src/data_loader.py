@@ -116,9 +116,7 @@ class DataLoader:
         #3-2. delete all records in deleted_ids
         if intention == INTENTION_DELETE:
             try:
-                returnVal, error = self.delete_nodes(deleted_nodes, deleted_file_nodes)
-                if error:
-                        self.errors.append(msg) 
+                returnVal = self.delete_nodes(deleted_nodes, deleted_file_nodes)
             except Exception as e:
                     df = None
                     self.log.debug(e)
