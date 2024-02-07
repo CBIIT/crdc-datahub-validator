@@ -30,7 +30,7 @@ class DataLoader:
     def load_data(self, file_path_list):
         returnVal = True
         self.errors = []
-        intention = self.batch.get(BATCH_INTENTION, INTENTION_NEW)
+        intention = self.batch.get(BATCH_INTENTION, INTENTION_NEW).strip()
         file_types = None if intention == INTENTION_DELETE else [k for (k,v) in self.file_nodes.items()]
         deleted_nodes = [] if intention == INTENTION_DELETE else None
         deleted_file_nodes = [] if intention == INTENTION_DELETE else None
@@ -50,6 +50,11 @@ class DataLoader:
                     type = row[TYPE]
                     node_id = self.get_node_id(type, row)
                     exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
+                    if intention == INTENTION_UPDATE and not exist_node:
+                        msg = f"No record found for update, {type}/{node_id}"
+                        self.errors.append(msg)
+                        self.log.error(msg)
+                        continue
                     if intention == INTENTION_DELETE:
                         if exist_node:
                             deleted_nodes.append(exist_node)
