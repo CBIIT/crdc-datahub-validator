@@ -250,7 +250,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                ReplaceOne( { NODE_ID: m[NODE_ID] }, remove_id(m),  False)
+                ReplaceOne( { NODE_ID: m[NODE_ID] }, remove_id(m),  True)
                     for m in list(data_records)
                 ])
             return result.matched_count > 0, None
