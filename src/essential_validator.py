@@ -100,7 +100,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         finally:
                             #5. update submission's metadataValidationStatus
                             mongo_dao.update_batch(batch)
-                            if validator.submission:
+                            if validator.submission and submission_meta_status == STATUS_NEW:
                                 mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
@@ -245,7 +245,7 @@ class EssentialValidator:
             self.log.debug(e)
             self.log.exception('Invalid metadata file! Check debug log for detailed information.')
             file_info[ERRORS] = [f"Invalid metadata file, {get_exception_msg()}!"]
-            self.batch[ERRORS].append(f'Invalid metadata file, {get_exception_msg()}! ')
+            self.batch[ERRORS].append(f'Invalid metadata file, {get_exception_msg()}!')
             return False
     
     def validate_data(self, file_info):
