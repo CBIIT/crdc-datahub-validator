@@ -150,6 +150,7 @@ class EssentialValidator:
         self.root_path = None
         self.download_file_list = None
         self.bucket = None
+        self.batch = None
 
     def validate(self,batch):
         self.bucket = S3Bucket(batch.get("bucketName"))
@@ -170,7 +171,7 @@ class EssentialValidator:
             msg = f'Failed to validate the batch files, {get_exception_msg()}!'
             self.log.exception(msg)
             file_info[ERRORS] = [msg]
-            self.batch[ERRORS].append(f'Failed to validate the batch files, {get_exception_msg()}!')
+            batch[ERRORS].append(f'Failed to validate the batch files, {get_exception_msg()}!')
             return False
         return True
     
