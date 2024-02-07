@@ -415,8 +415,6 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to set search index: {get_exception_msg()}")
             return False
-            self.log.exception(f"{submission_id}: Failed to retrieve child  nodes: {get_exception_msg()}")
-            return False, None
         
     """
     find cached file md5 by submissionID and fileName
