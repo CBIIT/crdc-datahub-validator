@@ -57,18 +57,11 @@ class DataLoader:
                     node_id = self.get_node_id(type, row)
                     exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
 
-                    if intention == INTENTION_UPDATE:
-                        if not exist_node:
-                            msg = f"No record found for update, {type}/{node_id}"
-                            self.errors.append(msg)
-                            self.log.error(msg)
-                            continue
-                        else:
-                            if exist_node[SUBMISSION_ID] != self.batch[SUBMISSION_ID]:
-                                msg = f"Found wrong node, {exist_node[SUBMISSION_ID]}/{type}/{node_id}"
-                                self.errors.append(msg)
-                                self.log.error(msg)
-                                continue
+                    if intention == INTENTION_UPDATE and not exist_node:
+                        msg = f"No record found for update, {type}/{node_id}"
+                        self.errors.append(msg)
+                        self.log.error(msg)
+                        continue
                     if intention == INTENTION_DELETE:
                         if exist_node:
                             deleted_nodes.append(exist_node)
@@ -93,7 +86,7 @@ class DataLoader:
                         STATUS: STATUS_NEW,
                         ERRORS: [],
                         WARNINGS: [],
-                        CREATED_AT : current_date_time, 
+                        CREATED_AT : current_date_time if intention == INTENTION_NEW else exist_node[CREATED_AT], 
                         UPDATED_AT: current_date_time, 
                         "orginalFileName": os.path.basename(file),
                         "lineNumber": index,

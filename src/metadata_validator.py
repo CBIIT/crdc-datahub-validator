@@ -160,7 +160,7 @@ class MetaDataValidator:
             self.log.exception(msg) 
             self.isError = True 
         #3. update data records based on record's _id
-        result = self.mongo_dao.update_files(updated_records)
+        result = self.mongo_dao.update_data_records(updated_records)
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {submission_id} at scope, {scope}!'
