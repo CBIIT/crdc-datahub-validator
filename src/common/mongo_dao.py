@@ -148,7 +148,7 @@ class MongoDao:
         batch[UPDATED_AT] = current_datetime()
         # Using update_one() method for single updating.
         try:
-            result = batch_collection.replace_one({ID : batch[ID]}, remove_id(batch), False) 
+            result = batch_collection.replace_one({ID : batch[ID]}, batch, False) 
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -184,7 +184,7 @@ class MongoDao:
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
-            result = file_collection.replace_one({ID : file_record[ID]}, remove_id(file_record), False)
+            result = file_collection.replace_one({ID : file_record[ID]}, file_record, False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -230,7 +230,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                ReplaceOne( { ID: m[ID] },  remove_id(m),  False)
+                ReplaceOne( { ID: m[ID] },  m,  False)
                     for m in list(file_records)
                 ])
             return result.matched_count > 0 
@@ -250,7 +250,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                ReplaceOne( { NODE_ID: m[NODE_ID] }, remove_id(m),  False)
+                ReplaceOne( {SUBMISSION_ID: m[SUBMISSION_ID], "CRDC_ID": m["CRDC_ID"] }, remove_id(m),  False)
                     for m in list(data_records)
                 ])
             return result.matched_count > 0, None
@@ -441,7 +441,7 @@ class MongoDao:
         db = self.client[self.db_name]
         data_collection = db[FILE_MD5_COLLECTION]
         try:
-            result = data_collection.replace_one({ID: md5_info[ID]}, remove_id(md5_info),  upsert=True)
+            result = data_collection.replace_one({ID: md5_info[ID]}, md5_info,  upsert=True)
             return (result and result.upserted_id)
         except errors.PyMongoError as pe:
             self.log.debug(pe)

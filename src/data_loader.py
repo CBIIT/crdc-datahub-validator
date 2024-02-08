@@ -64,7 +64,6 @@ class DataLoader:
                             self.log.error(msg)
                             continue
                         else:
-                            self.log.info(f"Found existed node: {exist_node}, by {self.batch[SUBMISSION_ID]}/{type}/{node_id}")
                             if exist_node[SUBMISSION_ID] != self.batch[SUBMISSION_ID]:
                                 msg = f"Found wrong node, {exist_node[SUBMISSION_ID]}/{type}/{node_id}"
                                 self.errors.append(msg)
