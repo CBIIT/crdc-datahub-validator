@@ -233,7 +233,8 @@ class MongoDao:
                 ReplaceOne( { ID: m[ID] },  m,  False)
                     for m in list(file_records)
                 ])
-            return result.matched_count > 0 
+            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
+            return result.modified_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to update file records, {get_exception_msg()}")
@@ -250,10 +251,11 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                ReplaceOne( {SUBMISSION_ID: m[SUBMISSION_ID], "CRDC_ID": m["CRDC_ID"] }, remove_id(m),  False)
+                ReplaceOne( {ID: m[ID]}, remove_id(m),  False)
                     for m in list(data_records)
                 ])
-            return result.matched_count > 0, None
+            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
+            return result.modified_count > 0, None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             msg = f"Failed to update file records, data are not updated!"
@@ -456,5 +458,9 @@ class MongoDao:
 remove _id from records for update
 """   
 def remove_id (data_record):
-    del data_record[ID]
-    return data_record
+    data = {}
+    for k in data_record.keys():
+        if k == ID:
+            continue
+        data[k] = data_record[k]
+    return data
