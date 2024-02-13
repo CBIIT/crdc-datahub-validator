@@ -3,7 +3,7 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, \
-    FILE_MD5_COLLECTION, FILE_NAME, LAST_MODIFIED, CREATED_AT, UPDATED_AT, FAILED
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, CRDC_COLLECTION, UPDATED_AT, FAILED
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -453,6 +453,43 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save file md5: {get_exception_msg()}")
             return False
+        
+    """
+    get crdcIDs by CRDC_ID
+    """
+    def get_crdc_record(self, submission_id, crdc_id):
+        db = self.client[self.db_name]
+        data_collection = db[CRDC_COLLECTION]
+        try:
+            result = data_collection.find_one({SUBMISSION_ID: submission_id, CRDC_ID: crdc_id})
+            return result
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to find crdcIDs record for {crdc_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to find crdcIDs record for {crdc_id}: {get_exception_msg()}")
+            return False
+    
+    """
+    insert crdcIDs 
+    """
+    def insert_crdc_record(self, crdc_id_record):
+        db = self.client[self.db_name]
+        data_collection = db[CRDC_COLLECTION]
+        try:
+            result = data_collection.insert_one(crdc_id_record)
+            return (result and result.inserted_id)
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to insert crdcID record: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to insert crdcID record: {get_exception_msg()}")
+            return False
+
         
 """
 remove _id from records for update

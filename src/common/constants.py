@@ -130,6 +130,10 @@ TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
 TYPE_EXPORT_METADATA = "Export Metadata"
 FAILED = "Failed"
 
+#dataRecords
+CRDC_ID = "CRDC_ID"
+CRDC_COLLECTION = "crdcIDs"
+
 
 
 

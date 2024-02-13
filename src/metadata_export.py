@@ -4,7 +4,9 @@ import json
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
-    RELEASE, ARCHIVE_RELEASE, RAW_DATA, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT
+    RELEASE, ARCHIVE_RELEASE, RAW_DATA, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
+    DATA_COMMON_NAME, CREATED_AT
+from common.utils import current_datetime, get_uuid_str
 import threading
 import boto3
 import io
@@ -124,6 +126,28 @@ class ExportMetadata:
         nodes = {}
         for r in records:
             node_type = r.get(NODE_TYPE)
+            node_id = r.get(NODE_ID)
+            crdc_id = r.get(CRDC_ID)
+            if not node_type or not node_id or not crdc_id:
+                self.log.error(f"Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
+                continue
+            existed_crdc_record = self.mongo_dao.get_crdc_record(self.submission[ID], crdc_id)
+            if not existed_crdc_record or existed_crdc_record.get(DATA_COMMON_NAME) != self.submission.get(DATA_COMMON_NAME) \
+                or existed_crdc_record.get(NODE_ID) != r.get(NODE_ID) or existed_crdc_record.get(NODE_TYPE) != r.get(NODE_TYPE):
+                # create new crdc_record
+                crdc_record = {
+                    ID: get_uuid_str(),
+                    CRDC_ID: crdc_id,
+                    SUBMISSION_ID: self.submission[ID],
+                    DATA_COMMON_NAME: self.submission.get(DATA_COMMON_NAME),
+                    NODE_TYPE: node_type,
+                    NODE_ID: node_id,
+                    CREATED_AT: current_datetime()
+                }
+                result = self.mongo_dao.insert_crdc_record(crdc_record)
+                if not result:
+                     self.log.error(f"Failed to insert crdcIDs for {node_type}/{node_id}/{crdc_id}!")
+            
             node_raw_data = r.get(RAW_DATA)
             header = list(node_raw_data.keys())
             if not header:

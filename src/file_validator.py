@@ -325,7 +325,7 @@ class FileValidator:
                 if file_name not in manifest_file_names:
                     msg = f"File, {file_name}, in s3 bucket is not specified by the manifests in the submission, {submission_id}!"
                     self.log.error(msg)
-                    error = create_error("No file records found for the submission", msg)
+                    error = create_error("Extra file(s) found in s3 bucket", msg)
                     errors.append(error)
                     missing_count += 1
 
