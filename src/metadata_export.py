@@ -59,8 +59,9 @@ def metadata_export(sqs_name, job_queue, mongo_dao):
                         f'Something wrong happened while exporting file! Check debug log for details.')
                 finally:
                     # De-allocation memory
-                    export_validator.close()
-                    export_validator = None
+                    if export_validator:
+                        export_validator.close()
+                        export_validator = None
 
                     if extender:
                         extender.stop()
@@ -131,7 +132,7 @@ class ExportMetadata:
             if not node_type or not node_id or not crdc_id:
                 self.log.error(f"Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
                 continue
-            existed_crdc_record = self.mongo_dao.get_crdc_record(self.submission[ID], crdc_id)
+            existed_crdc_record = self.mongo_dao.get_crdc_record(crdc_id)
             if not existed_crdc_record or existed_crdc_record.get(DATA_COMMON_NAME) != self.submission.get(DATA_COMMON_NAME) \
                 or existed_crdc_record.get(NODE_ID) != r.get(NODE_ID) or existed_crdc_record.get(NODE_TYPE) != r.get(NODE_TYPE):
                 # create new crdc_record

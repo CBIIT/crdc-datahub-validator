@@ -3,7 +3,7 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, CRDC_COLLECTION, UPDATED_AT, FAILED
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, CRDC_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -398,13 +398,36 @@ class MongoDao:
     """
     set dataRecords search index, 'submissionID_nodeType_nodeID'
     """
-    def set_search_index(self, index_name):
+    def set_search_index_dataRecords(self, index_name):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
             index_dict = data_collection.index_information()
             if not index_dict or not index_dict.get(index_name):
                 result = data_collection.create_index([(SUBMISSION_ID), (NODE_TYPE),(NODE_ID)], \
+                            name=index_name)
+                return result
+            else:
+                return True
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to set search index: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to set search index: {get_exception_msg()}")
+            return False
+    
+    """
+    set crdcIDs search index, 'dataCommons_nodeType_nodeID'
+    """
+    def set_search_index_crdcIDs(self, index_name):
+        db = self.client[self.db_name]
+        data_collection = db[CRDC_COLLECTION]
+        try:
+            index_dict = data_collection.index_information()
+            if not index_dict or not index_dict.get(index_name):
+                result = data_collection.create_index([(DATA_COMMON_NAME), (NODE_TYPE),(NODE_ID)], \
                             name=index_name)
                 return result
             else:
@@ -457,11 +480,11 @@ class MongoDao:
     """
     get crdcIDs by CRDC_ID
     """
-    def get_crdc_record(self, submission_id, crdc_id):
+    def get_crdc_record(self, crdc_id):
         db = self.client[self.db_name]
         data_collection = db[CRDC_COLLECTION]
         try:
-            result = data_collection.find_one({SUBMISSION_ID: submission_id, CRDC_ID: crdc_id})
+            result = data_collection.find_one({CRDC_ID: crdc_id})
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -490,6 +513,23 @@ class MongoDao:
             self.log.exception(f"Failed to insert crdcID record: {get_exception_msg()}")
             return False
 
+    """
+    search crdcIDs by data common, node id and node type
+    """
+    def search_crdc_record(self, data_commons, node_type, node_id):
+        db = self.client[self.db_name]
+        data_collection = db[CRDC_COLLECTION]
+        try:
+            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
+            return result
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to find crdcIDs record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to find crdcIDs record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
         
 """
 remove _id from records for update

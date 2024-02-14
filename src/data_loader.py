@@ -5,8 +5,8 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
-    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, \
-    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS
+    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
+    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -14,13 +14,14 @@ BATCH_IDS = "batchIDs"
 # This script load matadata files to database
 # input: file info list
 class DataLoader:
-    def __init__(self, model, batch, mongo_dao, bucket, root_path):
+    def __init__(self, model, batch, mongo_dao, bucket, root_path, data_common):
         self.log = get_logger('Matedata loader')
         self.model = model
         self.mongo_dao =mongo_dao
         self.batch = batch
         self.bucket = bucket
         self.root_path = root_path
+        self.data_common = data_common
         self.file_nodes = self.model.get_file_nodes()
         self.errors = None
 
@@ -76,9 +77,10 @@ class DataLoader:
                     batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
                     current_date_time = current_datetime()
                     id = self.get_record_id(intention, exist_node)
+                    crdc_id = self.get_crdc_id(intention, exist_node, type, node_id)
                     dataRecord = {
                         ID: id,
-                        "CRDC_ID": id,
+                        CRDC_ID: crdc_id if crdc_id else id,
                         SUBMISSION_ID: self.batch[SUBMISSION_ID],
                         BATCH_IDS: batchIds,
                         "latestBatchID": self.batch[ID],
@@ -238,14 +240,26 @@ class DataLoader:
         return rtn_val
     
     """
-    get node id defined in model dict
+    get node id 
     """
     def get_record_id(self, intention, node):
         if intention == INTENTION_NEW:
             return get_uuid_str()
         else:
-            return node[ID] if node else get_uuid_str()
+            return node[ID]
 
+    """
+    get node crdc id
+    """
+    def get_crdc_id(self, intention, exist_node, node_type, node_id):
+        if intention == INTENTION_NEW:
+            if not self.data_common or not node_type or not node_id:
+                return None
+            else:
+                result = self.mongo_dao.search_crdc_record(self.data_common, node_type, node_id)
+                return None if not result else result[CRDC_ID]
+        else:
+            return exist_node.get(CRDC_ID)
     
     """
     get node id defined in model dict
