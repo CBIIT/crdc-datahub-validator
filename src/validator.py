@@ -18,6 +18,7 @@ from metadata_validator import metadataValidate
 from metadata_export import metadata_export
 
 DATA_RECORDS_SEARCH_INDEX = "submissionID_nodeType_nodeID"
+CRDCIDs_SEARCH_INDEX = "dataCommons_nodeType_nodeID"
 #Set log file prefix for bento logger
 if LOG_PREFIX not in os.environ:
     os.environ[LOG_PREFIX] = 'Validation Service'
@@ -40,8 +41,12 @@ def controller():
         job_queue = Queue(configs[SQS_NAME])
         mongo_dao = MongoDao(configs[MONGO_DB], configs[DB])
         # set dataRecord search index
-        if not mongo_dao.set_search_index(DATA_RECORDS_SEARCH_INDEX):
+        if not mongo_dao.set_search_index_dataRecords(DATA_RECORDS_SEARCH_INDEX):
             log.error("Failed to set dataRecords search index!")
+            return 1
+        # set crdcIDs search index
+        if not mongo_dao.set_search_index_crdcIDs(CRDCIDs_SEARCH_INDEX):
+            log.error("Failed to set crdcIDs search index!")
             return 1
 
     except Exception as e:
