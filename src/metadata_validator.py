@@ -8,7 +8,7 @@ from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, \
-    VALIDATED_AT, SERVICE_TYPE_METADATA
+    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.error_messages import FAILED_VALIDATE_RECORDS
@@ -293,6 +293,9 @@ class MetaDataValidator:
             result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Current node property {node_type} does not exist."))
 
         parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
+        data_record_parent_nodes = data_record.get("parents")
+        data_common, node_type, node_id = data_record.get(DATA_COMMON_NAME), data_record.get(NODE_TYPE), data_record.get(NODE_ID)
+        crdc_record = self.mongo_dao.search_crdc_record(data_common, node_type, node_id)
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
             if not parent_type or parent_type not in node_keys:
@@ -324,7 +327,8 @@ class MetaDataValidator:
                 continue
 
             if (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Parent parent node '{parent_id_property}' does not exist in the database."))
+                if not crdc_record:
+                    result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Parent parent node '{parent_id_property}' not found."))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
