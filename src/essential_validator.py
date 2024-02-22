@@ -216,7 +216,7 @@ class EssentialValidator:
             model_version = submission.get(MODEL_VERSION) 
             self.model = self.model_store.get_model_by_data_common_version(self.datacommon, model_version)
             if not self.model.model or not self.model.get_nodes():
-                msg = f'No data model found for {self.datacommon} at {model_version}!'
+                msg = f'{self.datacommon} model version "{model_version}" is not available.'
                 self.log.error(msg)
                 batch[ERRORS].append(msg)
                 return False
