@@ -116,7 +116,7 @@ class MetaDataValidator:
         #2 get data model based on datacommon and version
         self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
         if not self.model.model or not self.model.get_nodes():
-            msg = f'No data model found for {datacommon} at {model_version}!'
+            msg = f'{self.datacommon} model version "{model_version}" is not available.'
             self.log.error(msg)
             return STATUS_ERROR
         #3 retrieve data batch by batch
@@ -125,7 +125,7 @@ class MetaDataValidator:
         while True:
             data_records = self.mongo_dao.get_dataRecords_chunk(submission_id, scope, start_index, BATCH_SIZE)
             if start_index == 0 and (not data_records or len(data_records) == 0):
-                msg = f'No dataRecords found for the submission, {submission_id} at scope, {scope}!'
+                msg = f'No more new metadata to be validated.'
                 self.log.error(msg)
                 return FAILED
             
@@ -196,9 +196,10 @@ class MetaDataValidator:
     
     def validate_required_props(self, data_record):
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
+        msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
         # check the correct format from the data_record
         if "nodeType" not in data_record.keys() or "props" not in data_record.keys() or len(data_record["props"].items()) == 0:
-            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
+            result[ERRORS].append(create_error("Invalid node", f'{msg_prefix} "nodeType" or "props" is empty.'))
             return result
 
         # validation start
@@ -206,7 +207,7 @@ class MetaDataValidator:
         node_type = data_record["nodeType"]
         # extract a node from the data record
         if node_type not in nodes.keys():
-            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required node '{node_type}' does not exist."))
+            result[ERRORS].append(create_error("Invalid node", f'{msg_prefix} "{node_type}" is not defined in the model.'))
             return result
 
         anode_definition = nodes[node_type]
@@ -214,22 +215,22 @@ class MetaDataValidator:
         id_property_value = data_record["props"].get(id_property_key, None)
         # check id property key and value are valid
         if not (id_property_key not in data_record["props"].keys()) and not (isinstance(id_property_value, str) and id_property_value.strip()):
-            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "ID/Key property is missing or empty in the data-record."))
+            result[ERRORS].append(create_error("Invalid node", f'{msg_prefix} ID property, "{id_property_key}" is empty.'))
 
         for data_key, data_value in data_record["props"].items():
             anode_keys = anode_definition.keys()
             if "properties" not in anode_keys:
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, "data record is not correctly formatted."))
+                result[ERRORS].append(create_error("Invalid data model", f'"properties" is not defined in the model.'))
                 continue
 
             if data_key not in anode_definition["properties"].keys():
-                result[WARNINGS].append(create_error(FAILED_VALIDATE_RECORDS, f"data record key '{data_key}' does not exist in the node-definition."))
+                result[WARNINGS].append(create_error("Invalid property", f'{msg_prefix} Property "{data_key}" is not defined in the model.'))
                 continue
 
             # check missing required key and empty value
             if anode_definition["properties"][data_key]["required"]:
                 if data_value is None or (isinstance(data_value, str) and not data_value.strip()):
-                    result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Required property '{data_key}' is missing or empty."))
+                    result[ERRORS].append(create_error("Invalid property", f'{msg_prefix} Required property "{data_key}" is empty.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
@@ -243,16 +244,19 @@ class MetaDataValidator:
         errors = []
         props_def = self.model.get_node_props(dataRecord.get(NODE_TYPE))
         props = dataRecord.get(PROPERTIES)
+        file_name = dataRecord.get("orginalFileName")
+        line_num = dataRecord.get("lineNumber")
+        msg_prefix = f'[{file_name}: line {line_num}]'
         for k, v in props.items():
             prop_def = props_def.get(k)
             if not prop_def: 
-                errors.append(create_error("Property not defined", f"The property, {k}, is not defined in the node type, {dataRecord.get(NODE_TYPE)}!"))
+                errors.append(create_error("Property not defined", f'{msg_prefix} The property, {k}, is not defined for the node type, {dataRecord.get(NODE_TYPE)}.'))
                 continue
             else:
                 if v is None:
                     continue
             
-            errs = self.validate_prop_value(v, prop_def)
+            errs = self.validate_prop_value(k, v, prop_def, file_name, line_num)
             if len(errs) > 0:
                 errors.extend(errs)
 
@@ -278,9 +282,10 @@ class MetaDataValidator:
     def validate_relationship(self, data_record):
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
+        msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
         if not data_record.get("parents"):
             result["result"] = STATUS_WARNING
-            result[WARNINGS].append(create_error(FAILED_VALIDATE_RECORDS, "Parent property does not exist or empty"))
+            result[WARNINGS].append(create_error("Relationship not specified", f'{msg_prefix} No relationships specified.'))
             return result
 
         data_record_parent_nodes = data_record.get("parents")
@@ -290,7 +295,7 @@ class MetaDataValidator:
         node_relationships = self.model.get_node_relationships(node_type)
         if not node_type or node_type not in node_keys:
             node_type = f'\'{node_type}\'' if node_type else ''
-            result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Current node property {node_type} does not exist."))
+            result[ERRORS].append(create_error("Invalid relationship", f'{msg_prefix} Related node “{node_type}” is not defined.'))
 
         parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
         data_record_parent_nodes = data_record.get("parents")
@@ -299,36 +304,36 @@ class MetaDataValidator:
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
             if not parent_type or parent_type not in node_keys:
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Parent property '{parent_type}' does not exist."))
+                result[ERRORS].append(create_error("Relationship not specified", f'{msg_prefix} No relationships specified.'))
                 continue
 
             parent_id_property = parent_node.get("parentIDPropName")
             model_properties = self.model.get_node_props(parent_type)
 
             if not model_properties or parent_id_property not in model_properties:
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist."))
+                result[ERRORS].append(create_error("Invalid relationship", f'"{parent_id_property}" is not a property of "{parent_type}".'))
                 continue
             # check node relationship
             if not node_relationships or not node_relationships.get(parent_type):
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"parent node '{parent_type}' is not defined in the node relationship."))
+                result[ERRORS].append(create_error("Invalid relationship", f'Relationship to a “{parent_type}” node is not defined.'))
                 continue
 
             # these should be defined in the data model in the properties
             is_parent_id_valid_format = self.model.get_node_props(parent_type)
             is_parent_id_exist = is_parent_id_valid_format and is_parent_id_valid_format.get(parent_id_property)
             if not is_parent_id_valid_format or not is_parent_id_exist:
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"ID property in parent node '{parent_id_property}' does not exist"))
+                result[ERRORS].append(create_error("Invalid relationship", f'“{parent_id_property} is not a property of “{parent_type}”.'))
                 continue
 
             # collect all node_type, node_value, parentIDValue for the parent nodes
             parent_id_value = parent_node.get("parentIDValue")
             if parent_id_value is None or (isinstance(parent_id_value, str) and not parent_id_value.strip()):
-                result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"'{parent_id_property}'s parent value is missing or empty."))
+                result[ERRORS].append(create_error("Invalid relationship", f'Property “{parent_id_property} of related node “{parent_type}” is empty.'))
                 continue
 
             if (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
                 if not crdc_record:
-                    result[ERRORS].append(create_error(FAILED_VALIDATE_RECORDS, f"Parent parent node '{parent_id_property}' not found."))
+                    result[ERRORS].append(create_error("Related node not found", f'Related node [“{parent_id_property}”: “{parent_id_value}"] not found.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
@@ -337,12 +342,13 @@ class MetaDataValidator:
             result["result"] = STATUS_PASSED
         return result
 
-    def validate_prop_value(self, value, prop_def):
+    def validate_prop_value(self, prop_name, value, prop_def, file_name, line_num):
         # set default return values
         errors = []
         type = prop_def.get(TYPE)
+        msg_prefix = f'[{file_name}: line {line_num}]'
         if not type or not type in VALID_PROP_TYPE_LIST:
-            errors.append(create_error("Invalid property", f"Invalid property type, {type}!"))
+            errors.append(create_error("Invalid property definition", f'{msg_prefix} Property "{prop_name}": “{type}” type is not an allowed property type for this model.'))
         else:
             val = None
             permissive_vals = prop_def.get("permissible_values")
@@ -350,20 +356,20 @@ class MetaDataValidator:
             maximum = prop_def.get(MAX)
             if type == "string":
                 val = str(value)
-                result, error = check_permissive(val, permissive_vals)
+                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
                 if not result:
                     errors.append(error)
             elif type == "integer":
                 try:
                     val = int(value)
                 except ValueError as e:
-                    errors.append(create_error("Not a integer", f"The value, {value}, is not a integer!"))
+                    errors.append(create_error("Invalid integer value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid integer type.'))
 
-                result, error = check_permissive(val, permissive_vals)
+                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
                 if not result:
                     errors.append(error)
 
-                errs = check_boundary(val, minimum, maximum)
+                errs = check_boundary(val, minimum, maximum, msg_prefix, prop_name)
                 if len(errs) > 0:
                     errors.extend(errs)
 
@@ -371,12 +377,12 @@ class MetaDataValidator:
                 try:
                     val = float(value)
                 except ValueError as e:
-                    errors.append(create_error("Not a number", f"The value, {value}, is not a number!"))
-                result, error = check_permissive(val, permissive_vals)
+                    errors.append(create_error("Invalid number value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid number type.'))
+                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
                 if not result:
                     errors.append(error)
 
-                errs = check_boundary(val, minimum, maximum)
+                errs = check_boundary(val, minimum, maximum, msg_prefix, prop_name)
                 if len(errs) > 0:
                     errors.extend(errs)
 
@@ -384,7 +390,7 @@ class MetaDataValidator:
                 try:
                     val = datetime.strptime(value, DATETIME_FORMAT)
                 except ValueError as e:
-                    errors.append(create_error("Not a valid datetime", f"The value, {value}, is not a valid datetime!"))
+                    errors.append(create_error("Invalid datetime value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid datetime type.'))
 
             elif type == "date":
                 val = None
@@ -395,45 +401,45 @@ class MetaDataValidator:
                     except ValueError as e:
                         continue
                 if val is None:
-                    errors.append(create_error("Not a valid date", f"The value, {value}, is not a valid date!"))
+                    errors.append(create_error("Invalid date value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid date type.'))
 
             elif type == "boolean":
                 if not isinstance(value, bool) and value not in ["yes", "true", "no", "false"]:
-                    errors.append(create_error("Not a boolean", f"The value, {value}, is not a boolean!"))
+                    errors.append(create_error("Invalid boolean value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid boolean type.'))
             
             elif type == "array":
                 arr = value.split("*")
                 for item in arr:
-                    result, error = check_permissive(item, permissive_vals)
+                    result, error = check_permissive(item, permissive_vals, msg_prefix, prop_name)
                     if not result:
                         errors.append(error)
             else:
-                errors.append(create_error("Not a valid type", f"Invalid data type, {type}!"))
+                errors.append(create_error("Invalid property definition", f'{msg_prefix} Property "{prop_name}": “{type}” type is not an allowed property type for this model.'))
 
         return errors
     
 """util functions"""
-def check_permissive(value, permissive_vals):
+def check_permissive(value, permissive_vals, msg_prefix, prop_name):
     result = True,
     error = None
     if permissive_vals and len(permissive_vals) > 0 and value not in permissive_vals:
        result = False
-       error = create_error("Not permitted value", f"The value, {value} is not allowed!")
+       error = create_error("Value not permitted", f'{msg_prefix} "{value}" is not a permissible value for property “{prop_name}”.')
     return result, error
 
-def check_boundary(value, min, max):
+def check_boundary(value, min, max, msg_prefix, prop_name):
     errors = []
     if min and min.get(VALUE_PROP):
         val = min.get(VALUE_PROP)
         exclusive = min.get(VALUE_EXCLUSIVE)
         if (exclusive and value <= val) or (not exclusive and value < val):
-            errors.append(create_error("Less than minimum", f"The value is less than minimum, {value} < {min}!"))
+            errors.append(create_error("Value out of range", f'{msg_prefix}  Property "{prop_name}": "{value}" is below lower bound.'))
 
     if max and max.get(VALUE_PROP):
         val = max.get(VALUE_PROP)
         exclusive = max.get(VALUE_EXCLUSIVE)
         if (exclusive and value >= val) or (not exclusive and value > val):
-            errors.append(create_error("More than maximum", f"The value is more than maximum, {value} > {min}!"))      
+            errors.append(create_error("Value out of range", f'{msg_prefix}  Property "{prop_name}": "{value}" is above upper bound.'))      
 
     return errors
 

@@ -135,7 +135,7 @@ class FileValidator:
             self.log.debug(e)
             msg = f"{fileRecord.get(SUBMISSION_ID)}: Failed to validate file, {fileRecord.get(ID)}! {get_exception_msg()}!"
             self.log.exception(msg)
-            error = create_error("Exception", msg)
+            error = create_error("Internal error", "File validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             fileRecord[ERRORS].append(error)
             fileRecord[STATUS] = STATUS_ERROR
             return STATUS_ERROR
@@ -213,9 +213,9 @@ class FileValidator:
 
         # 1. check if exists
         if not self.bucket.file_exists_on_s3(key):
-            msg = f'The file does not exist in s3 bucket, {fileRecord[ID]}/{file_name}!'
+            msg = f'File “{file_name}” not found.'
             self.log.error(msg)
-            error = create_error("The file does not exist in s3 bucket", msg)
+            error = create_error("Data File not found", msg)
             return STATUS_ERROR, error
         
         # 2. check file integrity
@@ -240,40 +240,40 @@ class FileValidator:
             self.mongo_dao.save_file_md5(md5_info)
 
         if org_size != size or org_md5 != md5:
-            msg = f'The file in s3 bucket does not matched with the file record, {fileRecord[ID]}/{file_name}!'
+            msg = f'File “{file_name}”: file integrity check failed.'
             self.log.error(msg)
-            error = create_error("File is not integrity", msg)
+            error = create_error("Data file Integrity check failed", msg)
             return STATUS_ERROR, error
         
         # check duplicates in manifest
         manifest_info_list = self.mongo_dao.get_files_by_submission(fileRecord[SUBMISSION_ID])
         if not manifest_info_list or  len(manifest_info_list) == 0:
-            msg = f"No file records found for the submission, {SUBMISSION_ID}!"
+            msg = f"No file records found for the submission."
             self.log.error(msg)
-            error = create_error("No file records found", msg)
+            error = create_error("File records not found", msg)
             return STATUS_ERROR, error
         
         # 3. check if Same MD5 checksum and same filename 
         temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] == file_name and file[S3_FILE_INFO][MD5] == org_md5]
         if len(temp_list) > 1:
-            msg = f'Duplicate files with the same name and md5 exist, {fileRecord[ID]}/{file_name}/{org_md5}!'
+            msg = f'File “{file_name}”: already exists with the same name and md5 value.'
             self.log.warning(msg)
-            error = create_error("Duplicate files with the same name and md5", msg)
+            error = create_error("Duplicated file records detected", msg)
             return STATUS_WARNING, error 
         
         # 4. check if Same filename but different MD5 checksum 
         temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] == file_name and file[S3_FILE_INFO][MD5] != org_md5]
         if len(temp_list) > 0:
-            msg = f'Duplicate files with the same name but different md5 exist, {fileRecord[ID]}/{file_name}/{org_md5}!'
+            msg = f'File “{file_name}”: A file with the same name but different md5 value was found.'
             self.log.warning(msg)
-            error = create_error("Duplicate files with the same name and but different md5", msg)
+            error = create_error("Conflict file records detected", msg)
             return STATUS_WARNING, error
         
         # 5. check if Same MD5 checksum but different filename
         temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] != file_name and file[S3_FILE_INFO][MD5] == org_md5]
         if len(temp_list) > 0:
-            msg = f'Duplicate files with the same md5 but different name exist in s3 bucket, {fileRecord[ID]}/{file_name}/{org_md5}!'
-            error = create_error("Duplicate files with the same md5 but different name", msg)
+            msg = f'File “{file_name}”: another file with the same MD5 found.'
+            error = create_error("Duplicated file content detected", msg)
             if fileRecord[STATUS] == STATUS_NEW:
                 self.log.error(msg)
                 return STATUS_ERROR, error
@@ -301,9 +301,9 @@ class FileValidator:
             # get manifest info for the submission
             manifest_info_list = self.mongo_dao.get_files_by_submission(submission_id)
             if not manifest_info_list or  len(manifest_info_list) == 0:
-                msg = f"No file records found for the submission, {submission_id}!"
+                msg = f"No file records found for the submission."
                 self.log.error(msg)
-                error = create_error("No file records found for the submission", msg)
+                error = create_error("File records not found", msg)
                 return STATUS_ERROR, [error]
             
             # 1: check if Extra files, validate if there are files in files folder of the submission that are not specified 
@@ -323,9 +323,9 @@ class FileValidator:
                 file_name = file.key.split('/')[-1]
                 
                 if file_name not in manifest_file_names:
-                    msg = f"File, {file_name}, in s3 bucket is not specified by the manifests in the submission, {submission_id}!"
+                    msg = f'File “{file_name}”: no record found.'
                     self.log.error(msg)
-                    error = create_error("Extra file(s) found in s3 bucket", msg)
+                    error = create_error("Extra file found", msg)
                     errors.append(error)
                     missing_count += 1
 
@@ -346,7 +346,7 @@ class FileValidator:
             self.log.debug(e)
             msg = f"{submission_id}: Failed to validate files! {get_exception_msg()}!"
             self.log.exception(msg)
-            error = create_error("Exception", msg)
+            error = create_error("Internal error", "File validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return None, [error]
 
     def set_status(self, record, status, error):

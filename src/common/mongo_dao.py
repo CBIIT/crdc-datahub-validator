@@ -251,7 +251,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                ReplaceOne( {ID: m[ID]}, remove_id(m),  False)
+                ReplaceOne( {ID: m[ID]}, remove_id(m),  upsert=True)
                     for m in list(data_records)
                 ])
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')

@@ -57,12 +57,6 @@ class DataLoader:
                     type = row[TYPE]
                     node_id = self.get_node_id(type, row)
                     exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
-
-                    if intention == INTENTION_UPDATE and not exist_node:
-                        msg = f"No record found for update, {type}/{node_id}"
-                        self.errors.append(msg)
-                        self.log.error(msg)
-                        continue
                     if intention == INTENTION_DELETE:
                         if exist_node:
                             deleted_nodes.append(exist_node)
@@ -88,7 +82,7 @@ class DataLoader:
                         STATUS: STATUS_NEW,
                         ERRORS: [],
                         WARNINGS: [],
-                        CREATED_AT : current_date_time if intention == INTENTION_NEW else exist_node[CREATED_AT], 
+                        CREATED_AT : current_date_time if intention == INTENTION_NEW or not exist_node else exist_node[CREATED_AT], 
                         UPDATED_AT: current_date_time, 
                         "orginalFileName": os.path.basename(file),
                         "lineNumber": index,
@@ -246,13 +240,13 @@ class DataLoader:
         if intention == INTENTION_NEW:
             return get_uuid_str()
         else:
-            return node[ID]
+            return node[ID] if node else get_uuid_str()
 
     """
     get node crdc id
     """
     def get_crdc_id(self, intention, exist_node, node_type, node_id):
-        if intention == INTENTION_NEW:
+        if intention == INTENTION_NEW or not exist_node:
             if not self.data_common or not node_type or not node_id:
                 return None
             else:
