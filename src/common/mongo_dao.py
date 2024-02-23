@@ -279,7 +279,7 @@ class MongoDao:
                     for m in list(nodes)
                 ])
             self.log.info(f'Total {result.deleted_count} dataRecords are deleted!')
-            return result.deleted_count > 0, None
+            return True, None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             msg = f"Failed to delete file records, {get_exception_msg()}"
