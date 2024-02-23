@@ -5,7 +5,7 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
-    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
+    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -32,18 +32,20 @@ class DataLoader:
         returnVal = True
         self.errors = []
         intention = self.batch.get(BATCH_INTENTION)
-        if not intention:
-             self.errors.append(f"Invalid batch, no {BATCH_INTENTION} defined!")
-             return False
+        if not intention or not intention.strip() in [INTENTION_UPDATE, INTENTION_DELETE, INTENTION_NEW]:
+             self.errors.append(f'Invalid metadata intention, "{intention}".')
+             return False, self.errors
         else: 
             intention = intention.strip()
 
         file_types = None if intention == INTENTION_DELETE else [k for (k,v) in self.file_nodes.items()]
-        deleted_nodes = [] if intention == INTENTION_DELETE else None
-        deleted_file_nodes = [] if intention == INTENTION_DELETE else None
+       
         for file in file_path_list:
             records = [] if intention != INTENTION_DELETE else None
+            deleted_nodes = [] if intention == INTENTION_DELETE else None
+            deleted_file_nodes = [] if intention == INTENTION_DELETE else None
             failed_at = 1
+            file_name = os.path.basename(file)
             # 1. read file to dataframe
             if not os.path.isfile(file):
                 self.errors.append(f"File does not exist, {file}")
@@ -84,7 +86,7 @@ class DataLoader:
                         WARNINGS: [],
                         CREATED_AT : current_date_time if intention == INTENTION_NEW or not exist_node else exist_node[CREATED_AT], 
                         UPDATED_AT: current_date_time, 
-                        "orginalFileName": os.path.basename(file),
+                        "orginalFileName": file_name,
                         "lineNumber": index,
                         "nodeType": type,
                         "nodeID": node_id,
@@ -101,64 +103,53 @@ class DataLoader:
                 if intention == INTENTION_NEW:
                     result, error = self.mongo_dao.insert_data_records(records)
                     if error:
-                        self.errors.append(error)
+                        self.errors.append(f'“{file_name}”: inserting metadata failed - database error.  Please try again and contact the helpdesk if this error persists.')
                     returnVal = returnVal and result
                     
                 elif intention == INTENTION_UPDATE:
                     result, error = self.mongo_dao.update_data_records(records)
                     if error:
-                        self.errors.append(error)
+                        self.errors.append(f'“{file_name}”: updating metadata failed - database error.  Please try again and contact the helpdesk if this error persists.')
                     returnVal = returnVal and result
+                #3-2. delete all records in deleted_ids
+                elif intention == INTENTION_DELETE:
+                    returnVal = self.delete_nodes(deleted_nodes, deleted_file_nodes, file_name)
 
             except Exception as e:
                     self.log.debug(e)
-                    msg = f"Failed to load data in file, {file} at {failed_at + 1}! {get_exception_msg()}."
+                    upload_type = "inserting" if intention == INTENTION_NEW else "updating" if intention == INTENTION_UPDATE else "deleting"
+                    msg = f'“{file_name}”: {upload_type} metadata failed with internal error.  Please try again and contact the helpdesk if this error persists.'
                     self.log.exception(msg)
                     self.errors.append(msg)
                     return False, self.errors
             finally:
                 del df
                 del records
-
-        del file_path_list
-        #3-2. delete all records in deleted_ids
-        if intention == INTENTION_DELETE:
-            try:
-                returnVal = self.delete_nodes(deleted_nodes, deleted_file_nodes)
-            except Exception as e:
-                    df = None
-                    self.log.debug(e)
-                    msg = f"Failed to delete metadata for the batch, {self.batch[ID]}! {get_exception_msg()}."
-                    self.log.exception(msg)
-                    self.errors.append(msg)
-                    return False, self.errors
-            finally:
                 del deleted_nodes
                 del deleted_file_nodes
 
+        del file_path_list
         return returnVal, self.errors
     """
     delete nodes
     """
-    def delete_nodes(self, deleted_nodes, deleted_file_nodes):
+    def delete_nodes(self, deleted_nodes, deleted_file_nodes, file_name):
         if len(deleted_nodes) == 0:
             return True
         if self.mongo_dao.delete_data_records(deleted_nodes):
-            self.delete_files_in_s3(deleted_file_nodes)
-            self.process_children(deleted_nodes) 
-            return True
+            return self.delete_files_in_s3(deleted_file_nodes, file_name) and self.process_children(deleted_nodes, file_name) 
         else:
-            self.errors.append(f"Failed to delete data records!")
+            self.errors.append(f'"{file_name}": deleting metadata failed with database error.  Please try again and contact the helpdesk if this error persists.')
             return False
         
     """
     process related children record in dataRecords
     """
-    def process_children(self, deleted_nodes):
+    def process_children(self, deleted_nodes, file_name):
         # retrieve child nodes
         status, child_nodes = self.mongo_dao.get_nodes_by_parents(deleted_nodes, self.batch[SUBMISSION_ID])
         if not status: # if exception occurred
-            self.errors.append(f"Failed to retrieve child nodes!")
+            self.errors.append(f'"{file_name}": deleting metadata failed with database error.  Please try again and contact the helpdesk if this error persists.')
             return False
 
         if len(child_nodes) == 0: # if no child
@@ -185,30 +176,29 @@ class DataLoader:
         if len(updated_child_nodes) > 0:
             result = updated_results = self.mongo_dao.update_data_records(updated_child_nodes)
             if not result:
-                self.errors.append(f"Failed to update child nodes!")
+                self.errors.append(f'"{file_name}": deleting metadata failed with database error.  Please try again and contact the helpdesk if this error persists.')
                 rtn_val = rtn_val and False
 
         if len(deleted_child_nodes) > 0:
             deleted_results = self.mongo_dao.delete_data_records(deleted_child_nodes)
             if updated_results and deleted_results: 
                 #delete files
-                result = self.delete_files_in_s3(file_nodes)
+                result = self.delete_files_in_s3(file_nodes, file_name)
                 if result: # delete grand children...
-                    if not self.process_children(deleted_child_nodes):
-                        self.errors.append(f"Failed to delete grand child nodes!")
+                    if not self.process_children(deleted_child_nodes, file_name):
+                        self.errors.append(f'"{file_name}": deleting metadata failed with database error.  Please try again and contact the helpdesk if this error persists.')
                         rtn_val = rtn_val and False
                 else:
-                    self.errors.append(f"Failed to delete child files!")
                     rtn_val = rtn_val and False
             else:
-                self.errors.append(f"Failed to delete child nodes!")
+                self.errors.append(f'Deleting metadata failed with database error.  Please try again and contact the helpdesk if this error persists.')
                 rtn_val = rtn_val and False
         return rtn_val
     
     """
     delete files in s3 after deleted file nodes
     """
-    def delete_files_in_s3(self, file_s3_infos):
+    def delete_files_in_s3(self, file_s3_infos, file_name):
         if len(file_s3_infos) == 0:
             return True
         rtn_val = True
@@ -220,16 +210,16 @@ class DataLoader:
                 if self.bucket.file_exists_on_s3(key):
                     result = self.bucket.delete_file(key)
                     if not result:
-                        self.errors.append(f"Failed to delete file, {key}, in s3 bucket!")
+                        self.errors.append(f'"{file_name}": deleting data file “{s3_info[FILE_NAME]}” failed.  Please try again and contact the helpdesk if this error persists.')
                         rtn_val = rtn_val and False
                 else:
-                    self.errors.append(f"The file,{key}, does not exit in s3 bucket!")
-                    rtn_val = rtn_val and False
+                    self.log.info(f'"{file_name}": data file "{s3_info[FILE_NAME]}" does not exit in s3 bucket!')
+                    rtn_val = rtn_val and True
             except Exception  as e:
                 self.log.debug(e)
                 msg = f"Failed to delete file in s3 bucket, {key}! {get_exception_msg()}."
                 self.log.exception(msg)
-                self.errors.append(msg)
+                self.errors.append(f'"{file_name}": deleting data file “{s3_info[FILE_NAME]}” failed.  Please try again and contact the helpdesk if this error persists.')
                 rtn_val = rtn_val and False
         return rtn_val
     

@@ -255,10 +255,10 @@ class MongoDao:
                     for m in list(data_records)
                 ])
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')
-            return result.modified_count > 0, None
+            return True, None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            msg = f"Failed to update file records, data are not updated!"
+            msg = f"Failed to update metadata."
             self.log.exception(msg)
             return False, msg
         except Exception as e:
@@ -279,7 +279,7 @@ class MongoDao:
                     for m in list(nodes)
                 ])
             self.log.info(f'Total {result.deleted_count} dataRecords are deleted!')
-            return result.deleted_count > 0, None
+            return True, None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             msg = f"Failed to delete file records, {get_exception_msg()}"
