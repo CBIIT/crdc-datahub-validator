@@ -258,7 +258,7 @@ class MongoDao:
             return result.modified_count > 0, None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            msg = f"Failed to update file records, data are not updated!"
+            msg = f"Failed to update metadata."
             self.log.exception(msg)
             return False, msg
         except Exception as e:

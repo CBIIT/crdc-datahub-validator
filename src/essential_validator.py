@@ -82,8 +82,6 @@ def essentialValidate(configs, job_queue, mongo_dao):
                                     batch[STATUS] = BATCH_STATUS_UPLOADED
                                     submission_meta_status = STATUS_NEW
                                 else:
-                                    error = f'{batch[SUBMISSION_ID]}: Failed to upload metadata for the batch, {batch[ID]}!'
-                                    errors.append(error)
                                     batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
                                     batch[STATUS] = BATCH_STATUS_FAILED
                                     submission_meta_status = BATCH_STATUS_FAILED
@@ -93,7 +91,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
 
                         except Exception as e:  # catch any unhandled errors
                             error = f'{batch[SUBMISSION_ID]}: Failed to upload metadata for the batch, {batch[ID]}, {get_exception_msg()}!'
-                            errors.append(error)
+                            log.error(error)
+                            errors.append('Batch loading failed - internal error.  Please try again and contact the helpdesk if this error persists.')
                             batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
                             batch[STATUS] = BATCH_STATUS_FAILED
                             submission_meta_status = STATUS_ERROR
@@ -170,8 +169,7 @@ class EssentialValidator:
             self.log.debug(e)
             msg = f'Failed to validate the batch files, {get_exception_msg()}!'
             self.log.exception(msg)
-            file_info[ERRORS] = [msg]
-            batch[ERRORS].append(f'Failed to validate the batch files, {get_exception_msg()}!')
+            batch[ERRORS].append(f'Batch validation failed - internal error. Please try again and contact the helpdesk if this error persists.')
             return False
         return True
     
@@ -237,16 +235,16 @@ class EssentialValidator:
         except ClientError as ce:
             self.df = None
             self.log.debug(ce)
-            self.log.exception(f"Failed to download file, {file_info.fileName} from {self.batch.bucketName}! {get_exception_msg()}.")
-            file_info[ERRORS] = [f'Downloading file failed with S3 client error! {get_exception_msg()}.']
-            self.batch[ERRORS].append(f'Failed to download file, {file_info.fileName}, from s3 bucket!')
+            self.log.exception(f"Failed to download file, {file_info[FILE_NAME]}. {get_exception_msg()}.")
+            file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.']
+            self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.')
             return False
         except Exception as e:
             self.df = None
             self.log.debug(e)
             self.log.exception('Invalid metadata file! Check debug log for detailed information.')
-            file_info[ERRORS] = [f"Invalid metadata file, {get_exception_msg()}!"]
-            self.batch[ERRORS].append(f'Invalid metadata file, {get_exception_msg()}!')
+            file_info[ERRORS] = [f'“{file_info[FILE_NAME]}” is not a valid TSV file.']
+            self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}” is not a valid TSV file.')
             return False
     
     def validate_data(self, file_info):
@@ -296,28 +294,27 @@ class EssentialValidator:
             self.batch[ERRORS].append(msg)
             return False
         
+        # get id data fields for the type, the domain for mvp2/m3 is cds.
+        id_field = self.model.get_node_id(type)
+        if not id_field: return True
+        # extract ids from df.
+        if not id_field in self.df: 
+            msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False
+        # new requirement to check if id property value is empty
+        nan_count = self.df.isnull().sum()[id_field]
+        if nan_count > 0: 
+            msg = f'“{file_info[FILE_NAME]}”: “{id_field}” value is required.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False
+        
         # When metadata intention is "New", all IDs must not exist in the database
         if self.batch[BATCH_INTENTION] == INTENTION_NEW:
-            # verify if ids in the df in the mongo db.
-            # get id data fields for the type, the domain for mvp2/m3 is cds.
-            id_field = self.model.get_node_id(type)
-            if not id_field: return True
-            # extract ids from df.
-            if not id_field in self.df: 
-                msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False
-            # new requirement to check if id property value is emapty
-            nan_count = self.df.isnull().sum()[id_field]
-            if nan_count > 0: 
-                msg = f'“{file_info[FILE_NAME]}”: “{id_field}” value is required.'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False
-            
             ids = self.df[id_field].tolist()  
             # query db.         
             if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
