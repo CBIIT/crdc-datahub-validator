@@ -255,7 +255,7 @@ class MongoDao:
                     for m in list(data_records)
                 ])
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')
-            return result.modified_count > 0, None
+            return True, None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             msg = f"Failed to update metadata."

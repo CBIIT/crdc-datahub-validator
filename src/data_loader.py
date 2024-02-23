@@ -5,7 +5,7 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
-    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
+    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -32,9 +32,9 @@ class DataLoader:
         returnVal = True
         self.errors = []
         intention = self.batch.get(BATCH_INTENTION)
-        if not intention:
-             self.errors.append(f"Invalid batch, no {BATCH_INTENTION} defined!")
-             return False
+        if not intention or not intention.strip() in [INTENTION_UPDATE, INTENTION_DELETE, INTENTION_NEW]:
+             self.errors.append(f'Invalid metadata intention, "{intention}".')
+             return False, self.errors
         else: 
             intention = intention.strip()
 
@@ -185,7 +185,7 @@ class DataLoader:
                 #delete files
                 result = self.delete_files_in_s3(file_nodes, file_name)
                 if result: # delete grand children...
-                    if not self.process_children(deleted_child_nodes):
+                    if not self.process_children(deleted_child_nodes, file_name):
                         self.errors.append(f'"{file_name}": deleting metadata failed with database error.  Please try again and contact the helpdesk if this error persists.')
                         rtn_val = rtn_val and False
                 else:
