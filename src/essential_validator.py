@@ -229,7 +229,7 @@ class EssentialValidator:
                 self.bucket.download_file(key, download_file)
                 if os.path.isfile(download_file):
                     df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
-                    self.df = df
+                    self.df = df.rename(columns=lambda x: x.strip())
                     self.download_file_list.append(download_file)
                 return True # if no exception
         except ClientError as ce:
