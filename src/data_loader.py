@@ -52,7 +52,7 @@ class DataLoader:
                 continue
             try:
                 df = pd.read_csv(file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
-                df = df.rename(columns=lambda x: x.strip()) # stripe white space on column names.
+                df = (df.rename(columns=lambda x: x.strip())).apply(lambda x: x.str.strip() if x.dtype == 'object' else x) # stripe white space.
                 df = df.reset_index()  # make sure indexes pair with number of rows
                 col_names =list(df.columns)
                 
