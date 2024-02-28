@@ -27,7 +27,6 @@ def metadataValidate(configs, job_queue, mongo_dao):
         log.debug(e)
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
-    validator = None
 
     #step 3: run validator as a service
     log.info(f'{SERVICE_TYPE_METADATA} service started')
@@ -50,6 +49,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                 log.info(f'Received a job!')
                 extender = None
                 data = None
+                validator = None
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)

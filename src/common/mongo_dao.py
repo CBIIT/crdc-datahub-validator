@@ -93,6 +93,24 @@ class MongoDao:
             return None
         
     """
+    check node exists by dataCommons, nodeType and nodeID
+    """
+    def search_node_by_index_crdc(self, data_commons, node_type, node_id):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
+            return result
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to search node for crdc_id: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to search node for crdc_id {get_exception_msg()}")
+            return None
+        
+    """
     get file in dataRecord collection by fileId
     """ 
     def get_file(self, fileId):
@@ -398,17 +416,18 @@ class MongoDao:
     """
     set dataRecords search index, 'submissionID_nodeType_nodeID'
     """
-    def set_search_index_dataRecords(self, index_name):
+    def set_search_index_dataRecords(self, submission_index, crdc_index):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
             index_dict = data_collection.index_information()
-            if not index_dict or not index_dict.get(index_name):
+            if not index_dict.get(submission_index):
                 result = data_collection.create_index([(SUBMISSION_ID), (NODE_TYPE),(NODE_ID)], \
-                            name=index_name)
-                return result
-            else:
-                return True
+                            name=submission_index)
+            if not index_dict.get(crdc_index):
+                result = data_collection.create_index([(DATA_COMMON_NAME), (NODE_TYPE),(NODE_ID)], \
+                            name=crdc_index)
+            return True
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to set search index: {get_exception_msg()}")
@@ -421,17 +440,19 @@ class MongoDao:
     """
     set crdcIDs search index, 'dataCommons_nodeType_nodeID'
     """
-    def set_search_index_crdcIDs(self, index_name):
+    def set_search_index_crdcIDs(self, dataCommon_index, crdcID_index):
         db = self.client[self.db_name]
         data_collection = db[CRDC_COLLECTION]
         try:
             index_dict = data_collection.index_information()
-            if not index_dict or not index_dict.get(index_name):
+            if not index_dict or not index_dict.get(dataCommon_index):
                 result = data_collection.create_index([(DATA_COMMON_NAME), (NODE_TYPE),(NODE_ID)], \
-                            name=index_name)
-                return result
-            else:
-                return True
+                            name=dataCommon_index)
+            if not index_dict or not index_dict.get(crdcID_index):
+                result = data_collection.create_index([(CRDC_ID)], \
+                            name=crdcID_index)
+
+            return True
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to set search index: {get_exception_msg()}")
@@ -521,6 +542,9 @@ class MongoDao:
         data_collection = db[CRDC_COLLECTION]
         try:
             result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
+            if not result:
+                # search dataRecords 
+                result = self.search_node_by_index_crdc(data_commons, node_type, node_id)
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
