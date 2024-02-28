@@ -5,7 +5,7 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
-    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, \
+    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -79,6 +79,7 @@ class DataLoader:
                         ID: id,
                         CRDC_ID: crdc_id if crdc_id else id,
                         SUBMISSION_ID: self.batch[SUBMISSION_ID],
+                        DATA_COMMON_NAME: self.data_common,
                         BATCH_IDS: batchIds,
                         "latestBatchID": self.batch[ID],
                         "uploadedDate": current_date_time, 
@@ -88,7 +89,7 @@ class DataLoader:
                         CREATED_AT : current_date_time if intention == INTENTION_NEW or not exist_node else exist_node[CREATED_AT], 
                         UPDATED_AT: current_date_time, 
                         "orginalFileName": file_name,
-                        "lineNumber": index,
+                        "lineNumber":  index + 2,
                         "nodeType": type,
                         "nodeID": node_id,
                         "props": {k: v for (k, v) in rawData.items() if k in prop_names},
