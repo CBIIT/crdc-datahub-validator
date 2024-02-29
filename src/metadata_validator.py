@@ -290,7 +290,6 @@ class MetaDataValidator:
 
         data_record_parent_nodes = data_record.get("parents")
         node_keys = self.model.get_node_keys()
-
         node_type = data_record.get("nodeType")
         node_relationships = self.model.get_node_relationships(node_type)
         if not node_type or node_type not in node_keys:
@@ -298,7 +297,6 @@ class MetaDataValidator:
             result[ERRORS].append(create_error("Invalid relationship", f'{msg_prefix} Related node “{node_type}” is not defined.'))
 
         parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
-        data_record_parent_nodes = data_record.get("parents")
         data_common, node_type, node_id = data_record.get(DATA_COMMON_NAME), data_record.get(NODE_TYPE), data_record.get(NODE_ID)
         crdc_record = self.mongo_dao.search_crdc_record(data_common, node_type, node_id)
         for parent_node in data_record_parent_nodes:
@@ -333,7 +331,7 @@ class MetaDataValidator:
 
             if (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
                 if not crdc_record:
-                    result[ERRORS].append(create_error("Related node not found", f'Related node [“{parent_id_property}”: “{parent_id_value}"] not found.'))
+                    result[ERRORS].append(create_error("Related node not found", f'Related node “{parent_type}” [“{parent_id_property}”: “{parent_id_value}"] not found.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
