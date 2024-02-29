@@ -15,3 +15,5 @@ Config:
     db: crdc-datahub
     #sqs configuration
     sqs: test.fifo
+    models-loc: https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/
+    tier: dev2
