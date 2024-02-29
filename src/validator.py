@@ -64,7 +64,7 @@ def controller():
     elif configs[SERVICE_TYPE] == SERVICE_TYPE_METADATA:
         metadataValidate(configs, job_queue, mongo_dao)
     elif configs[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
-        metadata_export(configs[SQS_NAME], job_queue, mongo_dao)
+        metadata_export(configs, job_queue, mongo_dao)
     else:
         log.error(f'Invalid service type: {configs[SERVICE_TYPE]}!')
         return 1

@@ -374,6 +374,26 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None 
+        
+    """
+    retrieve dataRecord by submissionID and nodeType
+    """
+    def get_dataRecords_chunk_by_nodeType(self, submission_id, node_type, start, size):
+        db = self.client[self.db_name]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            query = {SUBMISSION_ID: {'$eq': submission_id}, NODE_TYPE: {'$eq': node_type}} 
+            result = list(file_collection.find(query).sort({SUBMISSION_ID: 1, "nodeType": 1, "nodeID": 1}).skip(start).limit(size))
+            return result
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
+            return None 
+
     """
     retrieve dataRecord by nodeID
     """
