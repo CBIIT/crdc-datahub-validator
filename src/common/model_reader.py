@@ -206,7 +206,7 @@ class YamlModelParser:
             return
         
         node = self.nodes[name]
-        node[RELATIONSHIPS.lower()]={dest: {"dest_node": dest, TYPE: multiplier, RELATION_LABEL: relationship}}
+        node[RELATIONSHIPS.lower()].update({dest: {"dest_node": dest, TYPE: multiplier, RELATION_LABEL: relationship}})
 
     def is_required_prop(self, name):
         if name in self.schema[PROP_DEFINITIONS]:
