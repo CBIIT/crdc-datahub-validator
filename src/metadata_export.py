@@ -4,8 +4,9 @@ import json
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
-    RELEASE, ARCHIVE_RELEASE, RAW_DATA, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
-    DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE
+    RELEASE, ARCHIVE_RELEASE, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
+    DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
+    PARENTS, PROPERTIES
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
 from common.model_store import ModelFactory
 import threading
@@ -94,7 +95,6 @@ class S3Service:
             log.critical(
                 f'An error occurred while attempting to close the s3 client! Check debug log for details.')
 
-
     def archive_s3_if_exists(self, bucket_name, root_path):
         prev_directory = ValidationDirectory.get_release(root_path)
         new_directory = ValidationDirectory.get_archive(root_path)
@@ -150,10 +150,11 @@ class ExportMetadata:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f'{submission_id}: Failed to archive existed release: {node_type} data: {get_exception_msg()}.')
+            return
 
         node_types = self.model.get_node_keys()
         threads = []
-        #3 retrieve dta for nodeType and export to s3 bucket
+        #3 retrieve data for nodeType and export to s3 bucket
         for node_type in node_types:
             thread = threading.Thread(target=self.export, args=(submission_id, node_type))
             threads.append(thread)
@@ -176,7 +177,7 @@ class ExportMetadata:
             for r in data_records:
                 node_id = r.get(NODE_ID)
                 crdc_id = r.get(CRDC_ID)
-                self.set_crdc_id(node_type, node_id, crdc_id)
+                self.save_release(r, node_type, node_id, crdc_id)
                 row = self.convert_2_row(r, node_type, crdc_id)
                 rows.append(row)
                 if r.get("orginalFileName") != file_name:
@@ -208,7 +209,7 @@ class ExportMetadata:
             start_index += count 
 
     def convert_2_row(self, data_record, node_type, crdc_id):
-        row = data_record.get("props")
+        row = data_record.get(PROPERTIES)
         row[TYPE] = node_type
         row[CRDC_ID.lower()] = crdc_id
         parents = data_record.get("parents", None)
@@ -222,11 +223,12 @@ class ExportMetadata:
         full_name = f"{ValidationDirectory.get_release(root_path)}/{id}-{node_type}.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
 
-    def set_crdc_id(self, node_type, node_id, crdc_id):
+    def save_release(self, data_record, node_type, node_id, crdc_id):
         if not node_type or not node_id or not crdc_id:
              self.log.error(f"{self.submission[ID]}: Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
              return
-        existed_crdc_record = self.mongo_dao.get_crdc_record(crdc_id)
+        existed_crdc_record = self.mongo_dao.get_release(crdc_id)
+        current_date = current_datetime()
         if not existed_crdc_record or existed_crdc_record.get(DATA_COMMON_NAME) != self.submission.get(DATA_COMMON_NAME) \
             or existed_crdc_record.get(NODE_ID) != node_id or existed_crdc_record.get(NODE_TYPE) != node_type:
             # create new crdc_record
@@ -237,11 +239,22 @@ class ExportMetadata:
                 DATA_COMMON_NAME: self.submission.get(DATA_COMMON_NAME),
                 NODE_TYPE: node_type,
                 NODE_ID: node_id,
-                CREATED_AT: current_datetime()
+                PROPERTIES: data_record.get(PROPERTIES),
+                PARENTS: data_record.get(PARENTS, None),
+                CREATED_AT: current_date,
+                UPDATED_AT: current_date
             }
-            result = self.mongo_dao.insert_crdc_record(crdc_record)
+            result = self.mongo_dao.insert_release(crdc_record)
             if not result:
-                self.log.error(f"{self.submission[ID]}: Failed to insert crdcIDs for {node_type}/{node_id}/{crdc_id}!")
+                self.log.error(f"{self.submission[ID]}: Failed to insert release for {node_type}/{node_id}/{crdc_id}!")
+        else: 
+            existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
+            existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
+            existed_crdc_record[PARENTS] = data_record.get(PARENTS)
+            existed_crdc_record[UPDATED_AT] = current_date
+            result = self.mongo_dao.update_release(existed_crdc_record)
+            if not result:
+                self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
 
     def get_submission_info(self):
         return [self.submission.get(ID), self.submission.get(EXPORT_ROOT_PATH), self.submission.get(BATCH_BUCKET)]
@@ -259,9 +272,9 @@ class ExportMetadata:
 # Private class
 class ValidationDirectory:
     @staticmethod
-    def get_archive(rootpath):
-        return f"{rootpath}/{EXPORT_METADATA}/{ARCHIVE_RELEASE}"
+    def get_archive(root_path):
+        return f"{root_path}/{EXPORT_METADATA}/{ARCHIVE_RELEASE}"
 
     @staticmethod
-    def get_release(rootpath):
-        return f"{rootpath}/{EXPORT_METADATA}/{RELEASE}"
+    def get_release(root_path):
+        return f"{root_path}/{EXPORT_METADATA}/{RELEASE}"

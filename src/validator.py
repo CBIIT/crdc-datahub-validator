@@ -19,7 +19,7 @@ from metadata_export import metadata_export
 
 DATA_RECORDS_SEARCH_INDEX = "submissionID_nodeType_nodeID"
 DATA_RECORDS_CRDC_SEARCH_INDEX = "dataCommons_nodeType_nodeID"
-CRDCIDs_SEARCH_INDEX = "dataCommons_nodeType_nodeID"
+RELEASE_SEARCH_INDEX = "dataCommons_nodeType_nodeID"
 CRDCID_SEARCH_INDEX = "CRDC_ID"
 #Set log file prefix for bento logger
 if LOG_PREFIX not in os.environ:
@@ -46,9 +46,9 @@ def controller():
         if not mongo_dao.set_search_index_dataRecords(DATA_RECORDS_SEARCH_INDEX, DATA_RECORDS_CRDC_SEARCH_INDEX):
             log.error("Failed to set dataRecords search index!")
             return 1
-        # set crdcIDs search index
-        if not mongo_dao.set_search_index_crdcIDs(CRDCIDs_SEARCH_INDEX, CRDCID_SEARCH_INDEX):
-            log.error("Failed to set crdcIDs search index!")
+        # set release search index
+        if not mongo_dao.set_search_release_index(RELEASE_SEARCH_INDEX , CRDCID_SEARCH_INDEX):
+            log.error("Failed to set release search index!")
             return 1
 
     except Exception as e:

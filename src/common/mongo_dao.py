@@ -3,7 +3,7 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, CRDC_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -458,11 +458,11 @@ class MongoDao:
             return False
     
     """
-    set crdcIDs search index, 'dataCommons_nodeType_nodeID'
+    set release search index, 'dataCommons_nodeType_nodeID'
     """
-    def set_search_index_crdcIDs(self, dataCommon_index, crdcID_index):
+    def set_search_release_index(self, dataCommon_index, crdcID_index):
         db = self.client[self.db_name]
-        data_collection = db[CRDC_COLLECTION]
+        data_collection = db[RELEASE_COLLECTION]
         try:
             index_dict = data_collection.index_information()
             if not index_dict or not index_dict.get(dataCommon_index):
@@ -471,15 +471,14 @@ class MongoDao:
             if not index_dict or not index_dict.get(crdcID_index):
                 result = data_collection.create_index([(CRDC_ID)], \
                             name=crdcID_index)
-
             return True
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to set search index: {get_exception_msg()}")
+            self.log.exception(f"Failed to set search index in release collection: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to set search index: {get_exception_msg()}")
+            self.log.exception(f"Failed to set search index in release collection: {get_exception_msg()}")
             return False
         
     """
@@ -519,31 +518,31 @@ class MongoDao:
             return False
         
     """
-    get crdcIDs by CRDC_ID
+    get release by CRDC_ID
     """
-    def get_crdc_record(self, crdc_id):
+    def get_release(self, crdc_id):
         db = self.client[self.db_name]
-        data_collection = db[CRDC_COLLECTION]
+        data_collection = db[RELEASE_COLLECTION]
         try:
             result = data_collection.find_one({CRDC_ID: crdc_id})
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to find crdcIDs record for {crdc_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find release record for {crdc_id}: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to find crdcIDs record for {crdc_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find release record for {crdc_id}: {get_exception_msg()}")
             return False
     
     """
-    insert crdcIDs 
+    insert release 
     """
-    def insert_crdc_record(self, crdc_id_record):
+    def insert_release(self, release):
         db = self.client[self.db_name]
-        data_collection = db[CRDC_COLLECTION]
+        data_collection = db[RELEASE_COLLECTION]
         try:
-            result = data_collection.insert_one(crdc_id_record)
+            result = data_collection.insert_one(release)
             return (result and result.inserted_id)
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -553,13 +552,30 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to insert crdcID record: {get_exception_msg()}")
             return False
+    """
+    update release 
+    """
+    def update_release(self, release):
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            result = data_collection.replace_one({ID: release[ID]}, release)
+            return True
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to update release record: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to update release record: {get_exception_msg()}")
+            return False
 
     """
-    search crdcIDs by data common, node id and node type
+    search release by data common, node id and node type
     """
-    def search_crdc_record(self, data_commons, node_type, node_id):
+    def search_release(self, data_commons, node_type, node_id):
         db = self.client[self.db_name]
-        data_collection = db[CRDC_COLLECTION]
+        data_collection = db[RELEASE_COLLECTION]
         try:
             result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
             if not result:
@@ -568,11 +584,11 @@ class MongoDao:
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to find crdcIDs record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"Failed to find crdcIDs record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
         
 """

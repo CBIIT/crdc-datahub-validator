@@ -7,11 +7,11 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALID_PROP_TYPE_LIST, VALIDATION_RESULT, \
-    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, \
+    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
-from common.error_messages import FAILED_VALIDATE_RECORDS
+from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
 
 VISIBILITY_TIMEOUT = 20
@@ -198,7 +198,7 @@ class MetaDataValidator:
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
         # check the correct format from the data_record
-        if "nodeType" not in data_record.keys() or "props" not in data_record.keys() or len(data_record["props"].items()) == 0:
+        if "nodeType" not in data_record.keys() or "props" not in data_record.keys() or len(data_record[PROPERTIES].items()) == 0:
             result[ERRORS].append(create_error("Invalid node", f'{msg_prefix} "nodeType" or "props" is empty.'))
             return result
 
@@ -212,12 +212,12 @@ class MetaDataValidator:
 
         anode_definition = nodes[node_type]
         id_property_key = anode_definition["id_property"]
-        id_property_value = data_record["props"].get(id_property_key, None)
+        id_property_value = data_record[PROPERTIES].get(id_property_key, None)
         # check id property key and value are valid
-        if not (id_property_key not in data_record["props"].keys()) and not (isinstance(id_property_value, str) and id_property_value.strip()):
+        if not (id_property_key not in data_record[PROPERTIES].keys()) and not (isinstance(id_property_value, str) and id_property_value.strip()):
             result[ERRORS].append(create_error("Invalid node", f'{msg_prefix} ID property, "{id_property_key}" is empty.'))
 
-        for data_key, data_value in data_record["props"].items():
+        for data_key, data_value in data_record[PROPERTIES].items():
             anode_keys = anode_definition.keys()
             if "properties" not in anode_keys:
                 result[ERRORS].append(create_error("Invalid data model", f'"properties" is not defined in the model.'))
@@ -273,8 +273,8 @@ class MetaDataValidator:
         exist_parent_nodes = self.mongo_dao.search_nodes_by_index(parent_nodes, self.submission[ID])
         parent_node_cache = set()
         for node in exist_parent_nodes:
-            if node.get("props"):
-                for key, value in node["props"].items():
+            if node.get(PROPERTIES):
+                for key, value in node[PROPERTIES].items():
                     parent_node_cache.add(tuple([node.get("nodeType"), key, value]))
         return parent_node_cache
 
@@ -283,12 +283,12 @@ class MetaDataValidator:
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
-        if not data_record.get("parents"):
+        if not data_record.get(PARENTS):
             result["result"] = STATUS_WARNING
             result[WARNINGS].append(create_error("Relationship not specified", f'{msg_prefix} No relationships specified.'))
             return result
 
-        data_record_parent_nodes = data_record.get("parents")
+        data_record_parent_nodes = data_record.get(PARENTS)
         node_keys = self.model.get_node_keys()
         node_type = data_record.get("nodeType")
         node_relationships = self.model.get_node_relationships(node_type)
@@ -298,7 +298,7 @@ class MetaDataValidator:
 
         parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
         data_common, node_type, node_id = data_record.get(DATA_COMMON_NAME), data_record.get(NODE_TYPE), data_record.get(NODE_ID)
-        crdc_record = self.mongo_dao.search_crdc_record(data_common, node_type, node_id)
+        crdc_record = self.mongo_dao.search_release(data_common, node_type, node_id)
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
             if not parent_type or parent_type not in node_keys:
@@ -345,7 +345,7 @@ class MetaDataValidator:
         errors = []
         type = prop_def.get(TYPE)
         msg_prefix = f'[{file_name}: line {line_num}]'
-        if not type or not type in VALID_PROP_TYPE_LIST:
+        if not type or not type in valid_prop_types:
             errors.append(create_error("Invalid property definition", f'{msg_prefix} Property "{prop_name}": “{type}” type is not an allowed property type for this model.'))
         else:
             val = None
@@ -405,8 +405,8 @@ class MetaDataValidator:
                 if not isinstance(value, bool) and value not in ["yes", "true", "no", "false"]:
                     errors.append(create_error("Invalid boolean value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid boolean type.'))
             
-            elif type == "array":
-                arr = value.split("*")
+            elif type == "array" or type == "value-list":
+                arr = value.split("*") if "*" in value else value.split(",")
                 for item in arr:
                     result, error = check_permissive(item, permissive_vals, msg_prefix, prop_name)
                     if not result:

@@ -6,7 +6,7 @@ from common.utils import get_uuid_str, current_datetime, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
     MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
-    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID
+    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -92,8 +92,8 @@ class DataLoader:
                         "lineNumber":  index + 2,
                         "nodeType": type,
                         "nodeID": node_id,
-                        "props": {k: v for (k, v) in rawData.items() if k in prop_names},
-                        "parents": self.get_parents(relation_fields, row),
+                        PROPERTIES: {k: v for (k, v) in rawData.items() if k in prop_names},
+                        PARENTS: self.get_parents(relation_fields, row),
                         "rawData":  rawData
                     }
                     if type in file_types:
@@ -242,7 +242,7 @@ class DataLoader:
             if not self.data_common or not node_type or not node_id:
                 return None
             else:
-                result = self.mongo_dao.search_crdc_record(self.data_common, node_type, node_id)
+                result = self.mongo_dao.search_release(self.data_common, node_type, node_id)
                 return None if not result else result[CRDC_ID]
         else:
             return exist_node.get(CRDC_ID)
