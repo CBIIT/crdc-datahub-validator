@@ -103,15 +103,6 @@ TIER_CONFIG = "tier"
 FILE_SIZE = "file_size"
 MIN = 'minimum'
 MAX = 'maximum'
-VALID_PROP_TYPE_LIST = [
-    "string", # default type
-    "integer",
-    "number", # float or double
-    "datetime",
-    "date",
-    "boolean", # true/false or yes/no
-    "array" # value_type: list
-]
 VALIDATION_RESULT = "result"
 VALIDATED_AT = "validatedAt"
 FILE_VALIDATION_STATUS = "fileValidationStatus"
@@ -132,7 +123,8 @@ FAILED = "Failed"
 
 #dataRecords
 CRDC_ID = "CRDC_ID"
-CRDC_COLLECTION = "crdcIDs"
+RELEASE_COLLECTION = "release"
+
 
 
 

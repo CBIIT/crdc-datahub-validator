@@ -47,8 +47,10 @@ valid_prop_types = [
     "datetime",
     "date",
     "boolean", # true/false or yes/no
+    "value-list", # value_type: value type: list
+            # a string with comma ',' characters as deliminator, e.g, "value1,value2,value3", represents a value list value1,value2,value3
     "array" # value_type: list
-            # a string with asterisk '*' characters as deliminator, e.g, "value1 * value2 * value3", represents a array [value1, value2, value3]
+            # a string with asterisk '*' characters as deliminator, e.g, "value1*value2+value3", represents a array [value1, value2, value3]
 ]
 
 valid_relationship_types = ["many_to_one", "one_to_one", "many_to_many"]
@@ -204,7 +206,7 @@ class YamlModelParser:
             return
         
         node = self.nodes[name]
-        node[RELATIONSHIPS.lower()]={dest: {"dest_node": dest, TYPE: multiplier, RELATION_LABEL: relationship}}
+        node[RELATIONSHIPS.lower()].update({dest: {"dest_node": dest, TYPE: multiplier, RELATION_LABEL: relationship}})
 
     def is_required_prop(self, name):
         if name in self.schema[PROP_DEFINITIONS]:
@@ -251,7 +253,7 @@ class YamlModelParser:
                     result[TYPE] = prop_desc.lower()
                 elif isinstance(prop_desc, dict):
                     if VALUE_TYPE in prop_desc:
-                        result[TYPE] = prop_desc[VALUE_TYPE]
+                        result[TYPE] = prop_desc[VALUE_TYPE] if prop_desc[VALUE_TYPE] != "list" else "value-list"
                         if ITEM_TYPE in prop_desc:
                             item_type = self._get_item_type(prop_desc[ITEM_TYPE])
                             result[ITEM_TYPE] = item_type
