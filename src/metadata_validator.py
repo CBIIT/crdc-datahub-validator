@@ -408,7 +408,7 @@ class MetaDataValidator:
             elif type == "array" or type == "value-list":
                 arr = value.split("*") if "*" in value else value.split(",")
                 for item in arr:
-                    value = item.strip()
+                    value = item.strip() if item and isinstance(item, str) else item
                     result, error = check_permissive(value, permissive_vals, msg_prefix, prop_name)
                     if not result:
                         errors.append(error)
