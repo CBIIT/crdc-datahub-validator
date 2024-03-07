@@ -330,7 +330,7 @@ class FileValidator:
                     self.log.error(msg)
                     error = {
                         TYPE: "Data File",
-                        "validationType": "file",
+                        "validationType": "data file",
                         "submittedID": file_name,
                         "batchID": batchID,
                         "displayID": displayID,
