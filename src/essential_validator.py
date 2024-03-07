@@ -291,8 +291,7 @@ class EssentialValidator:
                         self.batch[ERRORS].append(msg)
                         return False
                     line_num += 1
-
-            type = self.df[TYPE][0]
+                    
             file_info[NODE_TYPE] = type
 
         # check if empty row.
