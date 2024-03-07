@@ -173,7 +173,11 @@ class MetaDataValidator:
         # set default return values
         errors = []
         warnings = []
-
+        msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
+        node_keys = self.model.get_node_keys()
+        node_type = data_record.get("nodeType")
+        if not node_type or node_type not in node_keys:
+            return STATUS_ERROR,[create_error("Invalid node type", f'{msg_prefix} Node type “{node_type}” is not defined')], None
         # call validate_required_props
         result_required= self.validate_required_props(data_record)
         # call validate_prop_value
@@ -206,10 +210,6 @@ class MetaDataValidator:
         nodes = self.model.get_nodes()
         node_type = data_record["nodeType"]
         # extract a node from the data record
-        if node_type not in nodes.keys():
-            result[ERRORS].append(create_error("Invalid node", f'{msg_prefix} "{node_type}" is not defined in the model.'))
-            return result
-
         anode_definition = nodes[node_type]
         id_property_key = anode_definition["id_property"]
         id_property_value = data_record[PROPERTIES].get(id_property_key, None)
@@ -277,8 +277,7 @@ class MetaDataValidator:
                 for key, value in node[PROPERTIES].items():
                     parent_node_cache.add(tuple([node.get("nodeType"), key, value]))
         return parent_node_cache
-
-
+    
     def validate_relationship(self, data_record):
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
@@ -292,10 +291,6 @@ class MetaDataValidator:
         node_keys = self.model.get_node_keys()
         node_type = data_record.get("nodeType")
         node_relationships = self.model.get_node_relationships(node_type)
-        if not node_type or node_type not in node_keys:
-            node_type = f'\'{node_type}\'' if node_type else ''
-            result[ERRORS].append(create_error("Invalid relationship", f'{msg_prefix} Related node “{node_type}” is not defined.'))
-
         parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
         data_common, node_type, node_id = data_record.get(DATA_COMMON_NAME), data_record.get(NODE_TYPE), data_record.get(NODE_ID)
         crdc_record = self.mongo_dao.search_release(data_common, node_type, node_id)
