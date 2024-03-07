@@ -326,7 +326,7 @@ class FileValidator:
                     file_batch = self.mongo_dao.find_batch_by_file_name(submission_id, "data file", file_name)
                     batchID = file_batch[ID] if file_batch else "-"
                     displayID = file_batch["displayID"] if file_batch else "-"
-                    msg = f'Extra data file “{file_name}” is found in CRDC datahub storage.'
+                    msg = f'File “{file_name}”: no record found.'
                     self.log.error(msg)
                     error = {
                         TYPE: "Data File",
