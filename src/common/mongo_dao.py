@@ -1,8 +1,8 @@
-from pymongo import MongoClient, errors, ReplaceOne, DeleteOne, TEXT
+from pymongo import MongoClient, errors, ReplaceOne, DeleteOne, TEXT, DESCENDING
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
-    PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, \
+    PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
@@ -28,6 +28,30 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to find batch, {batchId}: {get_exception_msg()}")
+            return None
+        
+    """
+    find batch for uploaded data file
+    """
+    def find_batch_by_file_name(self, submissionID, batch_type, file_name):
+        db = self.client[self.db_name]
+        batch_collection = db[BATCH_COLLECTION]
+        query = {
+            SUBMISSION_ID: submissionID, 
+            TYPE: batch_type, 
+            "files.fileName": file_name,
+            STATUS: "Uploaded"
+        }
+        try:
+            results = list(batch_collection.find(query).sort("displayID", DESCENDING).limit(1))
+            return results[0] if results and len(results) > 0 else None
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to find batch by file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to find batch by file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
             return None
     """
     get submission by id

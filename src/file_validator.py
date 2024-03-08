@@ -7,7 +7,7 @@ from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
-    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT
+    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE
 from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error, get_uuid_str
 from service.ecs_agent import set_scale_in_protection
 
@@ -321,11 +321,24 @@ class FileValidator:
                 if '/log' in file.key:
                     break
                 file_name = file.key.split('/')[-1]
-                
+               
                 if file_name not in manifest_file_names:
+                    file_batch = self.mongo_dao.find_batch_by_file_name(submission_id, "data file", file_name)
+                    batchID = file_batch[ID] if file_batch else "-"
+                    displayID = file_batch["displayID"] if file_batch else "-"
                     msg = f'File “{file_name}”: no record found.'
                     self.log.error(msg)
-                    error = create_error("Extra file found", msg)
+                    error = {
+                        TYPE: "Data File",
+                        "validationType": "data file",
+                        "submittedID": file_name,
+                        "batchID": batchID,
+                        "displayID": displayID,
+                        "severity": "Error",
+                        "uploadedDate": file.last_modified,
+                        "validatedDate": current_datetime(),
+                        "errors": [create_error("Extra file found", msg)]
+                    }
                     errors.append(error)
                     missing_count += 1
 

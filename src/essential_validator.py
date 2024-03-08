@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pandas as pd
+import numpy as np
 import json
 import os
 from botocore.exceptions import ClientError
@@ -272,7 +273,25 @@ class EssentialValidator:
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
                 return False
-            type = self.df[TYPE][0]
+            else:
+                node_types = self.model.get_node_keys()
+                line_num = 2
+                type = self.df[TYPE][0]
+                for node_type in self.df[TYPE]:
+                    if type != node_type:
+                        msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not the same as "{type}".'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                        return False
+                    elif node_type not in node_types:
+                        msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                        return False
+                    line_num += 1
+                    
             file_info[NODE_TYPE] = type
 
         # check if empty row.
