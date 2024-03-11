@@ -222,7 +222,7 @@ class MetaDataValidator:
         id_property_value = data_record[PROPERTIES].get(id_property_key, None)
         # check id property key and value are valid
         if not str(id_property_value).strip():
-            result[ERRORS].append(create_error("Invalid node", f'{msg_prefix} Missing ID property "{id_property_key}".'))
+            result[ERRORS].append(create_error("Missing ID property", f'{msg_prefix} ID property, "{id_property_key}" is empty.'))
 
         for data_key, data_value in data_record[PROPERTIES].items():
             anode_keys = anode_definition.keys()
@@ -237,7 +237,7 @@ class MetaDataValidator:
             # check missing required key and empty value
             if anode_definition["properties"][data_key]["required"]:
                 if data_value is None or not str(data_value).strip():
-                    result[ERRORS].append(create_error("Invalid property", f'{msg_prefix} Missing required property "{data_key}".'))
+                    result[ERRORS].append(create_error("Missing required property", f'{msg_prefix} Required property "{data_key}" is empty.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
