@@ -145,10 +145,10 @@ class MetaDataValidator:
                 status, errors, warnings = self.validate_node(record)
                 # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
-                    record[ERRORS] = record[ERRORS] + errors if record.get(ERRORS) else errors
+                    record[ERRORS] = errors
                     self.isError = True
                 if warnings and len(warnings)> 0: 
-                    record[WARNINGS] = record[WARNINGS] + warnings if record.get(WARNINGS) else warnings
+                    record[WARNINGS] = warnings
                     self.isWarning = True
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
@@ -178,23 +178,30 @@ class MetaDataValidator:
         node_type = data_record.get("nodeType")
         if not node_type or node_type not in node_keys:
             return STATUS_ERROR,[create_error("Invalid node type", f'{msg_prefix} Node type “{node_type}” is not defined')], None
-        # call validate_required_props
-        result_required= self.validate_required_props(data_record)
-        # call validate_prop_value
-        result_prop_value = self.validate_props(data_record)
-        # call validate_relationship
-        result_rel = self.validate_relationship(data_record)
+        try:
+            # call validate_required_props
+            result_required= self.validate_required_props(data_record)
+            # call validate_prop_value
+            result_prop_value = self.validate_props(data_record)
+            # call validate_relationship
+            result_rel = self.validate_relationship(data_record)
 
-        # concatenation of all errors
-        errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
-        # concatenation of all warnings
-        warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
-        # if there are any errors set the result to "Error"
-        if len(errors) > 0:
-            return STATUS_ERROR, errors, warnings
-        # if there are no errors but warnings,  set the result to "Warning"
-        if len(warnings) > 0:
-            return STATUS_WARNING, errors, warnings
+            # concatenation of all errors
+            errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
+            # concatenation of all warnings
+            warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
+            # if there are any errors set the result to "Error"
+            if len(errors) > 0:
+                return STATUS_ERROR, errors, warnings
+            # if there are no errors but warnings,  set the result to "Warning"
+            if len(warnings) > 0:
+                return STATUS_WARNING, errors, warnings
+        except Exception as e:
+            self.log.debug(e)
+            msg = f'Failed to validate dataRecords for the submission, {submission_id} at scope, {scope}!'
+            self.log.exception(msg) 
+            error = create_error("Internal error", "{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            return STATUS_ERROR,[error], None
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors, warnings
     
@@ -214,8 +221,8 @@ class MetaDataValidator:
         id_property_key = anode_definition["id_property"]
         id_property_value = data_record[PROPERTIES].get(id_property_key, None)
         # check id property key and value are valid
-        if not (id_property_key not in data_record[PROPERTIES].keys()) and not (isinstance(id_property_value, str) and id_property_value.strip()):
-            result[ERRORS].append(create_error("Invalid node", f'{msg_prefix} ID property, "{id_property_key}" is empty.'))
+        if not str(id_property_value).strip():
+            result[ERRORS].append(create_error("Missing ID property", f'{msg_prefix} ID property, "{id_property_key}" is empty.'))
 
         for data_key, data_value in data_record[PROPERTIES].items():
             anode_keys = anode_definition.keys()
@@ -229,8 +236,8 @@ class MetaDataValidator:
 
             # check missing required key and empty value
             if anode_definition["properties"][data_key]["required"]:
-                if data_value is None or (isinstance(data_value, str) and not data_value.strip()):
-                    result[ERRORS].append(create_error("Invalid property", f'{msg_prefix} Required property "{data_key}" is empty.'))
+                if data_value is None or not str(data_value).strip():
+                    result[ERRORS].append(create_error("Missing required property", f'{msg_prefix} Required property "{data_key}" is empty.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
@@ -315,7 +322,7 @@ class MetaDataValidator:
             is_parent_id_valid_format = self.model.get_node_props(parent_type)
             is_parent_id_exist = is_parent_id_valid_format and is_parent_id_valid_format.get(parent_id_property)
             if not is_parent_id_valid_format or not is_parent_id_exist:
-                result[ERRORS].append(create_error("Invalid relationship", f'“{parent_id_property} is not a property of “{parent_type}”.'))
+                result[ERRORS].append(create_error("Invalid relationship", f'“{parent_id_property}" is not a property of “{parent_type}”.'))
                 continue
 
             # collect all node_type, node_value, parentIDValue for the parent nodes
@@ -348,10 +355,12 @@ class MetaDataValidator:
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
             if type == "string":
-                val = str(value)
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
-                if not result:
-                    errors.append(error)
+                if not isinstance(value, str):
+                    errors.append(create_error("Invalid string value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid string type.'))
+                else: 
+                    result, error = check_permissive(value, permissive_vals, msg_prefix, prop_name)
+                    if not result:
+                        errors.append(error)
             elif type == "integer":
                 try:
                     val = int(value)
@@ -401,10 +410,11 @@ class MetaDataValidator:
                     errors.append(create_error("Invalid boolean value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid boolean type.'))
             
             elif type == "array" or type == "value-list":
-                arr = value.split("*") if "*" in value else value.split(",")
+                val = str(value)
+                arr = val.split("*") if "*" in val else val.split(",") if "," in val else [value]
                 for item in arr:
-                    value = item.strip() if item and isinstance(item, str) else item
-                    result, error = check_permissive(value, permissive_vals, msg_prefix, prop_name)
+                    val = item.strip() if item and isinstance(item, str) else item
+                    result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
                     if not result:
                         errors.append(error)
             else:

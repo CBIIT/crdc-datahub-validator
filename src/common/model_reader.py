@@ -265,7 +265,7 @@ class YamlModelParser:
                 elif isinstance(prop_desc, list):
                     enum = []
                     for t in prop_desc:
-                        if not re.search(r'://', t):
+                        # if not re.search(r'://', t):
                             enum.append(t)
                     if len(enum) > 0:
                         result[ALLOWED_VALUES] = enum

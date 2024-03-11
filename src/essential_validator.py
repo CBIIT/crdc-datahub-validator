@@ -326,7 +326,7 @@ class EssentialValidator:
         # new requirement to check if id property value is empty
         nan_count = self.df.isnull().sum()[id_field]
         if nan_count > 0: 
-            msg = f'“{file_info[FILE_NAME]}”: “{id_field}” value is required.'
+            msg = f'“{file_info[FILE_NAME]}”:  Key property “{id_field}” value is required.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
