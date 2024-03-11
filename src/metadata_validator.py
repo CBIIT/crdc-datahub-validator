@@ -328,7 +328,7 @@ class MetaDataValidator:
             # collect all node_type, node_value, parentIDValue for the parent nodes
             parent_id_value = parent_node.get("parentIDValue")
             if parent_id_value is None or (isinstance(parent_id_value, str) and not parent_id_value.strip()):
-                result[ERRORS].append(create_error("Invalid relationship", f'Property “{parent_id_property} of related node “{parent_type}” is empty.'))
+                result[ERRORS].append(create_error("Invalid relationship", f'Property “{parent_id_property}" of related node “{parent_type}” is empty.'))
                 continue
 
             if (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
@@ -355,12 +355,10 @@ class MetaDataValidator:
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
             if type == "string":
-                if not isinstance(value, str):
-                    errors.append(create_error("Invalid string value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid string type.'))
-                else: 
-                    result, error = check_permissive(value, permissive_vals, msg_prefix, prop_name)
-                    if not result:
-                        errors.append(error)
+                val = str(value)
+                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
+                if not result:
+                    errors.append(error)
             elif type == "integer":
                 try:
                     val = int(value)
