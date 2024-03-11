@@ -145,10 +145,10 @@ class MetaDataValidator:
                 status, errors, warnings = self.validate_node(record)
                 # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
-                    record[ERRORS] = record[ERRORS] + errors if record.get(ERRORS) else errors
+                    record[ERRORS] = errors
                     self.isError = True
                 if warnings and len(warnings)> 0: 
-                    record[WARNINGS] = record[WARNINGS] + warnings if record.get(WARNINGS) else warnings
+                    record[WARNINGS] = warnings
                     self.isWarning = True
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
@@ -322,7 +322,7 @@ class MetaDataValidator:
             is_parent_id_valid_format = self.model.get_node_props(parent_type)
             is_parent_id_exist = is_parent_id_valid_format and is_parent_id_valid_format.get(parent_id_property)
             if not is_parent_id_valid_format or not is_parent_id_exist:
-                result[ERRORS].append(create_error("Invalid relationship", f'“{parent_id_property} is not a property of “{parent_type}”.'))
+                result[ERRORS].append(create_error("Invalid relationship", f'“{parent_id_property}" is not a property of “{parent_type}”.'))
                 continue
 
             # collect all node_type, node_value, parentIDValue for the parent nodes
@@ -355,10 +355,12 @@ class MetaDataValidator:
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
             if type == "string":
-                val = str(value)
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
-                if not result:
-                    errors.append(error)
+                if not isinstance(value, str):
+                    errors.append(create_error("Invalid string value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid string type.'))
+                else: 
+                    result, error = check_permissive(value, permissive_vals, msg_prefix, prop_name)
+                    if not result:
+                        errors.append(error)
             elif type == "integer":
                 try:
                     val = int(value)
@@ -408,10 +410,11 @@ class MetaDataValidator:
                     errors.append(create_error("Invalid boolean value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid boolean type.'))
             
             elif type == "array" or type == "value-list":
-                arr = str(value).split("*") if "*" in str(value) else str(value).split(",") if "," in str(value) else [value]
+                val = str(value)
+                arr = val.split("*") if "*" in val else val.split(",") if "," in val else [value]
                 for item in arr:
-                    value = item.strip() if item and isinstance(item, str) else item
-                    result, error = check_permissive(value, permissive_vals, msg_prefix, prop_name)
+                    val = item.strip() if item and isinstance(item, str) else item
+                    result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
                     if not result:
                         errors.append(error)
             else:
