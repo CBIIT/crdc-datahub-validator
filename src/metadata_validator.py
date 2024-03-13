@@ -294,13 +294,13 @@ class MetaDataValidator:
         if not node_relationships or len(node_relationships) == 0: 
             result["result"] = STATUS_PASSED
             return result
-        
-        if not data_record.get(PARENTS):
+        data_record_parent_nodes = data_record.get(PARENTS)
+        if not data_record_parent_nodes or len(data_record_parent_nodes) == 0:
             result["result"] = STATUS_WARNING
             result[WARNINGS].append(create_error("Relationship not specified", f'{msg_prefix} No relationships specified.'))
             return result
 
-        data_record_parent_nodes = data_record.get(PARENTS)
+       
         node_keys = self.model.get_node_keys()
         node_relationships = self.model.get_node_relationships(node_type)
         parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
