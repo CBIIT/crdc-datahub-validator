@@ -229,7 +229,7 @@ class EssentialValidator:
             if self.bucket.file_exists_on_s3(key):
                 self.bucket.download_file(key, download_file)
                 if os.path.isfile(download_file):
-                    df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, encoding=UTF8_ENCODE)
+                    df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE)
                     self.df = (df.rename(columns=lambda x: x.strip())).apply(lambda x: x.str.strip() if x.dtype == 'object' else x) # stripe white space.
                     self.download_file_list.append(download_file)
                 return True # if no exception
