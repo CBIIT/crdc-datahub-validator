@@ -289,6 +289,12 @@ class MetaDataValidator:
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
+        node_type = data_record.get("nodeType")
+        node_relationships = self.model.get_node_relationships(node_type)
+        if not node_relationships or len(node_relationships) == 0: 
+            result["result"] = STATUS_PASSED
+            return result
+        
         if not data_record.get(PARENTS):
             result["result"] = STATUS_WARNING
             result[WARNINGS].append(create_error("Relationship not specified", f'{msg_prefix} No relationships specified.'))
@@ -296,7 +302,6 @@ class MetaDataValidator:
 
         data_record_parent_nodes = data_record.get(PARENTS)
         node_keys = self.model.get_node_keys()
-        node_type = data_record.get("nodeType")
         node_relationships = self.model.get_node_relationships(node_type)
         parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
         data_common, node_type, node_id = data_record.get(DATA_COMMON_NAME), data_record.get(NODE_TYPE), data_record.get(NODE_ID)

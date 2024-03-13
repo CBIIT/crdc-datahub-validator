@@ -305,13 +305,23 @@ class EssentialValidator:
         
         # Each row in a metadata file must have same number of columns as the header row
         # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
-        empty_cols = [col for col in self.df.columns.tolist() if not col or "Unnamed:" in col ]
+        columns = self.df.columns.tolist()
+        empty_cols = [col for col in columns if not col or "Unnamed:" in col ]
         if empty_cols and len(empty_cols) > 0:
             msg = f'“{file_info[FILE_NAME]}": some rows have extra columns.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
             return False
+        
+        # check duplicate columns.
+        for col in columns:
+            if ".1" in col and col.replace(".1", "") in columns:
+                msg = f'“{file_info[FILE_NAME]}": multiple columns with the same header ("{col.replace(".1", "")}") is not allowed.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+                return False
         
         # get id data fields for the type, the domain for mvp2/m3 is cds.
         id_field = self.model.get_node_id(type)
