@@ -317,7 +317,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                DeleteOne( { SUBMISSION_ID: m[SUBMISSION_ID], NODE_ID: str(m[NODE_ID]), NODE_TYPE: m[NODE_TYPE] })
+                DeleteOne( { SUBMISSION_ID: m[SUBMISSION_ID], NODE_ID: m[NODE_ID], NODE_TYPE: m[NODE_TYPE] })
                     for m in list(nodes)
                 ])
             self.log.info(f'Total {result.deleted_count} dataRecords are deleted!')
