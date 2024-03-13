@@ -263,8 +263,10 @@ class DataLoader:
     def get_parents(self, relation_fields, row):
         parents = []
         for relation in relation_fields:
-            temp = relation.split('.')
-            parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": row[relation]})
+            val = row[relation]
+            if val:
+                temp = relation.split('.')
+                parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": val})
         return parents
     
     """
