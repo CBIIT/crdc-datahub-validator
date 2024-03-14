@@ -275,24 +275,26 @@ class EssentialValidator:
                 return False
             else:
                 node_types = self.model.get_node_keys()
-                line_num = 2
                 type = self.df[TYPE][0]
-                for node_type in self.df[TYPE]:
-                    if type != node_type:
-                        msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not the same as "{type}".'
-                        self.log.error(msg)
-                        file_info[ERRORS].append(msg)
-                        self.batch[ERRORS].append(msg)
-                        return False
-                    elif node_type not in node_types:
-                        msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.'
-                        self.log.error(msg)
-                        file_info[ERRORS].append(msg)
-                        self.batch[ERRORS].append(msg)
-                        return False
-                    line_num += 1
-                    
-            file_info[NODE_TYPE] = type
+                if type not in node_types:
+                    msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                    return False
+                
+                types = self.df[TYPE].tolist() 
+                unique_types = set(types)
+                if len(types) != len(unique_types): # check if all type values are the same
+                    line_num = 2
+                    for node_type in self.df[TYPE]:
+                        if type != node_type:
+                            msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not the same as "{type}".'
+                            self.log.error(msg)
+                            file_info[ERRORS].append(msg)
+                            self.batch[ERRORS].append(msg)
+                            return False
+                        line_num += 1
 
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
@@ -347,8 +349,8 @@ class EssentialValidator:
             ids = self.df[id_field].tolist() 
             unique_ids = set(ids)
             if len(ids) != len(unique_ids):
-                duplicate_ids = set([id for id in ids if ids.count(id) > 0])
-                msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: “{list(duplicate_ids)}.'
+                duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
+                msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: "{duplicate_ids}".'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
