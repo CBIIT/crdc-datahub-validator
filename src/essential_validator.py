@@ -347,7 +347,8 @@ class EssentialValidator:
             ids = self.df[id_field].tolist() 
             unique_ids = set(ids)
             if len(ids) != len(unique_ids):
-                msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: “{ids}.'
+                duplicate_ids = set([id for id in ids if ids.count(id) > 0])
+                msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: “{list(duplicate_ids)}.'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
