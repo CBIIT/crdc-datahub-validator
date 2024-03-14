@@ -350,14 +350,14 @@ class EssentialValidator:
             unique_ids = set(ids)
             if len(ids) != len(unique_ids):
                 duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
-                msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: "{duplicate_ids}".'
+                msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: {json.dumps(duplicate_ids)}.'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
                 return False  
             # query db.         
             if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
-                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: “{ids}”'
+                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {json.dumps(ids)}'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
