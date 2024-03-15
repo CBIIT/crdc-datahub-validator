@@ -244,7 +244,7 @@ class DataLoader:
             if not self.data_common or not node_type or not node_id:
                 return None
             else:
-                result = self.mongo_dao.search_release(self.data_common, node_type, node_id)
+                result = self.mongo_dao.search_node(self.data_common, node_type, node_id)
                 return None if not result else result[CRDC_ID]
         else:
             return exist_node.get(CRDC_ID)

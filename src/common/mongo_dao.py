@@ -594,17 +594,43 @@ class MongoDao:
             self.log.exception(f"Failed to update release record: {get_exception_msg()}")
             return False
 
-    """
-    search release by data common, node id and node type
-    """
-    def search_release(self, data_commons, node_type, node_id):
+    def search_node(self, data_commons, node_type, node_id):
+        """
+        Search release collection for given node, if not found, search it in dataRecord collection
+        :param data_commons:
+        :param node_type:
+        :param node_id:
+        :return:
+        """
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
         try:
             result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
             if not result:
-                # search dataRecords 
+                # search dataRecords
                 result = self.search_node_by_index_crdc(data_commons, node_type, node_id)
+            return result
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+
+    def search_released_node(self, data_commons, node_type, node_id):
+        """
+        Search release collection for given node
+        :param data_commons:
+        :param node_type:
+        :param node_id:
+        :return:
+        """
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)

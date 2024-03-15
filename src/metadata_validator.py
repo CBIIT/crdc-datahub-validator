@@ -304,8 +304,7 @@ class MetaDataValidator:
         node_keys = self.model.get_node_keys()
         node_relationships = self.model.get_node_relationships(node_type)
         parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
-        data_common, node_type, node_id = data_record.get(DATA_COMMON_NAME), data_record.get(NODE_TYPE), data_record.get(NODE_ID)
-        crdc_record = self.mongo_dao.search_release(data_common, node_type, node_id)
+        data_common = data_record.get(DATA_COMMON_NAME)
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
             if not parent_type or parent_type not in node_keys:
@@ -337,7 +336,8 @@ class MetaDataValidator:
                 continue
 
             if (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
-                if not crdc_record:
+                released_parent = self.mongo_dao.search_released_node(data_common, parent_type, parent_id_value)
+                if not released_parent:
                     result[ERRORS].append(create_error("Related node not found", f'Related node “{parent_type}” [“{parent_id_property}”: “{parent_id_value}"] not found.'))
 
         if len(result[WARNINGS]) > 0:
