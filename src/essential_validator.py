@@ -38,6 +38,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
         return 1
     #step 3: run validator as a service
     scale_in_protection_flag = False
+    #cleanup contents in the s3 download dir
+    cleanup_s3_download_dir(S3_DOWNLOAD_DIR)
     log.info(f'{SERVICE_TYPE_ESSENTIAL} service started')
     while True:
         try:
