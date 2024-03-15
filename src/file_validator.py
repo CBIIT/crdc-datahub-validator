@@ -239,7 +239,7 @@ class FileValidator:
             }
             self.mongo_dao.save_file_md5(md5_info)
 
-        if org_size != size or org_md5 != md5:
+        if int(org_size) != int(size) or org_md5 != md5:
             msg = f'File “{file_name}”: file integrity check failed.'
             self.log.error(msg)
             error = create_error("Data file Integrity check failed", msg)
@@ -300,12 +300,6 @@ class FileValidator:
         try:
             # get manifest info for the submission
             manifest_info_list = self.mongo_dao.get_files_by_submission(submission_id)
-            if not manifest_info_list or  len(manifest_info_list) == 0:
-                msg = f"No file records found for the submission."
-                self.log.error(msg)
-                error = create_error("File records not found", msg)
-                return STATUS_ERROR, [error]
-            
             # 1: check if Extra files, validate if there are files in files folder of the submission that are not specified 
             # in any manifests of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload 
             # the manifest. (error) included in total count.
