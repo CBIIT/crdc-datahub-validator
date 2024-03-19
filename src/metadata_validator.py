@@ -256,12 +256,8 @@ class MetaDataValidator:
         msg_prefix = f'[{file_name}: line {line_num}]'
         for k, v in props.items():
             prop_def = props_def.get(k)
-            if not prop_def: 
-                errors.append(create_error("Property not defined", f'{msg_prefix} The property, {k}, is not defined for the node type, {dataRecord.get(NODE_TYPE)}.'))
+            if not prop_def or v is None: 
                 continue
-            else:
-                if v is None:
-                    continue
             
             errs = self.validate_prop_value(k, v, prop_def, file_name, line_num)
             if len(errs) > 0:
