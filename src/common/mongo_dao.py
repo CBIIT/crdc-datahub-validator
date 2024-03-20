@@ -245,6 +245,8 @@ class MongoDao:
         try:
             if msgs and len(msgs) > 0:
                 submission[FILE_ERRORS] = msgs
+            else: 
+                submission[FILE_ERRORS] = []
             if file_status:
                 submission[FILE_VALIDATION_STATUS] = file_status
             if metadata_status:
