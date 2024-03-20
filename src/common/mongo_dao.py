@@ -244,8 +244,7 @@ class MongoDao:
         file_collection = db[SUBMISSION_COLLECTION]
         try:
             if msgs and len(msgs) > 0:
-                submission[FILE_ERRORS] =  list(submission[FILE_ERRORS]).extend(msgs) if submission.get(FILE_ERRORS) \
-                        and isinstance(submission[FILE_ERRORS], list) else msgs
+                submission[FILE_ERRORS] = msgs
             if file_status:
                 submission[FILE_VALIDATION_STATUS] = file_status
             if metadata_status:
