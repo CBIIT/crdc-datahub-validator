@@ -260,8 +260,18 @@ class EssentialValidator:
         msg = None
         type= None
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
+        # check if empty row.
+        idx = self.df.index[self.df.isnull().all(1)]
+        if not idx.empty: 
+            msg = f'“{file_info[FILE_NAME]}": empty row is not allowed.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False
+        
         # check if missing "type" column
-        if not TYPE in self.df.columns:
+        columns = self.df.columns.tolist()
+        if not TYPE in columns:
             msg = f'“{file_info[FILE_NAME]}”: “type” column is required.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
@@ -298,18 +308,8 @@ class EssentialValidator:
                             return False
                         line_num += 1
 
-        # check if empty row.
-        idx = self.df.index[self.df.isnull().all(1)]
-        if not idx.empty: 
-            msg = f'“{file_info[FILE_NAME]}": empty row is not allowed.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
-            return False
-        
         # Each row in a metadata file must have same number of columns as the header row
         # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
-        columns = self.df.columns.tolist()
         empty_cols = [col for col in columns if not col or "Unnamed:" in col ]
         if empty_cols and len(empty_cols) > 0:
             msg = f'“{file_info[FILE_NAME]}": some rows have extra columns.'
@@ -345,7 +345,15 @@ class EssentialValidator:
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
             return False
-        
+        # check missing required proper 
+        required_props = self.model.get_node_req_props(type)
+        missed_props = [ prop for prop in required_props if prop not in columns]
+        if len(missed_props) > 0:
+            msg = f'“{file_info[FILE_NAME]}”:  properties {json.dumps(missed_props)} are required.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False
         # When metadata intention is "New", all IDs must not exist in the database
         if self.batch[BATCH_INTENTION] == INTENTION_NEW:
             ids = self.df[id_field].tolist() 
