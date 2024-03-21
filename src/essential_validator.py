@@ -308,8 +308,6 @@ class EssentialValidator:
                             return False
                         line_num += 1
 
-       
-        
         # Each row in a metadata file must have same number of columns as the header row
         # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
         empty_cols = [col for col in columns if not col or "Unnamed:" in col ]
