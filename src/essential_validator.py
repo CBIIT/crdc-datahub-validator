@@ -354,6 +354,13 @@ class EssentialValidator:
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
             return False
+        # check relationship
+        result, msg = self.check_relationship(file_info, type, columns)
+        if not result:
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False
         # When metadata intention is "New", all IDs must not exist in the database
         if self.batch[BATCH_INTENTION] == INTENTION_NEW:
             ids = self.df[id_field].tolist() 
@@ -380,28 +387,38 @@ class EssentialValidator:
     """
     validate relationship
     """
-    def check_relationship(self, file_info, type, columns, dataframe):
+    def check_relationship(self, file_info, type, columns):
         def_rel = self.model.get_node_relationships(type)
         rel_props = [rel for rel in columns if "." in rel]
         if not def_rel or len(def_rel.keys()) == 0:
             if len(rel_props) == 0:
                 return True, None
-            else:
-                return False, f'“{file_info[FILE_NAME]}”: Relationships {json.dump(rel_props)} are not defined.'
+            else: # check if invalid relationships
+                return False, f'“{file_info[FILE_NAME]}”: Relationships {json.dumps(rel_props)} are not defined.'
+        
         # check if has relationship
         if len(rel_props) == 0:
             return False, f'“{file_info[FILE_NAME]}”: No relationships specified.'
-        rel_props_dic = {(rel.split(".")[0], rel.split(".")[1]) for rel in columns if "." in rel}
+        def_rel_nodes = [ key for key in def_rel.keys()]
+        rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in columns if "." in rel}
         rel_props_dic_types = rel_props_dic.keys()
+       
+        #  check if missing relationship
+        rel_missed = [node for node in def_rel_nodes if node not in rel_props_dic_types]
+        if len(rel_missed) > 0:
+            return False, f'“{file_info[FILE_NAME]}”: Relationship to parents, {json.dumps(rel_missed)}, are not specified.'
+        
         # check if parent node is valid
         def_node_types = self.model.get_node_keys()
         invalid_types = [node for node in rel_props_dic_types if node not in def_node_types]
         if len(invalid_types) > 0:
-            return False, f'“{file_info[FILE_NAME]}”: Parent nodes, {json.dump(invalid_types)}, are not defined.'
-        def_rel_nodes = [ key for key in def_rel.keys()]
+            return False, f'“{file_info[FILE_NAME]}”: Parent nodes, {json.dumps(invalid_types)}, are not defined.'
+       
+        # check if relationship is valid
         invalid_parents = [node for node in rel_props_dic_types if node not in def_rel_nodes]
         if len(invalid_parents) > 0:
-            return False, f'“{file_info[FILE_NAME]}”: Relationship to parents {json.dump(invalid_parents)} are not defined.'
+            return False, f'“{file_info[FILE_NAME]}”: Relationship to parents, {json.dumps(invalid_parents)} are not defined.'
+        
         # check if parent id prp is valid
         for parent_type in rel_props_dic_types:
             if rel_props_dic[parent_type] != self.model.get_node_id(parent_type):
