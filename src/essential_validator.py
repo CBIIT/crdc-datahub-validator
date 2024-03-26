@@ -394,7 +394,8 @@ class EssentialValidator:
             if len(rel_props) == 0:
                 return True, None
             else: # check if invalid relationships
-                return False, f'“{file_info[FILE_NAME]}”: Relationships {json.dumps(rel_props)} are not defined.'
+                msg = f'Relationships {json.dumps(rel_props)} are not defined.' if len(rel_props) > 1 else f'Relationship {json.dumps(rel_props)} is not defined.'
+                return False, f'“{file_info[FILE_NAME]}”: {msg}'
         
         # check if has relationship
         if len(rel_props) == 0:
@@ -406,18 +407,21 @@ class EssentialValidator:
         #  check if missing relationship
         rel_missed = [node for node in def_rel_nodes if node not in rel_props_dic_types]
         if len(rel_missed) > 0:
-            return False, f'“{file_info[FILE_NAME]}”: Relationship to parents, {json.dumps(rel_missed)}, are not specified.'
+            msg = f'Relationships to parents, {json.dumps(rel_missed)}, are not specified.' if len(rel_missed) > 1 else f'Relationship to parent, {json.dumps(rel_missed)}, is not specified.'
+            return False, f'“{file_info[FILE_NAME]}”: {msg}'
         
         # check if parent node is valid
         def_node_types = self.model.get_node_keys()
         invalid_types = [node for node in rel_props_dic_types if node not in def_node_types]
         if len(invalid_types) > 0:
-            return False, f'“{file_info[FILE_NAME]}”: Parent nodes, {json.dumps(invalid_types)}, are not defined.'
+            msg = f'Parent nodes, {json.dumps(invalid_types)}, are not defined.' if len(invalid_types) > 1 else f'Parent node, {json.dumps(invalid_types)}, is not defined.'
+            return False, f'“{file_info[FILE_NAME]}”: {msg}'
        
         # check if relationship is valid
         invalid_parents = [node for node in rel_props_dic_types if node not in def_rel_nodes]
         if len(invalid_parents) > 0:
-            return False, f'“{file_info[FILE_NAME]}”: Relationship to parents, {json.dumps(invalid_parents)} are not defined.'
+            msg = f'Relationships to parents, {json.dumps(invalid_parents)} are not defined.' if len(invalid_parents) > 1 else f'Relationship to parent, {json.dumps(invalid_parents)} is not defined.'
+            return False, f'“{file_info[FILE_NAME]}”: {msg}'
         
         # check if parent id prp is valid
         for parent_type in rel_props_dic_types:
