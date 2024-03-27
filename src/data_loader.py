@@ -95,7 +95,7 @@ class DataLoader:
                         "nodeType": type,
                         "nodeID": node_id,
                         PROPERTIES: {k: v for (k, v) in rawData.items() if k in prop_names},
-                        PARENTS: self.get_parents(relation_fields, row),
+                        PARENTS: self.get_parents(relation_fields, rawData),
                         "rawData":  rawData
                     }
                     if type in file_types:
@@ -260,13 +260,14 @@ class DataLoader:
     get parents based on relationship fields that in format of
     [parent node].parentNodeID
     """
-    def get_parents(self, relation_fields, row):
+    def get_parents(self, relation_fields, rawData):
         parents = []
         for relation in relation_fields:
-            val = row[relation]
+            val = rawData.get(relation)
             if val:
                 temp = relation.split('.')
                 parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": val})
+                rawData.update({relation.replace(".", "|"): val})
         return parents
     
     """
