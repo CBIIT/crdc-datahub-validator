@@ -10,7 +10,7 @@ from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, NODE_TYPE, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, INTENTION_DELETE, NODE_TYPE
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -85,7 +85,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                                     batch[STATUS] = BATCH_STATUS_UPLOADED
                                     submission_meta_status = STATUS_NEW
                                 else:
-                                    batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
+                                    batch[ERRORS] = errors
                                     batch[STATUS] = BATCH_STATUS_FAILED
                                     submission_meta_status = BATCH_STATUS_FAILED
                             else:
@@ -95,15 +95,14 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         except Exception as e:  # catch any unhandled errors
                             error = f'{batch[SUBMISSION_ID]}: Failed to upload metadata for the batch, {batch[ID]}, {get_exception_msg()}!'
                             log.error(error)
-                            errors.append('Batch loading failed - internal error.  Please try again and contact the helpdesk if this error persists.')
-                            batch[ERRORS] = batch[ERRORS] + errors if batch[ERRORS] else errors
+                            batch[ERRORS] =  ['Batch loading failed - internal error.  Please try again and contact the helpdesk if this error persists.']
                             batch[STATUS] = BATCH_STATUS_FAILED
                             submission_meta_status = STATUS_ERROR
                         finally:
                             #5. update submission's metadataValidationStatus
                             mongo_dao.update_batch(batch)
                             if validator.submission and submission_meta_status == STATUS_NEW:
-                                mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None)
+                                mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, batch[BATCH_INTENTION] == INTENTION_DELETE )
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -167,7 +166,7 @@ class EssentialValidator:
                 #2. validate meatadata in self.df
                 if not self.validate_data(file_info):
                     file_info[STATUS] = STATUS_ERROR
-                    return False
+            return True if len(self.batch[ERRORS]) == 0 else False
         except Exception as e:
             self.log.debug(e)
             msg = f'Failed to validate the batch files, {get_exception_msg()}!'
@@ -178,7 +177,7 @@ class EssentialValidator:
     
     def validate_batch(self, batch):
         msg = None
-        batch[ERRORS] = [] if not batch.get(ERRORS) else batch[ERRORS] 
+        batch[ERRORS] = []
         #This service only processes metadata batches, if a file batch is passed, it should be ignored (output an error message in the log).
         if batch.get(TYPE) != BATCH_TYPE_METADATA:
             msg = f'Invalid batch type, only metadata allowed, {batch[ID]}!'
@@ -260,6 +259,7 @@ class EssentialValidator:
         msg = None
         type= None
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
+
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
@@ -267,10 +267,26 @@ class EssentialValidator:
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
-            return False
+
+        # Each row in a metadata file must have same number of columns as the header row
+        # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
+        columns = self.df.columns.tolist()
+        empty_cols = [col for col in columns if not col or "Unnamed:" in col ]
+        if empty_cols and len(empty_cols) > 0:
+            msg = f'“{file_info[FILE_NAME]}": some rows have extra columns.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+
+        # check duplicate columns.
+        for col in columns:
+            if ".1" in col and col.replace(".1", "") in columns:
+                msg = f'“{file_info[FILE_NAME]}": multiple columns with the same header ("{col.replace(".1", "")}") is not allowed.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
         
         # check if missing "type" column
-        columns = self.df.columns.tolist()
         if not TYPE in columns:
             msg = f'“{file_info[FILE_NAME]}”: “type” column is required.'
             self.log.error(msg)
@@ -288,6 +304,7 @@ class EssentialValidator:
             else:
                 node_types = self.model.get_node_keys()
                 type = self.df[TYPE][0]
+                file_info[NODE_TYPE] = type
                 if type not in node_types:
                     msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.'
                     self.log.error(msg)
@@ -308,30 +325,27 @@ class EssentialValidator:
                             return False
                         line_num += 1
 
-        # Each row in a metadata file must have same number of columns as the header row
-        # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
-        empty_cols = [col for col in columns if not col or "Unnamed:" in col ]
-        if empty_cols and len(empty_cols) > 0:
-            msg = f'“{file_info[FILE_NAME]}": some rows have extra columns.'
+        # check missing required proper 
+        required_props = self.model.get_node_req_props(type)
+        missed_props = [ prop for prop in required_props if prop not in columns]
+        if len(missed_props) > 0:
+            msg = f'“{file_info[FILE_NAME]}”: '
+            msg += f'Properties {json.dumps(missed_props)} are required.' if len(missed_props) > 1 else f'Property "{missed_props[0]}" is required.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
-            return False
-        
-        # check duplicate columns.
-        for col in columns:
-            if ".1" in col and col.replace(".1", "") in columns:
-                msg = f'“{file_info[FILE_NAME]}": multiple columns with the same header ("{col.replace(".1", "")}") is not allowed.'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False
-        
+
+        # check relationship
+        result, msg = self.check_relationship(file_info, type, columns)
+        if not result:
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+
         # get id data fields for the type, the domain for mvp2/m3 is cds.
         id_field = self.model.get_node_id(type)
-        if not id_field: return True
         # extract ids from df.
-        if not id_field in self.df: 
+        if id_field and not id_field in self.df: 
             msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
@@ -345,15 +359,7 @@ class EssentialValidator:
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
             return False
-        # check missing required proper 
-        required_props = self.model.get_node_req_props(type)
-        missed_props = [ prop for prop in required_props if prop not in columns]
-        if len(missed_props) > 0:
-            msg = f'“{file_info[FILE_NAME]}”:  properties {json.dumps(missed_props)} are required.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
-            return False
+       
         # When metadata intention is "New", all IDs must not exist in the database
         if self.batch[BATCH_INTENTION] == INTENTION_NEW:
             ids = self.df[id_field].tolist() 
@@ -372,10 +378,53 @@ class EssentialValidator:
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
                 return False
-
-            return True
         
-        return True
+        return True if len(self.batch[ERRORS]) == 0 else False
+    
+    """
+    validate relationship
+    """
+    def check_relationship(self, file_info, type, columns):
+        def_rel = self.model.get_node_relationships(type)
+        rel_props = [rel for rel in columns if "." in rel]
+        if not def_rel or len(def_rel.keys()) == 0:
+            if len(rel_props) == 0:
+                return True, None
+            else: # check if invalid relationships
+                msg = f'Relationships {json.dumps(rel_props)} are not defined.' if len(rel_props) > 1 else f'Relationship "{rel_props[0]}" is not defined.'
+                return False, f'“{file_info[FILE_NAME]}”: {msg}'
+        
+        # check if has relationship
+        if len(rel_props) == 0:
+            return False, f'“{file_info[FILE_NAME]}”: No relationships specified.'
+        def_rel_nodes = [ key for key in def_rel.keys()]
+        rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in columns if "." in rel}
+        rel_props_dic_types = rel_props_dic.keys()
+       
+        #  check if missing relationship
+        rel_missed = [node for node in def_rel_nodes if node not in rel_props_dic_types]
+        if len(rel_missed) > 0:
+            msg = f'Relationships to parents, {json.dumps(rel_missed)}, are not specified.' if len(rel_missed) > 1 else f'Relationship to parent, "{rel_missed[0]}", is not specified.'
+            return False, f'“{file_info[FILE_NAME]}”: {msg}'
+        
+        # check if parent node is valid
+        def_node_types = self.model.get_node_keys()
+        invalid_types = [node for node in rel_props_dic_types if node not in def_node_types]
+        if len(invalid_types) > 0:
+            msg = f'Parent nodes, {json.dumps(invalid_types)}, are not defined.' if len(invalid_types) > 1 else f'Parent node, "{invalid_types[0]}", is not defined.'
+            return False, f'“{file_info[FILE_NAME]}”: {msg}'
+       
+        # check if relationship is valid
+        invalid_parents = [node for node in rel_props_dic_types if node not in def_rel_nodes]
+        if len(invalid_parents) > 0:
+            msg = f'Relationships to parents, {json.dumps(invalid_parents)} are not defined.' if len(invalid_parents) > 1 else f'Relationship to parent, "{invalid_parents[0]}" is not defined.'
+            return False, f'“{file_info[FILE_NAME]}”: {msg}'
+        
+        # check if parent id prp is valid
+        for parent_type in rel_props_dic_types:
+            if rel_props_dic[parent_type] != self.model.get_node_id(parent_type):
+                return False, f'“{file_info[FILE_NAME]}”: "{rel_props_dic[parent_type]}" is not a property of "{parent_type}".'
+        return True, None
     
     def close(self):
         if self.bucket:
