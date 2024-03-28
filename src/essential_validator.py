@@ -403,7 +403,7 @@ class EssentialValidator:
        
         #  check if missing relationship
         rel_missed = [node for node in def_rel_nodes if node not in rel_props_dic_types]
-        if len(rel_missed) > 0:
+        if len(rel_props_dic_types) == 0:
             msg = f'Relationships to parents, {json.dumps(rel_missed)}, are not specified.' if len(rel_missed) > 1 else f'Relationship to parent, "{rel_missed[0]}", is not specified.'
             return False, f'“{file_info[FILE_NAME]}”: {msg}'
         
