@@ -7,8 +7,8 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, \
-    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, SUBMISSION_INTENTION, \
+    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, INTENTION_NEW, INTENTION_DELETE
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -175,7 +175,7 @@ class MetaDataValidator:
         warnings = []
         msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
         node_keys = self.model.get_node_keys()
-        node_type = data_record.get("nodeType")
+        node_type = data_record.get(NODE_TYPE)
         if not node_type or node_type not in node_keys:
             return STATUS_ERROR,[create_error("Invalid node type", f'{msg_prefix} Node type “{node_type}” is not defined')], None
         try:
@@ -190,6 +190,16 @@ class MetaDataValidator:
             errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
             # concatenation of all warnings
             warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
+
+            # submission-level validation
+            sub_intention = self.submission.get(SUBMISSION_INTENTION)
+            if sub_intention:
+                if sub_intention == INTENTION_NEW:
+                    exist_release = self.mongo_dao.search_released_node(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID])
+                    if exist_release and len(exist_release) > 0:
+                        errors.append(create_error("Identical data found", f'{msg_prefix} Identical data for “{node_type}”  (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
+                # elif sub_intention == INTENTION_DELETE:
+                    # to do
             # if there are any errors set the result to "Error"
             if len(errors) > 0:
                 return STATUS_ERROR, errors, warnings

@@ -125,6 +125,9 @@ FAILED = "Failed"
 CRDC_ID = "CRDC_ID"
 RELEASE_COLLECTION = "release"
 
+#submission level validation
+SUBMISSION_INTENTION ="intention"
+
 
 
 
