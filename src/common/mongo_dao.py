@@ -641,23 +641,7 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
-    """
-    count documents in a given collection and conditions 
-    """  
-    def count_docs(self, collection, query):
-        db = self.client[self.db_name]
-        data_collection = db[collection]
-        try:
-            return data_collection.count_documents(query)
-        except errors.PyMongoError as pe:
-            self.log.debug(pe)
-            self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
-            return False
-        except Exception as e:
-            self.log.debug(e)
-            self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
-            return False
-    
+   
     def search_released_node_with_status(self, data_commons, node_type, node_id, status):
         """
         Search release collection for given node with status
@@ -677,6 +661,23 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+        
+    """
+    count documents in a given collection and conditions 
+    """  
+    def count_docs(self, collection, query):
+        db = self.client[self.db_name]
+        data_collection = db[collection]
+        try:
+            return data_collection.count_documents(query)
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
             return False
         
 """
