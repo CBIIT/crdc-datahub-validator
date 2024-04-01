@@ -258,7 +258,7 @@ class ExportMetadata:
             for r in data_records:
                 node_id = r.get(NODE_ID)
                 crdc_id = r.get(CRDC_ID)
-                self.save_release(r, node_type, node_id, crdc_id)
+                self.save_release(r, node_type, node_id, crdc_id, )
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
@@ -302,12 +302,21 @@ class ExportMetadata:
             if self.intention == INTENTION_DELETE:
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
                 # process released children and set release status to "Deleted"
-                # to do
-                
+                # to do find released children
+
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
+    
+    def delete_release_children(self, released_children):
+        if released_children and len(released_children) > 0:
+            for child in released_children:
+                child[UPDATED_AT] = current_datetime()
+                child[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
+                # to do find released children
 
+        return
+        
     def get_submission_info(self):
         return [self.submission.get(ID), self.submission.get(EXPORT_ROOT_PATH), self.submission.get(BATCH_BUCKET)]
     
