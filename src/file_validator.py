@@ -7,7 +7,7 @@ from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
-    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE
+    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE, SUBMISSION_INTENTION, INTENTION_DELETE
 from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error, get_uuid_str
 from service.ecs_agent import set_scale_in_protection
 
@@ -127,6 +127,9 @@ class FileValidator:
             #check if the file record is valid
             if not self.validate_fileRecord(fileRecord):
                 return STATUS_ERROR
+            #escape file validation if submission intention is Delete
+            if self.submission.get(SUBMISSION_INTENTION) == INTENTION_DELETE:
+                return STATUS_PASSED
             # validate individual file
             status, error = self.validate_file(fileRecord)
             self.set_status(fileRecord, status, error)

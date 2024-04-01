@@ -128,6 +128,12 @@ RELEASE_COLLECTION = "release"
 #submission level validation
 SUBMISSION_INTENTION ="intention"
 
+#Submission release status
+SUBMISSION_REL_STATUS = "status"
+SUBMISSION_REL_STATUS_RELEASED = "Released"
+SUBMISSION_REL_STATUS_DELETED= "Deleted"
+
+
 
 
 

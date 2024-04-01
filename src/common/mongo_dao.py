@@ -3,7 +3,7 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, SUBMISSION_REL_STATUS
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -633,6 +633,27 @@ class MongoDao:
         try:
             result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
             return result
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+    
+    def search_released_node_with_status(self, data_commons, node_type, node_id, status):
+        """
+        Search release collection for given node with status
+        :param data_commons:
+        :param node_type:
+        :param node_id:
+        :return:
+        """
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            return list(data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_REL_STATUS: {"$in": status}}))
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
