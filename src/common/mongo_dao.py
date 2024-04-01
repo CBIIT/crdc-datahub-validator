@@ -3,7 +3,8 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, SUBMISSION_REL_STATUS
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP, \
+    SUBMISSION_REL_STATUS
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -78,7 +79,7 @@ class MongoDao:
         data_collection = db[DATA_COLlECTION]
         node_set, query = set(), []
         for node in nodes:
-            node_type, node_key, node_value = node.get("type"), node.get("key"), node.get("value")
+            node_type, node_key, node_value = node.get(TYPE), node.get(KEY), node.get(VALUE_PROP)
             if node_type and node_key and node_value is not None \
                     and (node_type, node_key, node_value) not in node_set:
                 node_set.add(tuple([node_type, node_key, node_value]))
@@ -653,7 +654,8 @@ class MongoDao:
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
         try:
-            return list(data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_REL_STATUS: {"$in": status}}))
+            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_REL_STATUS: {"$in": status}})
+            return list(result) if result else None
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")

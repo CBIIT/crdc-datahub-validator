@@ -62,6 +62,7 @@ class DataModel:
     get file name property
     """
     def get_file_name(self):
-        file_nodes =  self.model.get("file-nodes", {})
-        return file_nodes.values()[0]["name-field"] if len(file_nodes.values()) > 0 else None
+        file_nodes_dict =  self.model.get("file-nodes", {})
+        file_nodes_vals = list(file_nodes_dict.values())
+        return file_nodes_vals[0]["name-field"] if len(file_nodes_vals) > 0 else None
     

@@ -185,9 +185,9 @@ class MetaDataValidator:
             # call validate_required_props
             result_required= self.validate_required_props(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else self.validate_file_name(data_record, def_file_nodes, node_type, msg_prefix)
             # call validate_prop_value
-            result_prop_value = self.validate_props(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else []
+            result_prop_value = self.validate_props(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else {}
             # call validate_relationship
-            result_rel = self.validate_relationship(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else []
+            result_rel = self.validate_relationship(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else {}
 
             # concatenation of all errors
             errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
@@ -195,12 +195,12 @@ class MetaDataValidator:
             warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
             if sub_intention:
                 if sub_intention == INTENTION_NEW:
-                    exist_release = self.mongo_dao.search_released_node(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID])
+                    exist_release = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
                     if exist_release and len(exist_release) > 0:
                         errors.append(create_error("Identical data found", f'{msg_prefix} Identical data for “{node_type}”  (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
                 elif sub_intention == INTENTION_DELETE:
-                    results = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
-                    if len(results) == 0 :
+                    exist_release = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
+                    if not exist_release or len(exist_release) == 0:
                         errors.append(create_error("Data not found", f'{msg_prefix} No data for “{node_type}”  (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
             # if there are any errors set the result to "Error"
             if len(errors) > 0:
