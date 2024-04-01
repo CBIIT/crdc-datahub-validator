@@ -301,8 +301,16 @@ class FileValidator:
         key = os.path.join(os.path.join(self.rootPath, f"file/"))
 
         try:
+            if not self.submission:
+                 submission = self.mongo_dao.get_submission(submission_id)
+            if not submission:
+                msg = f'Invalid submission object, no related submission object found, {submission_id}!'
+                self.log.error(msg)
+                return False
+            self.submission = submission
+            submission_intention = submission.get(SUBMISSION_INTENTION)
             # get manifest info for the submission
-            manifest_info_list = self.mongo_dao.get_files_by_submission(submission_id)
+            manifest_info_list = self.mongo_dao.get_files_by_submission(submission_id) if submission_intention != INTENTION_DELETE else []
             # 1: check if Extra files, validate if there are files in files folder of the submission that are not specified 
             # in any manifests of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload 
             # the manifest. (error) included in total count.

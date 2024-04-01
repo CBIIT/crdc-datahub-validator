@@ -120,6 +120,7 @@ TYPE_METADATA_VALIDATE = "Validate Metadata"
 TYPE_FILE_VALIDATE = "Validate Single File"
 TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
 TYPE_EXPORT_METADATA = "Export Metadata"
+TYPE_COMPLETE_SUB = "Complete Submission"
 FAILED = "Failed"
 
 #dataRecords

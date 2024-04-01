@@ -6,7 +6,8 @@ from bento.common.utils import get_logger
 from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
     RELEASE, ARCHIVE_RELEASE, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
-    PARENTS, PROPERTIES
+    PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
+    INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
 from common.model_store import ModelFactory
 import threading
@@ -20,8 +21,6 @@ BATCH_SIZE = 1000
 """
 Interface for validate files via SQS
 """
-
-
 def metadata_export(configs, job_queue, mongo_dao):
     export_processed = 0
     export_validator = None
@@ -55,14 +54,18 @@ def metadata_export(configs, job_queue, mongo_dao):
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
-                    if not data.get(SQS_TYPE) == TYPE_EXPORT_METADATA or not data.get(SUBMISSION_ID):
+                    if not data.get(SQS_TYPE) in [TYPE_EXPORT_METADATA, TYPE_COMPLETE_SUB] or not data.get(SUBMISSION_ID):
                         pass
-
+                    
                     extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                     submission_id = data[SUBMISSION_ID]
                     submission = mongo_dao.get_submission(submission_id)
-                    export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store)
-                    export_validator.export_data_to_file()
+                    if data.get(SQS_TYPE) == TYPE_EXPORT_METADATA: 
+                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store)
+                        export_validator.export_data_to_file()
+                    else:
+                        export_validator = ExportMetadata(mongo_dao, submission, None, model_store)
+                        export_validator.save_data_to_releases()
                     export_processed += 1
                     msg.delete()
                 except Exception as e:
@@ -127,7 +130,7 @@ class ExportMetadata:
         self.mongo_dao = mongo_dao
         self.submission = submission
         self.s3_service = s3_service
-
+        self.intention = submission.get(SUBMISSION_INTENTION)
     def close(self):
         self.s3_service.close(self.log)
 
@@ -175,9 +178,7 @@ class ExportMetadata:
                 return
             
             for r in data_records:
-                node_id = r.get(NODE_ID)
                 crdc_id = r.get(CRDC_ID)
-                self.save_release(r, node_type, node_id, crdc_id)
                 row = self.convert_2_row(r, node_type, crdc_id)
                 rows.append(row)
                 if r.get("orginalFileName") != file_name:
@@ -223,6 +224,48 @@ class ExportMetadata:
         full_name = f"{ValidationDirectory.get_release(root_path)}/{id}-{node_type}.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
 
+    def save_data_to_release(self):
+        node_types = self.model.get_node_keys()
+        submission_id = self.submission[ID]
+        datacommon = self.submission.get(DATA_COMMON_NAME)
+        model_version = self.submission.get(MODEL_VERSION)
+        #1 get data model based on datacommon and version
+        self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
+        if not self.model.model or not self.model.get_nodes():
+            msg = f'{submission_id}: {self.datacommon} model version "{model_version}" is not available.'
+            self.log.error(msg)
+            return 
+        
+        threads = []
+        #3 retrieve data for nodeType and save data to release collection
+        for node_type in node_types:
+            thread = threading.Thread(target=self.save_releases, args=(submission_id, node_type))
+            threads.append(thread)
+            thread.start()
+
+        for thread in threads:
+            thread.join()
+
+    def save_releases(self, submission_id, node_type):
+        start_index = 0
+        rows = []
+        while True:
+            # get nodes by submissionID and nodeType
+            data_records = self.mongo_dao.get_dataRecords_chunk_by_nodeType(submission_id, node_type, start_index, BATCH_SIZE)
+            if start_index == 0 and (not data_records or len(data_records) == 0):
+                return
+            
+            for r in data_records:
+                node_id = r.get(NODE_ID)
+                crdc_id = r.get(CRDC_ID)
+                self.save_release(r, node_type, node_id, crdc_id)
+
+            count = len(data_records) 
+            if count < BATCH_SIZE: 
+                return
+
+            start_index += count 
+
     def save_release(self, data_record, node_type, node_id, crdc_id):
         if not node_type or not node_id or not crdc_id:
              self.log.error(f"{self.submission[ID]}: Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
@@ -231,11 +274,15 @@ class ExportMetadata:
         current_date = current_datetime()
         if not existed_crdc_record or existed_crdc_record.get(DATA_COMMON_NAME) != self.submission.get(DATA_COMMON_NAME) \
             or existed_crdc_record.get(NODE_ID) != node_id or existed_crdc_record.get(NODE_TYPE) != node_type:
+            if self.submission.get(SUBMISSION_INTENTION == INTENTION_DELETE):
+                self.log.error(f"{self.submission[ID]}: No data found for delete: {self.submission.get(DATA_COMMON_NAME)}/{node_type}/{node_id}/{crdc_id}!")
+                return
             # create new crdc_record
             crdc_record = {
                 ID: get_uuid_str(),
                 CRDC_ID: crdc_id,
                 SUBMISSION_ID: self.submission[ID],
+                SUBMISSION_REL_STATUS: SUBMISSION_REL_STATUS_RELEASED, 
                 DATA_COMMON_NAME: self.submission.get(DATA_COMMON_NAME),
                 NODE_TYPE: node_type,
                 NODE_ID: node_id,
@@ -249,9 +296,14 @@ class ExportMetadata:
                 self.log.error(f"{self.submission[ID]}: Failed to insert release for {node_type}/{node_id}/{crdc_id}!")
         else: 
             existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
+            existed_crdc_record[UPDATED_AT] = current_date
             existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
             existed_crdc_record[PARENTS] = data_record.get(PARENTS)
-            existed_crdc_record[UPDATED_AT] = current_date
+            if self.intention == INTENTION_DELETE:
+                existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
+                # process released children and set release status to "Deleted"
+                # to do
+                
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
