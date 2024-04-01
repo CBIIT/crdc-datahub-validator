@@ -302,8 +302,8 @@ class ExportMetadata:
             if self.intention == INTENTION_DELETE:
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
                 # process released children and set release status to "Deleted"
-                # to do find released children
-
+                children = self.mongo_dao.get_released_nodes_by_parent(self.submission[ID], existed_crdc_record)
+                self.delete_release_children(children)
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
@@ -314,7 +314,8 @@ class ExportMetadata:
                 child[UPDATED_AT] = current_datetime()
                 child[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
                 # to do find released children
-
+                descendent = self.mongo_dao.get_released_nodes_by_parent(self.submission[ID], child)
+                self.delete_release_children(descendent)
         return
         
     def get_submission_info(self):

@@ -664,6 +664,27 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
+    
+    """
+    find child node by type and id
+    """
+    def get_released_nodes_by_parent(self, parent, submission_id):
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        query = []
+        node_type, node_id = parent.get(NODE_TYPE), parent.get(NODE_ID)
+        query.append({SUBMISSION_ID: submission_id, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
+        try:
+            results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
+            return True, results
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
+            return False, None
         
     """
     count documents in a given collection and conditions 
