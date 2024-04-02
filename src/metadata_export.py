@@ -291,15 +291,18 @@ class ExportMetadata:
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to insert release for {node_type}/{node_id}/{crdc_id}!")
         else: 
-            existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
             existed_crdc_record[UPDATED_AT] = current_date
-            existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
-            existed_crdc_record[PARENTS] = data_record.get(PARENTS)
             if self.intention == INTENTION_DELETE:
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
                 # process released children and set release status to "Deleted"
-                children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[ID], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None])
-                self.delete_release_children(children)
+                result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None])
+                if result and children and len(children) > 0: 
+                    self.delete_release_children(children)
+            else: 
+                existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
+                existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
+                existed_crdc_record[PARENTS] = data_record.get(PARENTS)
+                
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
@@ -310,8 +313,9 @@ class ExportMetadata:
                 child[UPDATED_AT] = current_datetime()
                 child[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
                 # to do find released children
-                descendent = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[ID], child, [SUBMISSION_REL_STATUS_RELEASED, None])
-                self.delete_release_children(descendent)
+                result, descendent = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], child, [SUBMISSION_REL_STATUS_RELEASED, None])
+                if result and descendent and len(descendent) > 0: 
+                    self.delete_release_children(descendent)
         return
         
     def get_submission_info(self):
