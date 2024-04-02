@@ -7,7 +7,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     RELEASE, ARCHIVE_RELEASE, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
-    INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB
+    INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
 from common.model_store import ModelFactory
 import threading
@@ -65,7 +65,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                         export_validator.export_data_to_file()
                     else:
                         export_validator = ExportMetadata(mongo_dao, submission, None, model_store)
-                        export_validator.save_data_to_releases()
+                        export_validator.release_data()
                     export_processed += 1
                     msg.delete()
                 except Exception as e:
@@ -132,7 +132,8 @@ class ExportMetadata:
         self.s3_service = s3_service
         self.intention = submission.get(SUBMISSION_INTENTION)
     def close(self):
-        self.s3_service.close(self.log)
+        if self.s3_service:
+            self.s3_service.close(self.log)
 
     def export_data_to_file(self):
         submission_id, root_path, bucket_name = self.get_submission_info()
@@ -181,9 +182,9 @@ class ExportMetadata:
                 crdc_id = r.get(CRDC_ID)
                 row = self.convert_2_row(r, node_type, crdc_id)
                 rows.append(row)
-                if r.get("orginalFileName") != file_name:
+                if r.get(ORIN_FILE_NAME) != file_name:
                     columns.update(row.keys())
-                    file_name = r.get("orginalFileName") 
+                    file_name = r.get(ORIN_FILE_NAME) 
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
@@ -224,8 +225,7 @@ class ExportMetadata:
         full_name = f"{ValidationDirectory.get_release(root_path)}/{id}-{node_type}.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
 
-    def save_data_to_release(self):
-        node_types = self.model.get_node_keys()
+    def release_data(self):
         submission_id = self.submission[ID]
         datacommon = self.submission.get(DATA_COMMON_NAME)
         model_version = self.submission.get(MODEL_VERSION)
@@ -236,15 +236,11 @@ class ExportMetadata:
             self.log.error(msg)
             return 
         
-        threads = []
-        #3 retrieve data for nodeType and save data to release collection
-        for node_type in node_types:
-            thread = threading.Thread(target=self.save_releases, args=(submission_id, node_type))
-            threads.append(thread)
-            thread.start()
+        node_types = self.model.get_node_keys()
+        #2 retrieve data for nodeType and save data to release collection
+        for node_type in list(node_types)[::-1]:
+            self.save_releases(submission_id, node_type)
 
-        for thread in threads:
-            thread.join()
 
     def save_releases(self, submission_id, node_type):
         start_index = 0
@@ -302,7 +298,7 @@ class ExportMetadata:
             if self.intention == INTENTION_DELETE:
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
                 # process released children and set release status to "Deleted"
-                children = self.mongo_dao.get_released_nodes_by_parent(self.submission[ID], existed_crdc_record)
+                children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[ID], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None])
                 self.delete_release_children(children)
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
@@ -314,7 +310,7 @@ class ExportMetadata:
                 child[UPDATED_AT] = current_datetime()
                 child[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
                 # to do find released children
-                descendent = self.mongo_dao.get_released_nodes_by_parent(self.submission[ID], child)
+                descendent = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[ID], child, [SUBMISSION_REL_STATUS_RELEASED, None])
                 self.delete_release_children(descendent)
         return
         

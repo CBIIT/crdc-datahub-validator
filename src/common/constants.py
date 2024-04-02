@@ -126,6 +126,7 @@ FAILED = "Failed"
 #dataRecords
 CRDC_ID = "CRDC_ID"
 RELEASE_COLLECTION = "release"
+ORIN_FILE_NAME = "orginalFileName"
 
 #submission level validation
 SUBMISSION_INTENTION ="intention"

@@ -668,12 +668,12 @@ class MongoDao:
     """
     find child node by type and id
     """
-    def get_released_nodes_by_parent(self, parent, submission_id):
+    def get_released_nodes_by_parent_with_status(self, parent, submission_id, status):
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
         query = []
         node_type, node_id = parent.get(NODE_TYPE), parent.get(NODE_ID)
-        query.append({SUBMISSION_ID: submission_id, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
+        query.append({SUBMISSION_ID: submission_id, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}, SUBMISSION_REL_STATUS : {"$in": status}})
         try:
             results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
             return True, results
