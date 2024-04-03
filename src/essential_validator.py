@@ -391,12 +391,15 @@ class EssentialValidator:
             if len(rel_props) == 0:
                 return True, None
             else: # check if invalid relationships
-                msg = f'Relationships {json.dumps(rel_props)} are not defined.' if len(rel_props) > 1 else f'Relationship "{rel_props[0]}" is not defined.'
-                return False, [f'“{file_info[FILE_NAME]}”: {msg}']
+                msgs = []
+                for item in rel_props:
+                    msgs.append(f'“{file_info[FILE_NAME]}”: Relationship column "{item}" is invalid, "{type}" node should not have any relationship columns.')
+                return False, msgs
         
         # check if has relationship
         if len(rel_props) == 0:
             return False, [f'“{file_info[FILE_NAME]}”: No relationships specified.']
+        
         def_rel_nodes = [ key for key in def_rel.keys()]
         rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in columns if "." in rel}
         rel_props_dic_types = rel_props_dic.keys()
