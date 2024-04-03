@@ -400,12 +400,6 @@ class EssentialValidator:
         def_rel_nodes = [ key for key in def_rel.keys()]
         rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in columns if "." in rel}
         rel_props_dic_types = rel_props_dic.keys()
-       
-        #  check if missing relationship
-        rel_missed = [node for node in def_rel_nodes if node not in rel_props_dic_types]
-        if len(rel_props_dic_types) == 0:
-            msg = f'Relationships to parents {json.dumps(rel_missed)} are not specified.' if len(rel_missed) > 1 else f'Relationship to parent "{rel_missed[0]}" is not specified.'
-            return False, [f'“{file_info[FILE_NAME]}”: {msg}']
         
         # check if parent node is valid
         def_node_types = self.model.get_node_keys()
