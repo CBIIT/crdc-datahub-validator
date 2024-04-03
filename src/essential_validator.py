@@ -336,11 +336,11 @@ class EssentialValidator:
             self.batch[ERRORS].append(msg)
 
         # check relationship
-        result, msg = self.check_relationship(file_info, type, columns)
+        result, msgs = self.check_relationship(file_info, type, columns)
         if not result:
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
+            self.log.error(msgs)
+            file_info[ERRORS].extend(msgs)
+            self.batch[ERRORS].extend(msgs)
 
         # get id data fields for the type, the domain for mvp2/m3 is cds.
         id_field = self.model.get_node_id(type)
@@ -391,39 +391,40 @@ class EssentialValidator:
             if len(rel_props) == 0:
                 return True, None
             else: # check if invalid relationships
-                msg = f'Relationships {json.dumps(rel_props)} are not defined.' if len(rel_props) > 1 else f'Relationship "{rel_props[0]}" is not defined.'
-                return False, f'“{file_info[FILE_NAME]}”: {msg}'
+                msgs = []
+                for item in rel_props:
+                    msgs.append(f'“{file_info[FILE_NAME]}”: Relationship column "{item}" is invalid, "{type}" node should not have any relationship columns.')
+                return False, msgs
         
         # check if has relationship
         if len(rel_props) == 0:
-            return False, f'“{file_info[FILE_NAME]}”: No relationships specified.'
+            return False, [f'“{file_info[FILE_NAME]}”: No relationships specified.']
+        
         def_rel_nodes = [ key for key in def_rel.keys()]
         rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in columns if "." in rel}
         rel_props_dic_types = rel_props_dic.keys()
-       
-        #  check if missing relationship
-        rel_missed = [node for node in def_rel_nodes if node not in rel_props_dic_types]
-        if len(rel_props_dic_types) == 0:
-            msg = f'Relationships to parents, {json.dumps(rel_missed)}, are not specified.' if len(rel_missed) > 1 else f'Relationship to parent, "{rel_missed[0]}", is not specified.'
-            return False, f'“{file_info[FILE_NAME]}”: {msg}'
         
         # check if parent node is valid
         def_node_types = self.model.get_node_keys()
         invalid_types = [node for node in rel_props_dic_types if node not in def_node_types]
         if len(invalid_types) > 0:
-            msg = f'Parent nodes, {json.dumps(invalid_types)}, are not defined.' if len(invalid_types) > 1 else f'Parent node, "{invalid_types[0]}", is not defined.'
-            return False, f'“{file_info[FILE_NAME]}”: {msg}'
+            msgs = []
+            for item in invalid_types:
+                msgs.append(f'“{file_info[FILE_NAME]}”: Related node "{item}" is not defined.')
+            return False, msgs
        
         # check if relationship is valid
         invalid_parents = [node for node in rel_props_dic_types if node not in def_rel_nodes]
         if len(invalid_parents) > 0:
-            msg = f'Relationships to parents, {json.dumps(invalid_parents)} are not defined.' if len(invalid_parents) > 1 else f'Relationship to parent, "{invalid_parents[0]}" is not defined.'
-            return False, f'“{file_info[FILE_NAME]}”: {msg}'
+            msgs = []
+            for item in invalid_parents:
+                msgs.append(f'“{file_info[FILE_NAME]}”: Relationship to "{item}" node is not defined.')
+            return False, msgs
         
-        # check if parent id prp is valid
+        # check if parent id prop is valid
         for parent_type in rel_props_dic_types:
             if rel_props_dic[parent_type] != self.model.get_node_id(parent_type):
-                return False, f'“{file_info[FILE_NAME]}”: "{rel_props_dic[parent_type]}" is not a property of "{parent_type}".'
+                return False, [f'“{file_info[FILE_NAME]}”: "{rel_props_dic[parent_type]}" is not Key property of "{parent_type}", please use "{self.model.get_node_id(parent_type)}" instead.']
         return True, None
     
     def close(self):
