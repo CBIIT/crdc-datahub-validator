@@ -327,7 +327,7 @@ class EssentialValidator:
                 if len(unique_types) > 1: # check if all type values are the same
                     for node_type in self.df[TYPE]:
                         if type != node_type:
-                            msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.' if type not in node_types else \
+                            msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.' if node_type not in node_types else \
                                 f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not the same as "{type}".'
                             self.log.error(msg)
                             file_info[ERRORS].append(msg)
