@@ -293,7 +293,6 @@ class EssentialValidator:
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
-                return False
         
         # check if missing "type" column
         if not TYPE in columns:
@@ -411,7 +410,7 @@ class EssentialValidator:
             return False, [f'“{file_info[FILE_NAME]}”: No relationships specified.']
         
         def_rel_nodes = [ key for key in def_rel.keys()]
-        rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in columns if "." in rel}
+        rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in columns if "." in rel and rel.split(".")[1] not in ["1", "2", "3"]}
         rel_props_dic_types = rel_props_dic.keys()
         
         # check if parent node is valid
