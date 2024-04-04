@@ -260,6 +260,14 @@ class EssentialValidator:
         type= None
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
 
+        # check if has rows
+        if len(self.df.index) == 0:
+            msg = f'“{file_info[FILE_NAME]}": no metadata in the file.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False
+        
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
@@ -285,6 +293,7 @@ class EssentialValidator:
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
+                return False
         
         # check if missing "type" column
         if not TYPE in columns:
@@ -318,7 +327,8 @@ class EssentialValidator:
                 if len(unique_types) > 1: # check if all type values are the same
                     for node_type in self.df[TYPE]:
                         if type != node_type:
-                            msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.'
+                            msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.' if type not in node_types else \
+                                f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not the same as "{type}".'
                             self.log.error(msg)
                             file_info[ERRORS].append(msg)
                             self.batch[ERRORS].append(msg)
