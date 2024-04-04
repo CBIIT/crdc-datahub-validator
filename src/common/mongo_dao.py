@@ -3,7 +3,7 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -102,7 +102,7 @@ class MongoDao:
         data_collection = db[DATA_COLlECTION]
         query = []
         for node in nodes:
-            node_type, node_key, node_value = node.get("type"), node.get("key"), node.get("value")
+            node_type, node_key, node_value = node.get(TYPE), node.get(KEY), node.get(VALUE_PROP)
             if node_type and node_key and node_value is not None: 
                 query.append({SUBMISSION_ID: submission_id, NODE_TYPE: node_type, NODE_ID: node_value})
         try:
@@ -239,7 +239,7 @@ class MongoDao:
     """
     update errors in submissions collection
     """   
-    def set_submission_validation_status(self, submission, file_status, metadata_status, msgs):
+    def set_submission_validation_status(self, submission, file_status, metadata_status, msgs, is_delete = False):
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
         try:
@@ -250,7 +250,7 @@ class MongoDao:
             if file_status:
                 submission[FILE_VALIDATION_STATUS] = file_status
             if metadata_status:
-                if metadata_status == FAILED:
+                if (is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED:
                     metadata_status = None
                 submission[METADATA_VALIDATION_STATUS] = metadata_status
             submission[UPDATED_AT] = current_datetime()
@@ -640,6 +640,22 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+    """
+    count documents in a given collection and conditions 
+    """  
+    def count_docs(self, collection, query):
+        db = self.client[self.db_name]
+        data_collection = db[collection]
+        try:
+            return data_collection.count_documents(query)
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
             return False
         
 """
