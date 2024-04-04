@@ -241,10 +241,8 @@ class ExportMetadata:
         for node_type in list(node_types)[::-1]:
             self.save_releases(submission_id, node_type)
 
-
     def save_releases(self, submission_id, node_type):
         start_index = 0
-        rows = []
         while True:
             # get nodes by submissionID and nodeType
             data_records = self.mongo_dao.get_dataRecords_chunk_by_nodeType(submission_id, node_type, start_index, BATCH_SIZE)
@@ -258,6 +256,7 @@ class ExportMetadata:
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
+                self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are released.")
                 return
 
             start_index += count 

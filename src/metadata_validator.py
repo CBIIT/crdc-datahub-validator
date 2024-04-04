@@ -144,13 +144,15 @@ class MetaDataValidator:
         try:
             for record in data_records:
                 status, errors, warnings = self.validate_node(record)
-                # todo set record with status, errors and warnings
+                
                 if errors and len(errors) > 0:
-                    record[ERRORS] = errors
                     self.isError = True
                 if warnings and len(warnings)> 0: 
-                    record[WARNINGS] = warnings
                     self.isWarning = True
+                    
+                # set status, errors and warnings
+                record[ERRORS] = errors
+                record[WARNINGS] = warnings
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
@@ -360,7 +362,7 @@ class MetaDataValidator:
                 continue
 
             if (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
-                released_parent = self.mongo_dao.search_released_node(data_common, parent_type, parent_id_value)
+                released_parent = self.mongo_dao.search_released_node_with_status(data_common, parent_type, parent_id_value, [SUBMISSION_REL_STATUS_RELEASED, None])
                 if not released_parent:
                     result[ERRORS].append(create_error("Related node not found", f'Related node “{parent_type}” [“{parent_id_property}”: “{parent_id_value}"] not found.'))
 
