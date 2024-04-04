@@ -120,14 +120,18 @@ TYPE_METADATA_VALIDATE = "Validate Metadata"
 TYPE_FILE_VALIDATE = "Validate Single File"
 TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
 TYPE_EXPORT_METADATA = "Export Metadata"
+TYPE_COMPLETE_SUB = "Complete Submission"
 FAILED = "Failed"
 
 #dataRecords
 CRDC_ID = "CRDC_ID"
 RELEASE_COLLECTION = "release"
+ORIN_FILE_NAME = "orginalFileName"
 
+#submission level validation
+SUBMISSION_INTENTION ="intention"
 
-
-
-
-
+#Submission release status
+SUBMISSION_REL_STATUS = "status"
+SUBMISSION_REL_STATUS_RELEASED = "Released"
+SUBMISSION_REL_STATUS_DELETED= "Deleted"

@@ -10,7 +10,8 @@ from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, INTENTION_DELETE, NODE_TYPE
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, INTENTION_DELETE, NODE_TYPE, \
+    SUBMISSION_INTENTION
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -79,7 +80,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             result = validator.validate(batch)
                             if result and validator.download_file_list and len(validator.download_file_list) > 0:
                                 #3. call mongo_dao to load data
-                                data_loader = DataLoader(validator.model, batch, mongo_dao, validator.bucket, validator.root_path, validator.datacommon)
+                                data_loader = DataLoader(validator.model, batch, mongo_dao, validator.bucket, validator.root_path, validator.datacommon, validator.submission.get(SUBMISSION_INTENTION))
                                 result, errors = data_loader.load_data(validator.download_file_list)
                                 if result:
                                     batch[STATUS] = BATCH_STATUS_UPLOADED
@@ -152,11 +153,15 @@ class EssentialValidator:
         self.download_file_list = None
         self.bucket = None
         self.batch = None
+        self.def_file_nodes = None
+        self.def_file_name = None
 
     def validate(self,batch):
         self.bucket = S3Bucket(batch.get("bucketName"))
         if not self.validate_batch(batch):
             return False
+        self.def_file_nodes = self.model.get_file_nodes()
+        self.def_file_name = self.model.get_file_name()
         try:
             for file_info in self.file_info_list: 
                 #1. download the file in s3 and load tsv file into dataframe
@@ -211,6 +216,7 @@ class EssentialValidator:
             self.submission = submission
             self.datacommon = submission.get(DATA_COMMON_NAME)
             self.submission_id  = submission[ID]
+            self.submission_intention = submission.get(SUBMISSION_INTENTION)
             self.root_path = submission.get(ROOT_PATH)
             self.download_file_list = []
             model_version = submission.get(MODEL_VERSION) 
@@ -325,22 +331,32 @@ class EssentialValidator:
                             return False
                         line_num += 1
 
-        # check missing required proper 
-        required_props = self.model.get_node_req_props(type)
-        missed_props = [ prop for prop in required_props if prop not in columns]
-        if len(missed_props) > 0:
-            msg = f'“{file_info[FILE_NAME]}”: '
-            msg += f'Properties {json.dumps(missed_props)} are required.' if len(missed_props) > 1 else f'Property "{missed_props[0]}" is required.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
+        if self.submission_intention != INTENTION_DELETE: 
+            # check missing required proper 
+            required_props = self.model.get_node_req_props(type)
+            missed_props = [ prop for prop in required_props if prop not in columns]
+            if len(missed_props) > 0:
+                msg = f'“{file_info[FILE_NAME]}”: '
+                msg += f'Properties {json.dumps(missed_props)} are required.' if len(missed_props) > 1 else f'Property "{missed_props[0]}" is required.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
 
-        # check relationship
-        result, msgs = self.check_relationship(file_info, type, columns)
-        if not result:
-            self.log.error(msgs)
-            file_info[ERRORS].extend(msgs)
-            self.batch[ERRORS].extend(msgs)
+            # check relationship
+            result, msg = self.check_relationship(file_info, type, columns)
+            if not result:
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+        else:
+            if type in self.def_file_nodes:
+                # check is file name property is empty
+                if self.def_file_name not in columns:
+                    msg = f'“{file_info[FILE_NAME]}”: '
+                    msg += f'Property "{self.def_file_name}" is required.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
 
         # get id data fields for the type, the domain for mvp2/m3 is cds.
         id_field = self.model.get_node_id(type)

@@ -3,7 +3,8 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP, \
+    SUBMISSION_REL_STATUS
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -78,7 +79,7 @@ class MongoDao:
         data_collection = db[DATA_COLlECTION]
         node_set, query = set(), []
         for node in nodes:
-            node_type, node_key, node_value = node.get("type"), node.get("key"), node.get("value")
+            node_type, node_key, node_value = node.get(TYPE), node.get(KEY), node.get(VALUE_PROP)
             if node_type and node_key and node_value is not None \
                     and (node_type, node_key, node_value) not in node_set:
                 node_set.add(tuple([node_type, node_key, node_value]))
@@ -641,6 +642,50 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
+   
+    def search_released_node_with_status(self, data_commons, node_type, node_id, status):
+        """
+        Search release collection for given node with status
+        :param data_commons:
+        :param node_type:
+        :param node_id:
+        :return:
+        """
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_REL_STATUS: {"$in": status}})
+            return list(result) if result else None
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+    
+    """
+    find child node by type and id
+    """
+    def get_released_nodes_by_parent_with_status(self, datacommon, parent, status):
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        query = []
+        node_type, node_id = parent.get(NODE_TYPE), parent.get(NODE_ID)
+        query.append({DATA_COMMON_NAME: datacommon, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}, SUBMISSION_REL_STATUS : {"$in": status}})
+        try:
+            results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
+            return True, results
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
+            return False, None
+        
     """
     count documents in a given collection and conditions 
     """  

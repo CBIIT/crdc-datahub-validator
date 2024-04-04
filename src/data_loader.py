@@ -7,7 +7,8 @@ from common.utils import get_uuid_str, current_datetime, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
     MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
-    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES
+    FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
+    ORIN_FILE_NAME, SUBMISSION_INTENTION
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -15,7 +16,7 @@ BATCH_IDS = "batchIDs"
 # This script load matadata files to database
 # input: file info list
 class DataLoader:
-    def __init__(self, model, batch, mongo_dao, bucket, root_path, data_common):
+    def __init__(self, model, batch, mongo_dao, bucket, root_path, data_common, submission_intention):
         self.log = get_logger('Matedata loader')
         self.model = model
         self.mongo_dao =mongo_dao
@@ -25,6 +26,7 @@ class DataLoader:
         self.data_common = data_common
         self.file_nodes = self.model.get_file_nodes()
         self.errors = None
+        self.submission_intention = submission_intention
 
     """
     param: file_path_list downloaded from s3 bucket
@@ -33,6 +35,7 @@ class DataLoader:
         returnVal = True
         self.errors = []
         intention = self.batch.get(BATCH_INTENTION)
+        submission_intention = self.submission_intention
         if not intention or not intention.strip() in [INTENTION_UPDATE, INTENTION_DELETE, INTENTION_NEW]:
              self.errors.append(f'Invalid metadata intention, "{intention}".')
              return False, self.errors
@@ -44,7 +47,7 @@ class DataLoader:
         for file in file_path_list:
             records = [] if intention != INTENTION_DELETE else None
             deleted_nodes = [] if intention == INTENTION_DELETE else None
-            deleted_file_nodes = [] if intention == INTENTION_DELETE else None
+            deleted_file_nodes = [] if intention == INTENTION_DELETE and submission_intention != INTENTION_DELETE else None
             failed_at = 1
             file_name = os.path.basename(file)
             # 1. read file to dataframe
@@ -65,7 +68,7 @@ class DataLoader:
                     if intention == INTENTION_DELETE:
                         if exist_node:
                             deleted_nodes.append(exist_node)
-                            if exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
+                            if submission_intention != INTENTION_DELETE and exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
                                 deleted_file_nodes.append(exist_node[S3_FILE_INFO])
                         continue
                     # 2. construct dataRecord
@@ -90,7 +93,7 @@ class DataLoader:
                         WARNINGS: [],
                         CREATED_AT : current_date_time if intention == INTENTION_NEW or not exist_node else exist_node[CREATED_AT], 
                         UPDATED_AT: current_date_time, 
-                        "orginalFileName": file_name,
+                        ORIN_FILE_NAME: file_name,
                         "lineNumber":  index + 2,
                         "nodeType": type,
                         "nodeID": node_id,
@@ -203,7 +206,7 @@ class DataLoader:
     delete files in s3 after deleted file nodes
     """
     def delete_files_in_s3(self, file_s3_infos, file_name):
-        if len(file_s3_infos) == 0:
+        if not file_s3_infos or len(file_s3_infos) == 0:
             return True
         rtn_val = True
         for s3_info in file_s3_infos:
