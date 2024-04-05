@@ -4,7 +4,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP, \
-    SUBMISSION_REL_STATUS
+    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -120,11 +120,12 @@ class MongoDao:
     """
     check node exists by dataCommons, nodeType and nodeID
     """
-    def search_node_by_index_crdc(self, data_commons, node_type, node_id):
+    def search_node_by_index_crdc(self, data_commons, node_type, node_id, excluded_submission_ids):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
-            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
+            
+            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_ID: {"$nin": excluded_submission_ids}}) 
             return result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -606,12 +607,18 @@ class MongoDao:
         """
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
+        rtn_val = None
         try:
-            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
-            if not result:
+            
+            results = list(data_collection.find({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id}))
+            released_nodes = [node for node in results if node.get(SUBMISSION_REL_STATUS) != SUBMISSION_REL_STATUS_DELETED ]
+            if len(released_nodes) == 0:
                 # search dataRecords
-                result = self.search_node_by_index_crdc(data_commons, node_type, node_id)
-            return result
+                deleted_submission_ids = [rel[SUBMISSION_ID] for rel in results if rel.get(SUBMISSION_REL_STATUS) == SUBMISSION_REL_STATUS_DELETED ]
+                rtn_val = self.search_node_by_index_crdc(data_commons, node_type, node_id, deleted_submission_ids)
+            else:
+                rtn_val = released_nodes[0]
+            return rtn_val
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
