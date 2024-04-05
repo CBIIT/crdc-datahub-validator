@@ -396,7 +396,7 @@ class EssentialValidator:
     """
     def check_relationship(self, file_info, type, columns):
         def_rel = self.model.get_node_relationships(type)
-        rel_props = [rel for rel in columns if "." in rel and not re.search('\d',rel)]
+        rel_props = [rel for rel in columns if "." in rel and not re.search('\.\d*$',rel)]
         if not def_rel or len(def_rel.keys()) == 0:
             if len(rel_props) == 0:
                 return True, None
@@ -411,7 +411,7 @@ class EssentialValidator:
             return False, [f'“{file_info[FILE_NAME]}”: No relationships specified.']
         
         def_rel_nodes = [ key for key in def_rel.keys()]
-        rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in columns if "." in rel}
+        rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in rel_props}
         rel_props_dic_types = rel_props_dic.keys()
         
         # check if parent node is valid
