@@ -8,7 +8,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, SUBMISSION_INTENTION, \
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, INTENTION_NEW, INTENTION_DELETE, \
-    SUBMISSION_REL_STATUS_RELEASED, ORIN_FILE_NAME
+    SUBMISSION_REL_STATUS_RELEASED, ORIN_FILE_NAME, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -54,13 +54,15 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     data = json.loads(msg.body)
                     log.debug(data)
                     # Make sure job is in correct format
-                    if data.get(SQS_TYPE) == "Validate Metadata" and data.get(SUBMISSION_ID) and data.get(SCOPE):
+                    if data.get(SQS_TYPE) == TYPE_METADATA_VALIDATE and data.get(SUBMISSION_ID) and data.get(SCOPE):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         scope = data[SCOPE]
                         submission_id = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submission_id, scope)
                         mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
+                    elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and data.get(SUBMISSION_ID):
+                        # to do implement cross submission validation
                     else:
                         log.error(f'Invalid message: {data}!')
 
