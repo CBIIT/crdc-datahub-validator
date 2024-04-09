@@ -327,8 +327,7 @@ class EssentialValidator:
                 if len(unique_types) > 1: # check if all type values are the same
                     for node_type in self.df[TYPE]:
                         if type != node_type:
-                            msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.' if node_type not in node_types else \
-                                f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not the same as "{type}".'
+                            msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is different from "{type}", only one node type is allowed.'
                             self.log.error(msg)
                             file_info[ERRORS].append(msg)
                             self.batch[ERRORS].append(msg)
@@ -353,8 +352,6 @@ class EssentialValidator:
             file_info[ERRORS].extend(msgs)
             self.batch[ERRORS].extend(msgs)
 
-        # get id data fields for the type, the domain for mvp2/m3 is cds.
-        
         # extract ids from df.
         if id_field and not id_field in columns: 
             msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
