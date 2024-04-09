@@ -8,7 +8,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, A
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, SUBMISSION_INTENTION, \
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, INTENTION_NEW, INTENTION_DELETE, \
-    SUBMISSION_REL_STATUS_RELEASED, ORIN_FILE_NAME, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION
+    SUBMISSION_REL_STATUS_RELEASED, ORIN_FILE_NAME, TYPE_METADATA_VALIDATE, STUDY_ABBREVIATION
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -102,8 +102,8 @@ class CrossSubmissionValidator:
             return STATUS_ERROR,[create_error("Invalid node type", f'{msg_prefix} Node type “{node_type}” is not defined')], None
         try:
             # validate cross submission
-            results = self.mongo_dao.find_node_in_other_submission( self.submission[ID], self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID])
-            # if there are any errors set the result to "Error"
+            results = self.mongo_dao.find_node_in_other_submission( self.submission[ID], self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID])
+
             if len(errors) > 0:
                 return STATUS_ERROR, errors
             # if there are no errors but warnings,  set the result to "Warning"

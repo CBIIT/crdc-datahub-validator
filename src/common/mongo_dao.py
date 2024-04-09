@@ -4,7 +4,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP, \
-    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED
+    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -459,7 +459,43 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
-        
+    """
+    find node in other submission with the same study
+    """   
+    def find_node_in_other_submission(self, submission_id, study, data_common, node_type, nodeId):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            other_submission_ids = self.find_submission_ids({STUDY_ABBREVIATION: study, ID: {"$ne": submission_id}})
+            if len(other_submission_ids) == 0:
+                return False
+            results = data_collection.find_one({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type})
+            return True
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
+            return False, None
+    """
+    find submission by query
+    """
+    def find_submission_ids(self, query):
+        db = self.client[self.db_name]
+        data_collection = db[SUBMISSION_COLLECTION]
+        try:
+            ids = list(data_collection.find(query, {ID: 1}))
+            return ids
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to retrieve submission IDs: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve submission IDs:: {get_exception_msg()}")
+            return False, None  
     """
     set dataRecords search index, 'submissionID_nodeType_nodeID'
     """

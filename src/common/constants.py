@@ -124,6 +124,7 @@ TYPE_COMPLETE_SUB = "Complete Submission"
 TYPE_CROSS_SUBMISSION = "Validate Cross-submission"
 FAILED = "Failed"
 ADDITION_ERRORS = "additionalErrors"
+STUDY_ABBREVIATION = "studyAbbreviation"
 
 #dataRecords
 CRDC_ID = "CRDC_ID"
