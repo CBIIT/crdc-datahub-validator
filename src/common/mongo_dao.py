@@ -468,9 +468,9 @@ class MongoDao:
         try:
             other_submission_ids = self.find_submission_ids({STUDY_ABBREVIATION: study, ID: {"$ne": submission_id}})
             if len(other_submission_ids) == 0:
-                return False
-            results = data_collection.find_one({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type})
-            return True
+                return True, None
+            result = data_collection.find_one({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}})
+            return True, result
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")

@@ -16,10 +16,9 @@ from common.model_reader import valid_prop_types
 BATCH_SIZE = 1000
 
 class CrossSubmissionValidator:
-    def __init__(self, mongo_dao, model_store):
+    def __init__(self, mongo_dao):
         self.log = get_logger('Cross Submission Validator')
         self.mongo_dao = mongo_dao
-        self.model_store = model_store
         self.model = None
         self.submission = None
         self.isError = None
@@ -36,15 +35,8 @@ class CrossSubmissionValidator:
             self.log.error(msg)
             return FAILED
         self.submission = submission
-        datacommon = submission.get(DATA_COMMON_NAME)
-        model_version = submission.get(MODEL_VERSION)
-        #2 get data model based on datacommon and version
-        self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
-        if not self.model.model or not self.model.get_nodes():
-            msg = f'{self.datacommon} model version "{model_version}" is not available.'
-            self.log.error(msg)
-            return STATUS_ERROR
-        #3 retrieve data batch by batch
+
+        #2 retrieve data batch by batch
         start_index = 0
         validated_count = 0
         while True:
@@ -58,17 +50,16 @@ class CrossSubmissionValidator:
             validated_count += self.validate_nodes(data_records, submission_id, None)
             if count < BATCH_SIZE: 
                 self.log.info(f"{submission_id}: {validated_count} out of {count + start_index} nodes are validated.")
-                return STATUS_ERROR if self.isError else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
+                return STATUS_ERROR if self.isError else STATUS_PASSED 
             start_index += count  
     
-    def validate_nodes(self, data_records, submission_id, scope):
+    def validate_nodes(self, data_records, submission_id):
         #2. loop through all records and call validateNode
         updated_records = []
         validated_count = 0
         try:
             for record in data_records:
                 status, errors = self.validate_node(record)
-                
                 if errors and len(errors) > 0:
                     self.isError = True
                 # set status, errors and warnings
@@ -79,14 +70,14 @@ class CrossSubmissionValidator:
                 validated_count += 1
         except Exception as e:
             self.log.debug(e)
-            msg = f'Failed to validate dataRecords for the submission, {submission_id} at scope, {scope}!'
+            msg = f'Failed to validate dataRecords for the submission, {submission_id}.!'
             self.log.exception(msg) 
             self.isError = True 
         #3. update data records based on record's _id
         result = self.mongo_dao.update_data_records(updated_records)
         if not result:
             #4. set errors in submission
-            msg = f'Failed to update dataRecords for the submission, {submission_id} at scope, {scope}!'
+            msg = f'Failed to update dataRecords for the submission, {submission_id}.!'
             self.log.error(msg)
             self.isError = True
 
@@ -102,14 +93,13 @@ class CrossSubmissionValidator:
             return STATUS_ERROR,[create_error("Invalid node type", f'{msg_prefix} Node type “{node_type}” is not defined')], None
         try:
             # validate cross submission
-            results = self.mongo_dao.find_node_in_other_submission( self.submission[ID], self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID])
-
-            if len(errors) > 0:
+            result, duplicate_node = self.mongo_dao.find_node_in_other_submission( self.submission[ID], self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID])
+            if result and duplicate_node:
+                errors.append()
                 return STATUS_ERROR, errors
-            # if there are no errors but warnings,  set the result to "Warning"
         except Exception as e:
             self.log.exception(e) 
             error = create_error("Internal error", "{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
-            return STATUS_ERROR,[error], None
+            return STATUS_ERROR,[error]
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors

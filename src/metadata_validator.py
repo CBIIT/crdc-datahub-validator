@@ -13,6 +13,7 @@ from common.utils import current_datetime, get_exception_msg, dump_dict_to_json,
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
+from x_submission_validator import CrossSubmissionValidator
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
@@ -53,19 +54,21 @@ def metadataValidate(configs, job_queue, mongo_dao):
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
+                    extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
+                    submission_id = data.get(SUBMISSION_ID)
                     # Make sure job is in correct format
-                    if data.get(SQS_TYPE) == TYPE_METADATA_VALIDATE and data.get(SUBMISSION_ID) and data.get(SCOPE):
-                        extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
+                    if data.get(SQS_TYPE) == TYPE_METADATA_VALIDATE and submission_id and data.get(SCOPE):
                         scope = data[SCOPE]
-                        submission_id = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submission_id, scope)
                         mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
-                    elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and data.get(SUBMISSION_ID):
-                        # to do implement cross submission validation
+                    elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and submission_id:
+                        validator = CrossSubmissionValidator(mongo_dao)
+                        status = validator.validate(submission_id)
+                        if status == STATUS_ERROR:
+                            mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
-
                     log.info(f'Processed {SERVICE_TYPE_METADATA} validation for the submission: {data[SUBMISSION_ID]}!')
                     batches_processed += 1
                     msg.delete()
