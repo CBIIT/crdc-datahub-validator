@@ -256,7 +256,7 @@ class ExportMetadata:
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
-                self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are released.")
+                self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are {'released' if self.intention != INTENTION_DELETE else 'deleted'}.")
                 return
 
             start_index += count 
