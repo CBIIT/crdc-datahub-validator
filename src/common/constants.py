@@ -133,6 +133,8 @@ ORIN_FILE_NAME = "orginalFileName"
 
 #submission level validation
 SUBMISSION_INTENTION ="intention"
+SUBMISSION_STATUS = "status"
+SUBMISSION_STATUS_SUBMITTED = "Submitted"
 
 #Submission release status
 SUBMISSION_REL_STATUS = "status"

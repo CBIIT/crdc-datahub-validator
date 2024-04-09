@@ -4,7 +4,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP, \
-    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION
+    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -466,10 +466,10 @@ class MongoDao:
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
-            other_submission_ids = self.find_submission_ids({STUDY_ABBREVIATION: study, ID: {"$ne": submission_id}})
+            other_submission_ids = self.find_submission_ids({STUDY_ABBREVIATION: study, SUBMISSION_STATUS: SUBMISSION_STATUS_SUBMITTED, ID: {"$ne": submission_id}})
             if len(other_submission_ids) == 0:
                 return True, None
-            other_submission_ids = [item[ID] for item in other_submission_ids]
+            
             result = data_collection.find_one({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}})
             return True, result
         except errors.PyMongoError as pe:
@@ -488,7 +488,7 @@ class MongoDao:
         data_collection = db[SUBMISSION_COLLECTION]
         try:
             ids = list(data_collection.find(query, {ID: 1}))
-            return ids
+            return [item[ID] for item in ids]
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"Failed to retrieve submission IDs: {get_exception_msg()}")

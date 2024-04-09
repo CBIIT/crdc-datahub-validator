@@ -88,11 +88,9 @@ def metadataValidate(configs, job_queue, mongo_dao):
 
 
 """ Requirement for the ticket crdcdh-343
-For files: read manifest file and validate local files’ sizes and md5s
 For metadata: validate data folder contains TSV or TXT files
 Compose a list of files to be updated and their sizes (metadata or files)
 """
-
 class MetaDataValidator:
     
     def __init__(self, mongo_dao, model_store):
@@ -181,13 +179,10 @@ class MetaDataValidator:
         errors = []
         warnings = []
         msg_prefix = f'[{data_record.get(ORIN_FILE_NAME)}: line {data_record.get("lineNumber")}]'
-        node_keys = self.model.get_node_keys()
         node_type = data_record.get(NODE_TYPE)
         def_file_nodes = self.model.get_file_nodes()
         # submission-level validation
         sub_intention = self.submission.get(SUBMISSION_INTENTION)
-        if not node_type or node_type not in node_keys:
-            return STATUS_ERROR,[create_error("Invalid node type", f'{msg_prefix} Node type “{node_type}” is not defined')], None
         try:
             # call validate_required_props
             result_required= self.validate_required_props(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else self.validate_file_name(data_record, def_file_nodes, node_type, msg_prefix)
