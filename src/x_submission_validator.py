@@ -47,7 +47,7 @@ class CrossSubmissionValidator:
                 return FAILED
             
             count = len(data_records) 
-            validated_count += self.validate_nodes(data_records, submission_id, None)
+            validated_count += self.validate_nodes(data_records, submission_id)
             if count < BATCH_SIZE: 
                 self.log.info(f"{submission_id}: {validated_count} out of {count + start_index} nodes are validated.")
                 return STATUS_ERROR if self.isError else STATUS_PASSED 
@@ -59,7 +59,7 @@ class CrossSubmissionValidator:
         validated_count = 0
         try:
             for record in data_records:
-                status, errors = self.validate_node(record)
+                status, errors = self.validate_node(record, submission_id)
                 if errors and len(errors) > 0:
                     self.isError = True
                 # set status, errors and warnings
@@ -83,17 +83,15 @@ class CrossSubmissionValidator:
 
         return validated_count
     
-    def validate_node(self, data_record):
+    def validate_node(self, data_record, submission_id):
         # set default return values
         errors = []
         msg_prefix = f'[{data_record.get(ORIN_FILE_NAME)}: line {data_record.get("lineNumber")}]'
-        node_keys = self.model.get_node_keys()
         node_type = data_record.get(NODE_TYPE)
-        if not node_type or node_type not in node_keys:
-            return STATUS_ERROR,[create_error("Invalid node type", f'{msg_prefix} Node type “{node_type}” is not defined')], None
+        node_id = data_record.get(NODE_ID)
         try:
             # validate cross submission
-            result, duplicate_node = self.mongo_dao.find_node_in_other_submission( self.submission[ID], self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID])
+            result, duplicate_node = self.mongo_dao.find_node_in_other_submission(submission_id, self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, node_id)
             if result and duplicate_node:
                 errors.append()
                 return STATUS_ERROR, errors
