@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import pandas as pd
 import numpy as np
+import re
 import json
 import os
 from botocore.exceptions import ClientError
@@ -266,6 +267,14 @@ class EssentialValidator:
         type= None
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
 
+        # check if has rows
+        if len(self.df.index) == 0:
+            msg = f'“{file_info[FILE_NAME]}": no metadata in the file.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False
+        
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
@@ -310,9 +319,10 @@ class EssentialValidator:
             else:
                 node_types = self.model.get_node_keys()
                 type = self.df[TYPE][0]
+                line_num = 2
                 file_info[NODE_TYPE] = type
                 if type not in node_types:
-                    msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not defined.'
+                    msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{type}” is not defined.'
                     self.log.error(msg)
                     file_info[ERRORS].append(msg)
                     self.batch[ERRORS].append(msg)
@@ -320,21 +330,20 @@ class EssentialValidator:
                 
                 types = self.df[TYPE].tolist() 
                 unique_types = set(types)
-                if len(types) != len(unique_types): # check if all type values are the same
-                    line_num = 2
+                if len(unique_types) > 1: # check if all type values are the same
                     for node_type in self.df[TYPE]:
                         if type != node_type:
-                            msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is not the same as "{type}".'
+                            msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{node_type}” is different from "{type}", only one node type is allowed.'
                             self.log.error(msg)
                             file_info[ERRORS].append(msg)
                             self.batch[ERRORS].append(msg)
                             return False
                         line_num += 1
-
+        id_field = self.model.get_node_id(type)
         if self.submission_intention != INTENTION_DELETE: 
             # check missing required proper 
             required_props = self.model.get_node_req_props(type)
-            missed_props = [ prop for prop in required_props if prop not in columns]
+            missed_props = [ prop for prop in required_props if prop not in columns and prop != id_field]
             if len(missed_props) > 0:
                 msg = f'“{file_info[FILE_NAME]}”: '
                 msg += f'Properties {json.dumps(missed_props)} are required.' if len(missed_props) > 1 else f'Property "{missed_props[0]}" is required.'
@@ -358,10 +367,8 @@ class EssentialValidator:
                     file_info[ERRORS].append(msg)
                     self.batch[ERRORS].append(msg)
 
-        # get id data fields for the type, the domain for mvp2/m3 is cds.
-        id_field = self.model.get_node_id(type)
         # extract ids from df.
-        if id_field and not id_field in self.df: 
+        if id_field and not id_field in columns: 
             msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
@@ -375,7 +382,6 @@ class EssentialValidator:
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
             return False
-       
         # When metadata intention is "New", all IDs must not exist in the database
         if self.batch[BATCH_INTENTION] == INTENTION_NEW:
             ids = self.df[id_field].tolist() 
@@ -402,7 +408,7 @@ class EssentialValidator:
     """
     def check_relationship(self, file_info, type, columns):
         def_rel = self.model.get_node_relationships(type)
-        rel_props = [rel for rel in columns if "." in rel]
+        rel_props = [rel for rel in columns if "." in rel and not re.search('\.\d*$',rel)]
         if not def_rel or len(def_rel.keys()) == 0:
             if len(rel_props) == 0:
                 return True, None
@@ -417,7 +423,7 @@ class EssentialValidator:
             return False, [f'“{file_info[FILE_NAME]}”: No relationships specified.']
         
         def_rel_nodes = [ key for key in def_rel.keys()]
-        rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in columns if "." in rel}
+        rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in rel_props}
         rel_props_dic_types = rel_props_dic.keys()
         
         # check if parent node is valid
