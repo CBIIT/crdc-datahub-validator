@@ -337,7 +337,8 @@ class EssentialValidator:
 
         # check missing required proper 
         required_props = self.model.get_node_req_props(type)
-        missed_props = [ prop for prop in required_props if prop not in columns]
+        id_field = self.model.get_node_id(type)
+        missed_props = [ prop for prop in required_props if prop not in columns and prop != id_field]
         if len(missed_props) > 0:
             msg = f'“{file_info[FILE_NAME]}”: '
             msg += f'Properties {json.dumps(missed_props)} are required.' if len(missed_props) > 1 else f'Property "{missed_props[0]}" is required.'
@@ -353,9 +354,9 @@ class EssentialValidator:
             self.batch[ERRORS].extend(msgs)
 
         # get id data fields for the type, the domain for mvp2/m3 is cds.
-        id_field = self.model.get_node_id(type)
+        
         # extract ids from df.
-        if id_field and not id_field in self.df: 
+        if id_field and not id_field in columns: 
             msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
