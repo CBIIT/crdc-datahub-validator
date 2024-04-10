@@ -121,8 +121,8 @@ class FileValidator:
 
     def validate(self, fileRecord):
 
-        fileRecord[ERRORS] =  fileRecord[ERRORS] if fileRecord.get(ERRORS) else []
-        fileRecord[WARNINGS] =  fileRecord[WARNINGS] if fileRecord.get(WARNINGS) else []
+        fileRecord[ERRORS] = []
+        fileRecord[WARNINGS] = []
         try: 
             #check if the file record is valid
             if not self.validate_fileRecord(fileRecord):
