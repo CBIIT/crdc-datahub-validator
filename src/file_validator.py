@@ -333,7 +333,15 @@ class FileValidator:
 
             if missing_count > 0 and len(errors) > 0:
                 return STATUS_ERROR, errors
-            else:               
+            else:
+                records =  next((file for file in manifest_file_list if file[S3_FILE_INFO][STATUS] == STATUS_ERROR), None)
+                if records: 
+                    return STATUS_ERROR, None
+                
+                records = next((file for file in manifest_file_list if file[S3_FILE_INFO][STATUS] == STATUS_WARNING), None)
+                if records: 
+                    return STATUS_WARNING, None
+                
                 return STATUS_PASSED, None
    
         except Exception as e:
