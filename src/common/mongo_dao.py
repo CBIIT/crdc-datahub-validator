@@ -470,8 +470,9 @@ class MongoDao:
             if len(other_submission_ids) == 0:
                 return True, None
             
-            result = data_collection.find_one({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}})
-            return True, result
+            duplicate_node = data_collection.find_one({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}})
+            submission = self.get_submission(duplicate_node[SUBMISSION_ID])
+            return True, submission
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")

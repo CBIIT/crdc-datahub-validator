@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
 from common.constants import  ADDITION_ERRORS, STATUS_ERROR, FAILED, STATUS_PASSED, STATUS, UPDATED_AT, DATA_COMMON_NAME, \
-    NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ABBREVIATION
+    NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ABBREVIATION, SUBMISSION_ID, ID
 from common.utils import current_datetime, create_error
 
 BATCH_SIZE = 1000
@@ -82,13 +82,14 @@ class CrossSubmissionValidator:
         node_id = data_record.get(NODE_ID)
         try:
             # validate cross submission
-            result, duplicate_node = self.mongo_dao.find_node_in_other_submission(submission_id, self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, node_id)
-            if result and duplicate_node:
-                errors.append()
+            result, duplicate_submission = self.mongo_dao.find_node_in_other_submission(submission_id, self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, node_id)
+            if result and duplicate_submission:
+                error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in another submission: "{duplicate_submission["name"]}"({duplicate_submission[ID]}).')
+                errors.append(error)
                 return STATUS_ERROR, errors
         except Exception as e:
             self.log.exception(e) 
-            error = create_error("Internal error", "{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("Internal error", f"{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return STATUS_ERROR,[error]
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors
