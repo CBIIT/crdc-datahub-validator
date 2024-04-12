@@ -121,9 +121,6 @@ class FileValidator:
         self.submission = None
 
     def validate(self, fileRecord):
-
-        fileRecord[ERRORS] =  fileRecord[ERRORS] if fileRecord.get(ERRORS) else []
-        fileRecord[WARNINGS] =  fileRecord[WARNINGS] if fileRecord.get(WARNINGS) else []
         try: 
             #check if the file record is valid
             if not self.validate_fileRecord(fileRecord):
@@ -140,8 +137,7 @@ class FileValidator:
             msg = f"{fileRecord.get(SUBMISSION_ID)}: Failed to validate file, {fileRecord.get(ID)}! {get_exception_msg()}!"
             self.log.exception(msg)
             error = create_error("Internal error", "File validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
-            fileRecord[ERRORS].append(error)
-            fileRecord[STATUS] = STATUS_ERROR
+            self.set_status(fileRecord, STATUS_ERROR, error)
             return STATUS_ERROR
         finally:
             if self.bucket:
@@ -154,8 +150,7 @@ class FileValidator:
             msg = f'Invalid file object, no s3 file info, {fileRecord[ID]}!'
             self.log.error(msg)
             error = create_error("Invalid dataRecord", msg)
-            fileRecord[ERRORS].append({error})
-            fileRecord[STATUS] = STATUS_ERROR
+            self.set_status(fileRecord, STATUS_ERROR, error)
             return False
         else:
             if not fileRecord[S3_FILE_INFO].get(FILE_NAME) or not fileRecord[S3_FILE_INFO].get(SIZE) \
@@ -372,13 +367,11 @@ class FileValidator:
         record[S3_FILE_INFO][UPDATED_AT] = current_datetime()
         if status == STATUS_ERROR:
             record[S3_FILE_INFO][STATUS] = STATUS_ERROR
-            record[S3_FILE_INFO][ERRORS] = record[S3_FILE_INFO][ERRORS] + [error] if record[S3_FILE_INFO][ERRORS] \
-                and isinstance(record[S3_FILE_INFO][ERRORS], list) else [error]
+            record[S3_FILE_INFO][ERRORS] = [error]
             
         elif status == STATUS_WARNING: 
             record[S3_FILE_INFO][STATUS] = STATUS_WARNING
-            record[S3_FILE_INFO][WARNINGS] = record[S3_FILE_INFO][WARNINGS] + [error] if record[S3_FILE_INFO][WARNINGS] \
-                and isinstance(record[S3_FILE_INFO][WARNINGS], list) else [error]
+            record[S3_FILE_INFO][WARNINGS] = [error]
             
         else:
             record[S3_FILE_INFO][STATUS] = STATUS_PASSED

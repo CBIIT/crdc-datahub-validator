@@ -339,34 +339,26 @@ class EssentialValidator:
                             self.batch[ERRORS].append(msg)
                             return False
                         line_num += 1
+
+        # check missing required proper 
+        required_props = self.model.get_node_req_props(type)
+        missed_props = [ prop for prop in required_props if prop not in columns]
+        if len(missed_props) > 0:
+            msg = f'“{file_info[FILE_NAME]}”: '
+            msg += f'Properties {json.dumps(missed_props)} are required.' if len(missed_props) > 1 else f'Property "{missed_props[0]}" is required.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+
+        # check relationship
+        result, msgs = self.check_relationship(file_info, type, columns)
+        if not result:
+            self.log.error(msgs)
+            file_info[ERRORS].extend(msgs)
+            self.batch[ERRORS].extend(msgs)
+
+        # get id data fields for the type, the domain for mvp2/m3 is cds.
         id_field = self.model.get_node_id(type)
-        if self.submission_intention != INTENTION_DELETE: 
-            # check missing required proper 
-            required_props = self.model.get_node_req_props(type)
-            missed_props = [ prop for prop in required_props if prop not in columns and prop != id_field]
-            if len(missed_props) > 0:
-                msg = f'“{file_info[FILE_NAME]}”: '
-                msg += f'Properties {json.dumps(missed_props)} are required.' if len(missed_props) > 1 else f'Property "{missed_props[0]}" is required.'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-
-            # check relationship
-            result, msg = self.check_relationship(file_info, type, columns)
-            if not result:
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-        else:
-            if type in self.def_file_nodes:
-                # check is file name property is empty
-                if self.def_file_name not in columns:
-                    msg = f'“{file_info[FILE_NAME]}”: '
-                    msg += f'Property "{self.def_file_name}" is required.'
-                    self.log.error(msg)
-                    file_info[ERRORS].append(msg)
-                    self.batch[ERRORS].append(msg)
-
         # extract ids from df.
         if id_field and not id_field in columns: 
             msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
