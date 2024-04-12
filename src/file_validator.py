@@ -74,7 +74,8 @@ def fileValidate(configs, job_queue, mongo_dao):
                         else:
                             status, msgs = validator.validate_all_files(data[SUBMISSION_ID])
                             #update submission
-                        mongo_dao.set_submission_validation_status(validator.submission, status, None, msgs)
+                        update_result = mongo_dao.set_submission_validation_status(validator.submission, status, None, msgs)
+                        log.info(f"Update submission ({submission_id}) status: {update_result}")
                     else:
                         log.error(f'Invalid message: {data}!')
                     
