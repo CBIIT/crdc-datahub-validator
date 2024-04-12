@@ -240,21 +240,22 @@ class MongoDao:
     update errors in submissions collection
     """   
     def set_submission_validation_status(self, submission, file_status, metadata_status, msgs, is_delete = False):
+        updated_submission = {ID: submission[ID]}
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
         try:
             if msgs and len(msgs) > 0:
-                submission[FILE_ERRORS] = msgs
+                updated_submission[FILE_ERRORS] = msgs
             else: 
-                submission[FILE_ERRORS] = []
+                updated_submission[FILE_ERRORS] = []
             if file_status:
-                submission[FILE_VALIDATION_STATUS] = file_status
+                updated_submission[FILE_VALIDATION_STATUS] = file_status
             if metadata_status:
                 if (is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED:
                     metadata_status = None
-                submission[METADATA_VALIDATION_STATUS] = metadata_status
-            submission[UPDATED_AT] = current_datetime()
-            result = file_collection.replace_one({ID : submission[ID]}, remove_id(submission), False)
+                updated_submission[METADATA_VALIDATION_STATUS] = metadata_status
+            updated_submission[UPDATED_AT] = current_datetime()
+            result = file_collection.update_one({ID : submission[ID]}, {"$set": updated_submission}, False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
