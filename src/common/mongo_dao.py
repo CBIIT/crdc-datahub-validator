@@ -254,7 +254,7 @@ class MongoDao:
                     metadata_status = None
                 submission[METADATA_VALIDATION_STATUS] = metadata_status
             submission[UPDATED_AT] = current_datetime()
-            result = file_collection.replace_one({ID : submission[ID]}, submission, False)
+            result = file_collection.replace_one({ID : submission[ID]}, remove_id(submission), False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
