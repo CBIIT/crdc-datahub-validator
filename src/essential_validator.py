@@ -104,7 +104,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             #5. update submission's metadataValidationStatus
                             mongo_dao.update_batch(batch)
                             if validator.submission and submission_meta_status == STATUS_NEW:
-                                mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, batch[BATCH_INTENTION] == INTENTION_DELETE )
+                                mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, None, batch[BATCH_INTENTION] == INTENTION_DELETE )
                     else:
                         log.error(f'Invalid message: {data}!')
 

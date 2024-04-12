@@ -4,7 +4,8 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP, \
-    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED
+    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
+    CROSS_SUBMISSION_VALIDATION_STATUS
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -241,7 +242,7 @@ class MongoDao:
     """
     update errors in submissions collection
     """   
-    def set_submission_validation_status(self, submission, file_status, metadata_status, msgs, is_delete = False):
+    def set_submission_validation_status(self, submission, file_status, metadata_status, cross_submission_status, msgs, is_delete = False):
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
         try:
@@ -255,6 +256,8 @@ class MongoDao:
                 if (is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED:
                     metadata_status = None
                 submission[METADATA_VALIDATION_STATUS] = metadata_status
+            if cross_submission_status: 
+                submission[CROSS_SUBMISSION_VALIDATION_STATUS] = cross_submission_status
             submission[UPDATED_AT] = current_datetime()
             result = file_collection.replace_one({ID : submission[ID]}, submission, False)
             return result.matched_count > 0 
@@ -466,13 +469,15 @@ class MongoDao:
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
-            other_submission_ids = self.find_submission_ids({STUDY_ABBREVIATION: study, SUBMISSION_STATUS: SUBMISSION_STATUS_SUBMITTED, ID: {"$ne": submission_id}})
-            if len(other_submission_ids) == 0:
-                return True, None
-            
-            duplicate_node = data_collection.find_one({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}})
-            submission = self.get_submission(duplicate_node[SUBMISSION_ID])
-            return True, submission
+            submissions = None
+            other_submissions = self.find_submissions({STUDY_ABBREVIATION: study, SUBMISSION_STATUS: SUBMISSION_STATUS_SUBMITTED, ID: {"$ne": submission_id}})
+            if len(other_submissions) > 0:
+                other_submission_ids = [item[ID] for item in other_submissions]
+                duplicate_nodes = list(data_collection.find({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}}))
+                if len(duplicate_nodes) > 0:
+                    other_submission_ids = [item[SUBMISSION_ID] for item in duplicate_nodes]
+                    submissions = [item for item in other_submissions if item[ID] in other_submission_ids]
+            return True, submissions
         except errors.PyMongoError as pe:
             self.log.debug(pe)
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
@@ -484,19 +489,18 @@ class MongoDao:
     """
     find submission by query
     """
-    def find_submission_ids(self, query):
+    def find_submissions(self, query):
         db = self.client[self.db_name]
         data_collection = db[SUBMISSION_COLLECTION]
         try:
-            ids = list(data_collection.find(query, {ID: 1}))
-            return [item[ID] for item in ids]
+            return list(data_collection.find(query))
         except errors.PyMongoError as pe:
             self.log.debug(pe)
-            self.log.exception(f"Failed to retrieve submission IDs: {get_exception_msg()}")
+            self.log.exception(f"Failed to retrieve submissions: {get_exception_msg()}")
             return False, None
         except Exception as e:
             self.log.debug(e)
-            self.log.exception(f"{submission_id}: Failed to retrieve submission IDs:: {get_exception_msg()}")
+            self.log.exception(f"Failed to retrieve submissions:: {get_exception_msg()}")
             return False, None  
     """
     set dataRecords search index, 'submissionID_nodeType_nodeID'

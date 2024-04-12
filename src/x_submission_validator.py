@@ -82,10 +82,11 @@ class CrossSubmissionValidator:
         node_id = data_record.get(NODE_ID)
         try:
             # validate cross submission
-            result, duplicate_submission = self.mongo_dao.find_node_in_other_submission(submission_id, self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, node_id)
-            if result and duplicate_submission:
-                error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in another submission: "{duplicate_submission["name"]}"({duplicate_submission[ID]}).')
-                errors.append(error)
+            result, duplicate_submissions = self.mongo_dao.find_node_in_other_submission(submission_id, self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, node_id)
+            if result and duplicate_submissions and len(duplicate_submissions):
+                for sub in duplicate_submissions:
+                    error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in another submission: "{sub["name"]}"({sub[ID]}).')
+                    errors.append(error)
                 return STATUS_ERROR, errors
         except Exception as e:
             self.log.exception(e) 

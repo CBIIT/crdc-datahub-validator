@@ -107,6 +107,7 @@ VALIDATION_RESULT = "result"
 VALIDATED_AT = "validatedAt"
 FILE_VALIDATION_STATUS = "fileValidationStatus"
 METADATA_VALIDATION_STATUS = "metadataValidationStatus"
+CROSS_SUBMISSION_VALIDATION_STATUS = "crossSubmissionStatus"
 MODEL_VERSION = "modelVersion"
 KEY = "key"
 #s3 download directory
