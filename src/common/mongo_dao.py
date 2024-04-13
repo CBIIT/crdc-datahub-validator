@@ -239,17 +239,17 @@ class MongoDao:
     """
     update errors in submissions collection
     """   
-    def set_submission_validation_status(self, submission, file_status, metadata_status, msgs, is_delete = False):
+    def set_submission_validation_status(self, submission, file_status, metadata_status, fileErrors, is_delete = False):
         updated_submission = {ID: submission[ID]}
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
         try:
-            if msgs and len(msgs) > 0:
-                updated_submission[FILE_ERRORS] = msgs
-            else: 
-                updated_submission[FILE_ERRORS] = []
             if file_status:
                 updated_submission[FILE_VALIDATION_STATUS] = file_status
+                if fileErrors and len(fileErrors) > 0:
+                    updated_submission[FILE_ERRORS] = fileErrors
+                else:
+                    updated_submission[FILE_ERRORS] = []
             if metadata_status:
                 if (is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED:
                     metadata_status = None
