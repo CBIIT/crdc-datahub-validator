@@ -244,10 +244,8 @@ class MongoDao:
     def update_file_info(self, file_record):
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
-        updated_date = file_record[S3_FILE_INFO][UPDATED_AT]
         try:
-            result = file_collection.update_one({ID : file_record[ID]}, \
-                {"$set": {S3_FILE_INFO: file_record[S3_FILE_INFO], VALIDATED_AT: updated_date}})
+            result = file_collection.update_one({ID : file_record[ID]}, {"$set": {S3_FILE_INFO: file_record[S3_FILE_INFO]}})
             return result.modified_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
