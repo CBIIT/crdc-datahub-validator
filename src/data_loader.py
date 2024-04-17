@@ -77,7 +77,7 @@ class DataLoader:
                     current_date_time = current_datetime()
                     id = self.get_record_id(intention, exist_node)
                     crdc_id = self.get_crdc_id(intention, exist_node, type, node_id)
-                    if not self.is_many_to_many_relationship(records, node_id, rawData, relation_fields):
+                    if index == 0 or not self.has_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
                             ID: id,
                             CRDC_ID: crdc_id if crdc_id else id,
@@ -99,9 +99,9 @@ class DataLoader:
                             PARENTS: self.get_parents(relation_fields, row),
                             "rawData":  rawData
                         }
-                    if type in file_types:
-                        dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
-                    records.append(dataRecord)
+                        if type in file_types:
+                            dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
+                        records.append(dataRecord)
                     failed_at += 1
 
                 # 3-1. insert data in a tsv file into mongo DB
@@ -136,9 +136,9 @@ class DataLoader:
         del file_path_list
         return returnVal, self.errors
     """
-    process many to many relationship
+    check if duplicate node exists and has many to many relationship
     """
-    def is_many_to_many_relationship(self, records, node_id, row, relation_fields):
+    def has_m2m_rel(self, records, node_id, row, relation_fields):
         existed_node = next((record for record in records if record[NODE_ID] == node_id), None)
         if not existed_node:
             return False
