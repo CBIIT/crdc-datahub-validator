@@ -57,7 +57,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                         else:
                             log.info(f'The file record passed validation, {data[FILE_ID]}.')
                         #4. update dataRecords
-                        if not mongo_dao.update_file(fileRecord):
+                        if not mongo_dao.update_file_info(fileRecord):
                             log.error(f'Failed to update file record, {data[FILE_ID]}!')
                         else:
                             log.info(f'The file record is updated,{data[FILE_ID]}.')

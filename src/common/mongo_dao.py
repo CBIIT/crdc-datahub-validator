@@ -1,9 +1,10 @@
-from pymongo import MongoClient, errors, ReplaceOne, DeleteOne, TEXT, DESCENDING
+from pymongo import MongoClient, errors, ReplaceOne, UpdateOne, DeleteOne, TEXT, DESCENDING
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, \
+    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -236,6 +237,24 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
             return False  
+        
+    """
+    update a s3 file info in dataRecords collection
+    """
+    def update_file_info(self, file_record):
+        db = self.client[self.db_name]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            result = file_collection.update_one({ID : file_record[ID]}, {"$set": {S3_FILE_INFO: file_record[S3_FILE_INFO]}})
+            return result.modified_count > 0 
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            return False  
     """
     update errors in submissions collection
     """   
@@ -264,29 +283,8 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to update file, {submission[ID]}: {get_exception_msg()}")
-            return False  
-
-    """
-    update data records based on _id in dataRecords
-    """
-    def update_files(self, file_records):
-        db = self.client[self.db_name]
-        file_collection = db[DATA_COLlECTION]
-        try:
-            result = file_collection.bulk_write([
-                ReplaceOne( { ID: m[ID] },  m,  False)
-                    for m in list(file_records)
-                ])
-            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
-            return result.modified_count > 0 
-        except errors.PyMongoError as pe:
-            self.log.debug(pe)
-            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
             return False
-        except Exception as e:
-            self.log.debug(e)
-            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
-            return False 
+        
     """
     update data records based on node ID in dataRecords
     """
@@ -296,6 +294,31 @@ class MongoDao:
         try:
             result = file_collection.bulk_write([
                 ReplaceOne( {ID: m[ID]}, remove_id(m),  upsert=True)
+                    for m in list(data_records)
+                ])
+            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
+            return True, None
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            msg = f"Failed to update metadata."
+            self.log.exception(msg)
+            return False, msg
+        except Exception as e:
+            self.log.debug(e)
+            msg = f"Failed to update file records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg 
+        
+    """
+    update record's status, errors and warnings based on node ID in dataRecords
+    """
+    def update_data_records_status(self, data_records):
+        db = self.client[self.db_name]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            result = file_collection.bulk_write([
+                UpdateOne( {ID: m[ID]}, 
+                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], ERRORS: m.get(ERRORS, []), WARNINGS: m.get(WARNINGS, [])}})
                     for m in list(data_records)
                 ])
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')
