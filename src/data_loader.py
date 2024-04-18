@@ -77,7 +77,7 @@ class DataLoader:
                     current_date_time = current_datetime()
                     id = self.get_record_id(intention, exist_node)
                     crdc_id = self.get_crdc_id(intention, exist_node, type, node_id)
-                    if index == 0 or not self.has_m2m_rel(records, node_id, rawData, relation_fields):
+                    if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
                             ID: id,
                             CRDC_ID: crdc_id if crdc_id else id,
@@ -136,9 +136,12 @@ class DataLoader:
         del file_path_list
         return returnVal, self.errors
     """
-    check if duplicate node exists and has many to many relationship
+    process_m2m_rel
+     1) check if a node with the same nodeID exists in record list. 
+     2) check if current row has many to many relationship by comparing with parents property of the existing node.
+     3) update the parents property of the existing node in record list.
     """
-    def has_m2m_rel(self, records, node_id, row, relation_fields):
+    def process_m2m_rel(self, records, node_id, row, relation_fields):
         existed_node = next((record for record in records if record[NODE_ID] == node_id), None)
         if not existed_node:
             return False

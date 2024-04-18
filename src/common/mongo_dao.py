@@ -317,7 +317,7 @@ class MongoDao:
         file_collection = db[DATA_COLlECTION]
         try:
             result = file_collection.bulk_write([
-                UpdateOne( {ID: m[ID]}, \
+                UpdateOne( {ID: m[ID]}, 
                     {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], ERRORS: m.get(ERRORS, []), WARNINGS: m.get(WARNINGS, [])}})
                     for m in list(data_records)
                 ])
