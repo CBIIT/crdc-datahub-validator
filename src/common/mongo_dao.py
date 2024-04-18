@@ -4,7 +4,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, \
-    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT
+    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -262,6 +262,7 @@ class MongoDao:
         updated_submission = {ID: submission[ID]}
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
+        overall_metadata_status = None
         try:
             if file_status:
                 updated_submission[FILE_VALIDATION_STATUS] = file_status
@@ -270,9 +271,21 @@ class MongoDao:
                 else:
                     updated_submission[FILE_ERRORS] = []
             if metadata_status:
-                if (is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED:
-                    metadata_status = None
-                updated_submission[METADATA_VALIDATION_STATUS] = metadata_status
+                if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED):
+                    if metadata_status == STATUS_ERROR: 
+                        overall_metadata_status = STATUS_ERROR
+                    else:
+                        error_nodes = self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], STATUS: STATUS_ERROR})
+                        if error_nodes > 0:
+                            overall_metadata_status = STATUS_ERROR
+                        else:
+                            warning_nodes = self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], STATUS: STATUS_WARNING})
+                            if warning_nodes > 0: 
+                                overall_metadata_status = STATUS_WARNING
+                            else:
+                                overall_metadata_status = metadata_status
+
+                updated_submission[METADATA_VALIDATION_STATUS] = overall_metadata_status
             updated_submission[UPDATED_AT] = current_datetime()
             result = file_collection.update_one({ID : submission[ID]}, {"$set": updated_submission}, False)
             return result.matched_count > 0 
