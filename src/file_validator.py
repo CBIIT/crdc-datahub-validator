@@ -314,7 +314,7 @@ class FileValidator:
                 if file_name not in manifest_file_names:
                     file_batch = self.mongo_dao.find_batch_by_file_name(submission_id, "data file", file_name)
                     batchID = file_batch[ID] if file_batch else "-"
-                    displayID = file_batch["displayID"] if file_batch else "-"
+                    displayID = file_batch["displayID"] if file_batch else None
                     msg = f'File “{file_name}”: no record found.'
                     self.log.error(msg)
                     error = {
