@@ -147,9 +147,14 @@ class MetaDataValidator:
                 if errors and len(errors) > 0:
                     record[ERRORS] = errors
                     self.isError = True
+                else:
+                    record[ERRORS] = []
                 if warnings and len(warnings)> 0: 
                     record[WARNINGS] = warnings
                     self.isWarning = True
+                else:
+                    record[WARNINGS] = []
+
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
