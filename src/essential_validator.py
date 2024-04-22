@@ -390,7 +390,7 @@ class EssentialValidator:
             existed_ids = [item[NODE_ID] for item in existed_nodes]  
             # When metadata intention is "New", all IDs must not exist in the database 
             if len(existed_ids) > 0 and self.batch[BATCH_INTENTION] == INTENTION_NEW:
-                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {json.dumps(duplicated_ids)}'
+                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {json.dumps(existed_ids)}'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
