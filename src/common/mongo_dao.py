@@ -210,8 +210,8 @@ class MongoDao:
         try:
             collection = db[DATA_COLlECTION]
             #2 check if keys existing in the collection
-            result = collection.find_one({NODE_ID: {'$in': ids}, SUBMISSION_ID: submission_id, NODE_TYPE: nodeType})
-            return False if result else True
+            result = list(collection.find({NODE_ID: {'$in': ids}, SUBMISSION_ID: submission_id, NODE_TYPE: nodeType}, {ID: 0, NODE_ID: 1}))
+            return result 
         except errors.OperationFailure as oe: 
             self.log.debug(oe)
             self.log.exception(f"{submission_id}: Failed to query DB, {nodeType}: {get_exception_msg()}!")

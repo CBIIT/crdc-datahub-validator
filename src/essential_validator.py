@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
-from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, \
+from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, NODE_ID, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, INTENTION_DELETE, NODE_TYPE
@@ -383,16 +383,27 @@ class EssentialValidator:
             if not result:
                   return False 
                   
-        # When metadata intention is "New", all IDs must not exist in the database
-        if self.batch[BATCH_INTENTION] == INTENTION_NEW:
+        if self.batch[BATCH_INTENTION] in [INTENTION_NEW, INTENTION_DELETE]:
             ids = self.df[id_field].tolist() 
-            # query db.         
-            if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
-                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {json.dumps(ids)}'
+            # query db to find existed nodes in current submission.  
+            existed_nodes = self.mongo_dao.check_metadata_ids(type, ids, self.submission_id)  
+            existed_ids = [item[NODE_ID] for item in existed_nodes]  
+            # When metadata intention is "New", all IDs must not exist in the database 
+            if len(existed_ids) > 0 and self.batch[BATCH_INTENTION] == INTENTION_NEW:
+                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {json.dumps(duplicated_ids)}'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
                 return False
+            # When metadata intention is "Delete", all IDs must exist in the database 
+            elif self.batch[BATCH_INTENTION] == INTENTION_DELETE and len(existed_ids) < len(ids):
+                not_existed_ids = list(set(ids) - set(existed_ids))
+                msg = f'“{file_info[FILE_NAME]}”: metadata not found: “{type}”: {json.dumps(not_existed_ids)}'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+                return False
+
         
         return True if len(self.batch[ERRORS]) == 0 else False
     """
