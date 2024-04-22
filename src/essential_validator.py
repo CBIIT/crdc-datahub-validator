@@ -396,13 +396,14 @@ class EssentialValidator:
                 self.batch[ERRORS].append(msg)
                 return False
             # When metadata intention is "Delete", all IDs must exist in the database 
-            elif self.batch[BATCH_INTENTION] == INTENTION_DELETE and len(existed_ids) < len(ids):
+            elif self.batch[BATCH_INTENTION] == INTENTION_DELETE:
                 not_existed_ids = list(set(ids) - set(existed_ids))
-                msg = f'“{file_info[FILE_NAME]}”: metadata not found: “{type}”: {json.dumps(not_existed_ids)}'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False
+                if not_existed_ids > 0:
+                    msg = f'“{file_info[FILE_NAME]}”: metadata not found: “{type}”: {json.dumps(not_existed_ids)}'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                    return False
 
         
         return True if len(self.batch[ERRORS]) == 0 else False
