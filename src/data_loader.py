@@ -94,7 +94,7 @@ class DataLoader:
                             WARNINGS: [],
                             CREATED_AT : current_date_time if intention == INTENTION_NEW or not exist_node else exist_node[CREATED_AT], 
                             UPDATED_AT: current_date_time, 
-                            "orginalFileName": file_name,
+                            ORIN_FILE_NAME: file_name,
                             "lineNumber":  index + 2,
                             NODE_TYPE: type,
                             NODE_ID: node_id,
