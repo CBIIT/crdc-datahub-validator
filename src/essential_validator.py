@@ -8,7 +8,7 @@ from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
-from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, \
+from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, NODE_ID, \
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, INTENTION_DELETE, NODE_TYPE, \
@@ -350,13 +350,41 @@ class EssentialValidator:
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
-
             # check relationship
-            result, msg = self.check_relationship(file_info, type, columns)
-            if not result:
+            rel_props = [rel for rel in columns if "." in rel and not re.search('\.\d*$',rel)]
+            rel_result, msgs = self.check_relationship(file_info, type, rel_props)
+            if not rel_result:
+                self.log.error(msgs)
+                file_info[ERRORS].extend(msgs)
+                self.batch[ERRORS].extend(msgs)
+            # check if missing id property
+            if id_field and not id_field in columns: 
+                msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
+                return False
+            #check if id property value is empty
+            nan_count = self.df.isnull().sum()[id_field]
+            if nan_count > 0: 
+                msg = f'“{file_info[FILE_NAME]}”:  Key property “{id_field}” value is required.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+                return False
+            # check duplicate rows with the same nodeID
+            duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
+            if len(duplicate_ids) > 0:
+                if len(rel_props) == 0 or not rel_result:
+                    msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: {json.dumps(duplicate_ids)}.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                    return False  
+                # check many-to-many relationship
+                result = self.check_m2m_relationship(columns, duplicate_ids, id_field, rel_props, file_info)
+                if not result:
+                    return False 
         else:
             if type in self.def_file_nodes:
                 # check is file name property is empty
@@ -366,49 +394,66 @@ class EssentialValidator:
                     self.log.error(msg)
                     file_info[ERRORS].append(msg)
                     self.batch[ERRORS].append(msg)
-
-        # extract ids from df.
-        if id_field and not id_field in columns: 
-            msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
-            return False
-        # new requirement to check if id property value is empty
-        nan_count = self.df.isnull().sum()[id_field]
-        if nan_count > 0: 
-            msg = f'“{file_info[FILE_NAME]}”:  Key property “{id_field}” value is required.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
-            return False
-        # When metadata intention is "New", all IDs must not exist in the database
-        if self.batch[BATCH_INTENTION] == INTENTION_NEW:
+                  
+        if self.batch[BATCH_INTENTION] in [INTENTION_NEW, INTENTION_DELETE]:
             ids = self.df[id_field].tolist() 
-            unique_ids = set(ids)
-            if len(ids) != len(unique_ids):
-                duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
-                msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: {json.dumps(duplicate_ids)}.'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False  
-            # query db.         
-            if not self.mongo_dao.check_metadata_ids(type, ids, self.submission_id):
-                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {json.dumps(ids)}'
+            # query db to find existed nodes in current submission.  
+            existed_nodes = self.mongo_dao.check_metadata_ids(type, ids, self.submission_id)  
+            existed_ids = [item[NODE_ID] for item in existed_nodes]  
+            # When metadata intention is "New", all IDs must not exist in the database 
+            if len(existed_ids) > 0 and self.batch[BATCH_INTENTION] == INTENTION_NEW:
+                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {json.dumps(existed_ids)}'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
                 return False
-        
+            # When metadata intention is "Delete", all IDs must exist in the database 
+            elif self.batch[BATCH_INTENTION] == INTENTION_DELETE:
+                not_existed_ids = list(set(ids) - set(existed_ids))
+                if len(not_existed_ids) > 0:
+                    msg = f'“{file_info[FILE_NAME]}”: metadata not found: “{type}”: {json.dumps(not_existed_ids)}'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                    return False
+                
         return True if len(self.batch[ERRORS]) == 0 else False
-    
+    """
+    validate many to many relationship
+    """
+    def check_m2m_relationship(self, columns, duplicate_ids, id_field, rel_props, file_info):
+        for id in duplicate_ids:
+            duplicate_rows = self.df[self.df[id_field] == id].to_dict('index').values()
+            row_cnt = len(duplicate_rows)
+            is_m2m = False
+            for rel in rel_props:
+                unique_rel_values = set([item[rel] for item in duplicate_rows])
+                if row_cnt == len(list(unique_rel_values)):
+                    is_m2m = True
+                    break
+
+            if not is_m2m: # not a m2m rel or contain duplicate rel values
+                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {id}'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+                return False  
+            else:
+                other_props = [col for col in columns if col not in rel_props + [TYPE, id_field]]
+                for prop in other_props:
+                    unique_prop_values =  list(set([item[prop] for item in duplicate_rows]))
+                    if len(unique_prop_values) > 1:
+                        msg = f'“{file_info[FILE_NAME]}: {unique_prop_values[1]["index"] + 2}”: conflict data detected: “{prop}”: {unique_prop_values[1]}'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                        return False  
+        return True
     """
     validate relationship
     """
-    def check_relationship(self, file_info, type, columns):
+    def check_relationship(self, file_info, type, rel_props):
         def_rel = self.model.get_node_relationships(type)
-        rel_props = [rel for rel in columns if "." in rel and not re.search('\.\d*$',rel)]
         if not def_rel or len(def_rel.keys()) == 0:
             if len(rel_props) == 0:
                 return True, None

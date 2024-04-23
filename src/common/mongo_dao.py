@@ -1,10 +1,10 @@
-from pymongo import MongoClient, errors, ReplaceOne, DeleteOne, TEXT, DESCENDING
+from pymongo import MongoClient, errors, ReplaceOne, UpdateOne, DeleteOne, TEXT, DESCENDING
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, VALUE_PROP, \
-    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, \
+    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -211,8 +211,8 @@ class MongoDao:
         try:
             collection = db[DATA_COLlECTION]
             #2 check if keys existing in the collection
-            result = collection.find_one({NODE_ID: {'$in': ids}, SUBMISSION_ID: submission_id, NODE_TYPE: nodeType})
-            return False if result else True
+            result = list(collection.find({NODE_ID: {'$in': ids}, SUBMISSION_ID: submission_id, NODE_TYPE: nodeType}, {ID: 0, NODE_ID: 1}))
+            return result 
         except errors.OperationFailure as oe: 
             self.log.debug(oe)
             self.log.exception(f"{submission_id}: Failed to query DB, {nodeType}: {get_exception_msg()}!")
@@ -238,25 +238,57 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
             return False  
+        
+    """
+    update a s3 file info in dataRecords collection
+    """
+    def update_file_info(self, file_record):
+        db = self.client[self.db_name]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            result = file_collection.update_one({ID : file_record[ID]}, {"$set": {S3_FILE_INFO: file_record[S3_FILE_INFO]}})
+            return result.modified_count > 0 
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            return False  
     """
     update errors in submissions collection
     """   
-    def set_submission_validation_status(self, submission, file_status, metadata_status, msgs, is_delete = False):
+    def set_submission_validation_status(self, submission, file_status, metadata_status, fileErrors, is_delete = False):
+        updated_submission = {ID: submission[ID]}
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
+        overall_metadata_status = None
         try:
-            if msgs and len(msgs) > 0:
-                submission[FILE_ERRORS] = msgs
-            else: 
-                submission[FILE_ERRORS] = []
             if file_status:
-                submission[FILE_VALIDATION_STATUS] = file_status
+                updated_submission[FILE_VALIDATION_STATUS] = file_status
+                if fileErrors and len(fileErrors) > 0:
+                    updated_submission[FILE_ERRORS] = fileErrors
+                else:
+                    updated_submission[FILE_ERRORS] = []
             if metadata_status:
-                if (is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED:
-                    metadata_status = None
-                submission[METADATA_VALIDATION_STATUS] = metadata_status
-            submission[UPDATED_AT] = current_datetime()
-            result = file_collection.replace_one({ID : submission[ID]}, submission, False)
+                if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED):
+                    if metadata_status == STATUS_ERROR: 
+                        overall_metadata_status = STATUS_ERROR
+                    else:
+                        error_nodes = self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], STATUS: STATUS_ERROR})
+                        if error_nodes > 0:
+                            overall_metadata_status = STATUS_ERROR
+                        else:
+                            warning_nodes = self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], STATUS: STATUS_WARNING})
+                            if warning_nodes > 0: 
+                                overall_metadata_status = STATUS_WARNING
+                            else:
+                                overall_metadata_status = metadata_status
+
+                updated_submission[METADATA_VALIDATION_STATUS] = overall_metadata_status
+            updated_submission[UPDATED_AT] = current_datetime()
+            result = file_collection.update_one({ID : submission[ID]}, {"$set": updated_submission}, False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.debug(pe)
@@ -265,29 +297,8 @@ class MongoDao:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f"Failed to update file, {submission[ID]}: {get_exception_msg()}")
-            return False  
-
-    """
-    update data records based on _id in dataRecords
-    """
-    def update_files(self, file_records):
-        db = self.client[self.db_name]
-        file_collection = db[DATA_COLlECTION]
-        try:
-            result = file_collection.bulk_write([
-                ReplaceOne( { ID: m[ID] },  m,  False)
-                    for m in list(file_records)
-                ])
-            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
-            return result.modified_count > 0 
-        except errors.PyMongoError as pe:
-            self.log.debug(pe)
-            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
             return False
-        except Exception as e:
-            self.log.debug(e)
-            self.log.exception(f"Failed to update file records, {get_exception_msg()}")
-            return False 
+        
     """
     update data records based on node ID in dataRecords
     """
@@ -297,6 +308,31 @@ class MongoDao:
         try:
             result = file_collection.bulk_write([
                 ReplaceOne( {ID: m[ID]}, remove_id(m),  upsert=True)
+                    for m in list(data_records)
+                ])
+            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
+            return True, None
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            msg = f"Failed to update metadata."
+            self.log.exception(msg)
+            return False, msg
+        except Exception as e:
+            self.log.debug(e)
+            msg = f"Failed to update file records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg 
+        
+    """
+    update record's status, errors and warnings based on node ID in dataRecords
+    """
+    def update_data_records_status(self, data_records):
+        db = self.client[self.db_name]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            result = file_collection.bulk_write([
+                UpdateOne( {ID: m[ID]}, 
+                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], ERRORS: m.get(ERRORS, []), WARNINGS: m.get(WARNINGS, [])}})
                     for m in list(data_records)
                 ])
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')

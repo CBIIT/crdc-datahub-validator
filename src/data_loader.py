@@ -4,7 +4,7 @@ import pandas as pd
 import numpy as np
 from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime, get_exception_msg
-from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, \
+from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_ID, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
     MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
@@ -80,30 +80,31 @@ class DataLoader:
                     current_date_time = current_datetime()
                     id = self.get_record_id(intention, exist_node)
                     crdc_id = self.get_crdc_id(intention, exist_node, type, node_id)
-                    dataRecord = {
-                        ID: id,
-                        CRDC_ID: crdc_id if crdc_id else id,
-                        SUBMISSION_ID: self.batch[SUBMISSION_ID],
-                        DATA_COMMON_NAME: self.data_common,
-                        BATCH_IDS: batchIds,
-                        "latestBatchID": self.batch[ID],
-                        "uploadedDate": current_date_time, 
-                        STATUS: STATUS_NEW,
-                        ERRORS: [],
-                        WARNINGS: [],
-                        CREATED_AT : current_date_time if intention == INTENTION_NEW or not exist_node else exist_node[CREATED_AT], 
-                        UPDATED_AT: current_date_time, 
-                        ORIN_FILE_NAME: file_name,
-                        "lineNumber":  index + 2,
-                        "nodeType": type,
-                        "nodeID": node_id,
-                        PROPERTIES: {k: v for (k, v) in rawData.items() if k in prop_names},
-                        PARENTS: self.get_parents(relation_fields, rawData),
-                        "rawData":  rawData
-                    }
-                    if type in file_types:
-                        dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
-                    records.append(dataRecord)
+                    if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
+                        dataRecord = {
+                            ID: id,
+                            CRDC_ID: crdc_id if crdc_id else id,
+                            SUBMISSION_ID: self.batch[SUBMISSION_ID],
+                            DATA_COMMON_NAME: self.data_common,
+                            BATCH_IDS: batchIds,
+                            "latestBatchID": self.batch[ID],
+                            "uploadedDate": current_date_time, 
+                            STATUS: STATUS_NEW,
+                            ERRORS: [],
+                            WARNINGS: [],
+                            CREATED_AT : current_date_time if intention == INTENTION_NEW or not exist_node else exist_node[CREATED_AT], 
+                            UPDATED_AT: current_date_time, 
+                            "orginalFileName": file_name,
+                            "lineNumber":  index + 2,
+                            NODE_TYPE: type,
+                            NODE_ID: node_id,
+                            PROPERTIES: {k: v for (k, v) in rawData.items() if k in prop_names},
+                            PARENTS: self.get_parents(relation_fields, row),
+                            "rawData":  rawData
+                        }
+                        if type in file_types:
+                            dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
+                        records.append(dataRecord)
                     failed_at += 1
 
                 # 3-1. insert data in a tsv file into mongo DB
@@ -137,6 +138,30 @@ class DataLoader:
 
         del file_path_list
         return returnVal, self.errors
+    """
+    process_m2m_rel
+     1) check if a node with the same nodeID exists in record list. 
+     2) check if current row has many to many relationship by comparing with parents property of the existing node.
+     3) update the parents property of the existing node in record list.
+    """
+    def process_m2m_rel(self, records, node_id, row, relation_fields):
+        existed_node = next((record for record in records if record[NODE_ID] == node_id), None)
+        if not existed_node:
+            return False
+        else:
+            parents = self.get_parents(relation_fields, row)
+            if len(parents) == 0:
+                return True
+            existed_parents = existed_node.get(PARENTS)
+            if not existed_parents or len(existed_parents) == 0:
+                existed_node[PARENTS] = parents
+                return True
+            for parent in parents:
+                if not any( p.get(PARENT_TYPE) == parent.get(PARENT_TYPE) and p.get("parentIDPropName") ==  parent.get("parentIDPropName") \
+                           and p.get("parentIDValue") ==  parent.get("parentIDValue")  for p in existed_parents):
+                    existed_node[PARENTS].append(parent)
+            return True
+        
     """
     delete nodes
     """
