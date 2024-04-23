@@ -179,11 +179,13 @@ class ExportMetadata:
                 return
             
             for r in data_records:
+                node_id = r.get(NODE_ID)
                 crdc_id = r.get(CRDC_ID)
-                row = self.convert_2_row(r, node_type, crdc_id)
-                rows.append(row)
+                self.save_release(r, node_type, node_id, crdc_id)
+                row_list = self.convert_2_row(r, node_type, crdc_id)
+                rows.extend(row_list)
                 if r.get(ORIN_FILE_NAME) != file_name:
-                    columns.update(row.keys())
+                    columns.update(row_list[0].keys())
                     file_name = r.get(ORIN_FILE_NAME) 
 
             count = len(data_records) 
@@ -211,14 +213,31 @@ class ExportMetadata:
             start_index += count 
 
     def convert_2_row(self, data_record, node_type, crdc_id):
+        rows = []
         row = data_record.get(PROPERTIES)
         row[TYPE] = node_type
         row[CRDC_ID.lower()] = crdc_id
+        rows.append(row)
         parents = data_record.get("parents", None)
         if parents: 
-            for parent in parents:
-                row[f'{parent.get("parentType")}.{parent.get("parentIDPropName")}'] = parent.get("parentIDValue")
-        return row
+            parent_types = list(set([item["parentType"] for item in parents]))
+            for type in parent_types:
+                same_type_parents = [item for item in parents if item["parentType"] == type]
+                rel_name = f'{same_type_parents[0].get("parentType")}.{same_type_parents[0].get("parentIDPropName")}'
+                if len(same_type_parents) == 1:
+                    for item in rows:
+                        item[rel_name] = same_type_parents[0].get("parentIDValue")
+                else:
+                    index = 0
+                    for parent in same_type_parents:
+                        if index == 0:
+                            row[rel_name] = parent.get("parentIDValue")
+                        else:
+                            m2m_row = row.copy()
+                            m2m_row[rel_name] = parent.get("parentIDValue")
+                            rows.append(m2m_row)
+                        index += 1
+        return rows
     
     def upload_file(self, buf, node_type):
         id, root_path, bucket_name = self.get_submission_info()      

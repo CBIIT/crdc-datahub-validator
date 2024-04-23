@@ -55,20 +55,20 @@ class CrossSubmissionValidator:
                     self.isError = True
                 # set status, errors and warnings
                 record[ADDITION_ERRORS] = errors
-                record[STATUS] = status
+                record[STATUS] = status if status == STATUS_ERROR else record[STATUS]
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
                 validated_count += 1
         except Exception as e:
             self.log.debug(e)
-            msg = f'Failed to validate dataRecords for the submission, {submission_id}.!'
+            msg = f'Failed to validate dataRecords for the submission, {submission_id}.'
             self.log.exception(msg) 
             self.isError = True 
         #3. update data records based on record's _id
-        result = self.mongo_dao.update_data_records(updated_records)
+        result = self.mongo_dao.update_data_records_addition_error(updated_records)
         if not result:
             #4. set errors in submission
-            msg = f'Failed to update dataRecords for the submission, {submission_id}.!'
+            msg = f'Failed to update dataRecords for the submission, {submission_id}.'
             self.log.error(msg)
             self.isError = True
 
