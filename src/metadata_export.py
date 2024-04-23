@@ -184,9 +184,9 @@ class ExportMetadata:
                 self.save_release(r, node_type, node_id, crdc_id)
                 row_list = self.convert_2_row(r, node_type, crdc_id)
                 rows.extend(row_list)
-                if r.get("orginalFileName") != file_name:
+                if r.get(ORIN_FILE_NAME) != file_name:
                     columns.update(row_list[0].keys())
-                    file_name = r.get("orginalFileName") 
+                    file_name = r.get(ORIN_FILE_NAME) 
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
