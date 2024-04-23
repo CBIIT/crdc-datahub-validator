@@ -147,9 +147,14 @@ class MetaDataValidator:
                 if errors and len(errors) > 0:
                     record[ERRORS] = errors
                     self.isError = True
+                else:
+                    record[ERRORS] = []
                 if warnings and len(warnings)> 0: 
                     record[WARNINGS] = warnings
                     self.isWarning = True
+                else:
+                    record[WARNINGS] = []
+
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
@@ -160,7 +165,7 @@ class MetaDataValidator:
             self.log.exception(msg) 
             self.isError = True 
         #3. update data records based on record's _id
-        result = self.mongo_dao.update_data_records(updated_records)
+        result = self.mongo_dao.update_data_records_status(updated_records)
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {submission_id} at scope, {scope}!'
