@@ -339,6 +339,7 @@ class EssentialValidator:
                             self.batch[ERRORS].append(msg)
                             return False
                         line_num += 1
+
         id_field = self.model.get_node_id(type)
         if self.submission_intention != INTENTION_DELETE: 
             # check missing required proper 
@@ -367,19 +368,23 @@ class EssentialValidator:
             #check if id property value is empty
             nan_count = self.df.isnull().sum()[id_field]
             if nan_count > 0: 
-                msg = f'“{file_info[FILE_NAME]}”:  Key property “{id_field}” value is required.'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
+                nan_rows = self.df[self.df[id_field].isnull()].to_dict("index")
+                for key in nan_rows.keys():
+                    msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  Key property “{id_field}” value is required.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
                 return False
             # check duplicate rows with the same nodeID
             duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
             if len(duplicate_ids) > 0:
                 if len(rel_props) == 0 or not rel_result:
-                    msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: {json.dumps(duplicate_ids)}.'
-                    self.log.error(msg)
-                    file_info[ERRORS].append(msg)
-                    self.batch[ERRORS].append(msg)
+                    duplicated_rows = self.df[self.df[id_field].isin(duplicate_ids)].to_dict("index")
+                    for key, val in duplicated_rows.items():
+                        msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}”: "{val[id_field]}".'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
                     return False  
                 # check many-to-many relationship
                 result = self.check_m2m_relationship(columns, duplicate_ids, id_field, rel_props, file_info)
@@ -396,25 +401,29 @@ class EssentialValidator:
                     self.batch[ERRORS].append(msg)
                   
         if self.batch[BATCH_INTENTION] in [INTENTION_NEW, INTENTION_DELETE]:
-            ids = self.df[id_field].tolist() 
+            ids = list(set(self.df[id_field].tolist()))
             # query db to find existed nodes in current submission.  
             existed_nodes = self.mongo_dao.check_metadata_ids(type, ids, self.submission_id)  
             existed_ids = [item[NODE_ID] for item in existed_nodes]  
             # When metadata intention is "New", all IDs must not exist in the database 
             if len(existed_ids) > 0 and self.batch[BATCH_INTENTION] == INTENTION_NEW:
-                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {json.dumps(existed_ids)}'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
+                duplicated_rows = self.df[self.df[id_field].isin(existed_ids)].to_dict("index")
+                for key, val in duplicated_rows.items():
+                    msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}": "{val[id_field]}".'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
                 return False
             # When metadata intention is "Delete", all IDs must exist in the database 
             elif self.batch[BATCH_INTENTION] == INTENTION_DELETE:
                 not_existed_ids = list(set(ids) - set(existed_ids))
                 if len(not_existed_ids) > 0:
-                    msg = f'“{file_info[FILE_NAME]}”: metadata not found: “{type}”: {json.dumps(not_existed_ids)}'
-                    self.log.error(msg)
-                    file_info[ERRORS].append(msg)
-                    self.batch[ERRORS].append(msg)
+                    not_existed_rows = self.df[self.df[id_field].isin(not_existed_ids)].to_dict('index')
+                    for key, val in not_existed_rows.items():
+                        msg = f'“{file_info[FILE_NAME]}:{key + 2}”: metadata not found: “{type}": "{val[id_field]}".'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
                     return False
                 
         return True if len(self.batch[ERRORS]) == 0 else False
@@ -422,33 +431,38 @@ class EssentialValidator:
     validate many to many relationship
     """
     def check_m2m_relationship(self, columns, duplicate_ids, id_field, rel_props, file_info):
+        rtn_val = True
         for id in duplicate_ids:
-            duplicate_rows = self.df[self.df[id_field] == id].to_dict('index').values()
+            duplicate_rows = self.df[self.df[id_field] == id].to_dict('index')
             row_cnt = len(duplicate_rows)
             is_m2m = False
             for rel in rel_props:
-                unique_rel_values = set([item[rel] for item in duplicate_rows])
+                unique_rel_values = set([item[rel] for item in duplicate_rows.values()])
                 if row_cnt == len(list(unique_rel_values)):
                     is_m2m = True
                     break
 
             if not is_m2m: # not a m2m rel or contain duplicate rel values
-                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {id}'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False  
+                for key in duplicate_rows.keys():
+                    msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}”: {id}.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                rtn_val = False  
             else:
                 other_props = [col for col in columns if col not in rel_props + [TYPE, id_field]]
                 for prop in other_props:
-                    unique_prop_values =  list(set([item[prop] for item in duplicate_rows]))
+                    unique_prop_values =  list(set([item[prop] for item in duplicate_rows.values()]))
                     if len(unique_prop_values) > 1:
-                        msg = f'“{file_info[FILE_NAME]}: {unique_prop_values[1]["index"] + 2}”: conflict data detected: “{prop}”: {unique_prop_values[1]}'
-                        self.log.error(msg)
-                        file_info[ERRORS].append(msg)
-                        self.batch[ERRORS].append(msg)
-                        return False  
-        return True
+                        for value in unique_prop_values:
+                            index = next(key for key, val in duplicate_rows.items() if val[prop] == value)
+                            msg = f'“{file_info[FILE_NAME]}: {index + 2}”: conflict data detected: “{prop}”: "{value}".'
+                            self.log.error(msg)
+                            file_info[ERRORS].append(msg)
+                            self.batch[ERRORS].append(msg)
+                        rtn_val = False
+                        break
+        return rtn_val
     """
     validate relationship
     """
