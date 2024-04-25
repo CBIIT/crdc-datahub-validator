@@ -148,10 +148,12 @@ class MetaDataValidator:
                 
                 if errors and len(errors) > 0:
                     self.isError = True
+                    record[ERRORS] = errors
                 else:
                     record[ERRORS] = []
                 if warnings and len(warnings)> 0: 
                     self.isWarning = True
+                    record[WARNINGS] = warnings
                 else:
                     record[WARNINGS] = []
 
