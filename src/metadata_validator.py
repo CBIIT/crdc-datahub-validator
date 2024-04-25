@@ -8,11 +8,12 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, SUBMISSION_INTENTION, \
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, INTENTION_NEW, INTENTION_DELETE, \
-    SUBMISSION_REL_STATUS_RELEASED, ORIN_FILE_NAME
+    SUBMISSION_REL_STATUS_RELEASED, ORIN_FILE_NAME, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
+from x_submission_validator import CrossSubmissionValidator
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
@@ -53,17 +54,20 @@ def metadataValidate(configs, job_queue, mongo_dao):
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
+                    extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
+                    submission_id = data.get(SUBMISSION_ID)
                     # Make sure job is in correct format
-                    if data.get(SQS_TYPE) == "Validate Metadata" and data.get(SUBMISSION_ID) and data.get(SCOPE):
-                        extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
+                    if data.get(SQS_TYPE) == TYPE_METADATA_VALIDATE and submission_id and data.get(SCOPE):
                         scope = data[SCOPE]
-                        submission_id = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submission_id, scope)
-                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
+                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None)
+                    elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and submission_id:
+                        validator = CrossSubmissionValidator(mongo_dao)
+                        status = validator.validate(submission_id)
+                        mongo_dao.set_submission_validation_status(validator.submission, None, None, status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
-
                     log.info(f'Processed {SERVICE_TYPE_METADATA} validation for the submission: {data[SUBMISSION_ID]}!')
                     batches_processed += 1
                     msg.delete()
@@ -83,11 +87,9 @@ def metadataValidate(configs, job_queue, mongo_dao):
 
 
 """ Requirement for the ticket crdcdh-343
-For files: read manifest file and validate local files’ sizes and md5s
 For metadata: validate data folder contains TSV or TXT files
 Compose a list of files to be updated and their sizes (metadata or files)
 """
-
 class MetaDataValidator:
     
     def __init__(self, mongo_dao, model_store):
@@ -177,13 +179,10 @@ class MetaDataValidator:
         errors = []
         warnings = []
         msg_prefix = f'[{data_record.get(ORIN_FILE_NAME)}: line {data_record.get("lineNumber")}]'
-        node_keys = self.model.get_node_keys()
         node_type = data_record.get(NODE_TYPE)
         def_file_nodes = self.model.get_file_nodes()
         # submission-level validation
         sub_intention = self.submission.get(SUBMISSION_INTENTION)
-        if not node_type or node_type not in node_keys:
-            return STATUS_ERROR,[create_error("Invalid node type", f'{msg_prefix} Node type “{node_type}” is not defined')], None
         try:
             # call validate_required_props
             result_required= self.validate_required_props(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else self.validate_file_name(data_record, def_file_nodes, node_type, msg_prefix)
@@ -211,7 +210,7 @@ class MetaDataValidator:
                 return STATUS_WARNING, errors, warnings
         except Exception as e:
             self.log.exception(e) 
-            error = create_error("Internal error", "{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("Internal error", f"{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return STATUS_ERROR,[error], None
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors, warnings

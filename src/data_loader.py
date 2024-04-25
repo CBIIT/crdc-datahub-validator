@@ -8,7 +8,7 @@ from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
     MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, SUBMISSION_INTENTION
+    ORIN_FILE_NAME, SUBMISSION_INTENTION, ADDITION_ERRORS, RAW_DATA
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -100,7 +100,8 @@ class DataLoader:
                             NODE_ID: node_id,
                             PROPERTIES: {k: v for (k, v) in rawData.items() if k in prop_names},
                             PARENTS: self.get_parents(relation_fields, row),
-                            "rawData":  rawData
+                            RAW_DATA:  rawData,
+                            ADDITION_ERRORS: []
                         }
                         if type in file_types:
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)

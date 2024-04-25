@@ -107,6 +107,7 @@ VALIDATION_RESULT = "result"
 VALIDATED_AT = "validatedAt"
 FILE_VALIDATION_STATUS = "fileValidationStatus"
 METADATA_VALIDATION_STATUS = "metadataValidationStatus"
+CROSS_SUBMISSION_VALIDATION_STATUS = "crossSubmissionStatus"
 MODEL_VERSION = "modelVersion"
 KEY = "key"
 #s3 download directory
@@ -121,7 +122,10 @@ TYPE_FILE_VALIDATE = "Validate Single File"
 TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
 TYPE_EXPORT_METADATA = "Export Metadata"
 TYPE_COMPLETE_SUB = "Complete Submission"
+TYPE_CROSS_SUBMISSION = "Validate Cross-submission"
 FAILED = "Failed"
+ADDITION_ERRORS = "additionalErrors"
+STUDY_ABBREVIATION = "studyAbbreviation"
 
 #dataRecords
 CRDC_ID = "CRDC_ID"
@@ -130,6 +134,8 @@ ORIN_FILE_NAME = "orginalFileName"
 
 #submission level validation
 SUBMISSION_INTENTION ="intention"
+SUBMISSION_STATUS = "status"
+SUBMISSION_STATUS_SUBMITTED = "Submitted"
 
 #Submission release status
 SUBMISSION_REL_STATUS = "status"

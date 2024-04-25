@@ -4,7 +4,9 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, \
-    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED
+    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, SUBMISSION_REL_STATUS, \
+    SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
+    CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -259,8 +261,8 @@ class MongoDao:
     """
     update errors in submissions collection
     """   
-    def set_submission_validation_status(self, submission, file_status, metadata_status, fileErrors, is_delete = False):
-        updated_submission = {ID: submission[ID]}
+    def set_submission_validation_status(self, submission, file_status, metadata_status, cross_submission_status, fileErrors, is_delete = False):
+        updated_submission = {UPDATED_AT: current_datetime()}
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
         overall_metadata_status = None
@@ -271,6 +273,7 @@ class MongoDao:
                     updated_submission[FILE_ERRORS] = fileErrors
                 else:
                     updated_submission[FILE_ERRORS] = []
+
             if metadata_status:
                 if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED):
                     if metadata_status == STATUS_ERROR: 
@@ -285,9 +288,10 @@ class MongoDao:
                                 overall_metadata_status = STATUS_WARNING
                             else:
                                 overall_metadata_status = metadata_status
-
                 updated_submission[METADATA_VALIDATION_STATUS] = overall_metadata_status
-            updated_submission[UPDATED_AT] = current_datetime()
+                
+            if cross_submission_status:
+                updated_submission[CROSS_SUBMISSION_VALIDATION_STATUS] = cross_submission_status
             result = file_collection.update_one({ID : submission[ID]}, {"$set": updated_submission}, False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
@@ -347,7 +351,30 @@ class MongoDao:
             msg = f"Failed to update file records, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
-   
+    """
+    update record's status, errors and warnings based on node ID in dataRecords
+    """
+    def update_data_records_addition_error(self, data_records):
+        db = self.client[self.db_name]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            result = file_collection.bulk_write([
+                UpdateOne( {ID: m[ID]}, 
+                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], ADDITION_ERRORS: m.get(ADDITION_ERRORS, [])}})
+                    for m in list(data_records)
+                ])
+            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
+            return True, None
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            msg = f"Failed to update metadata."
+            self.log.exception(msg)
+            return False, msg
+        except Exception as e:
+            self.log.debug(e)
+            msg = f"Failed to update file records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg 
     """
     delete dataRecords by nodeIDs
     """  
@@ -495,7 +522,46 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
-        
+    """
+    find node in other submission with the same study
+    """   
+    def find_node_in_other_submission(self, submission_id, study, data_common, node_type, nodeId):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            submissions = None
+            other_submissions = self.find_submissions({STUDY_ABBREVIATION: study, SUBMISSION_STATUS: SUBMISSION_STATUS_SUBMITTED, ID: {"$ne": submission_id}})
+            if len(other_submissions) > 0:
+                other_submission_ids = [item[ID] for item in other_submissions]
+                duplicate_nodes = list(data_collection.find({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}}))
+                if len(duplicate_nodes) > 0:
+                    other_submission_ids = [item[SUBMISSION_ID] for item in duplicate_nodes]
+                    submissions = [item for item in other_submissions if item[ID] in other_submission_ids]
+            return True, submissions
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
+            return False, None
+    """
+    find submission by query
+    """
+    def find_submissions(self, query):
+        db = self.client[self.db_name]
+        data_collection = db[SUBMISSION_COLLECTION]
+        try:
+            return list(data_collection.find(query))
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to retrieve submissions: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to retrieve submissions:: {get_exception_msg()}")
+            return False, None  
     """
     set dataRecords search index, 'submissionID_nodeType_nodeID'
     """
