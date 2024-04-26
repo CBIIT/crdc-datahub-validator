@@ -269,9 +269,6 @@ class FileValidator:
         if len(temp_list) > 0:
             msg = f'File “{file_name}”: another file with the same MD5 found.'
             error = create_error("Duplicated file content detected", msg)
-            if fileRecord[STATUS] == STATUS_NEW:
-                self.log.error(msg)
-                return STATUS_ERROR, error
             self.log.warning(msg)
             return STATUS_WARNING, error 
             
