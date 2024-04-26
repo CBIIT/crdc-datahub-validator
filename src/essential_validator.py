@@ -410,33 +410,38 @@ class EssentialValidator:
     validate many to many relationship
     """
     def check_m2m_relationship(self, columns, duplicate_ids, id_field, rel_props, file_info):
+        rtn_val = True
         for id in duplicate_ids:
-            duplicate_rows = self.df[self.df[id_field] == id].to_dict('index').values()
+            duplicate_rows = self.df[self.df[id_field] == id].to_dict('index')
             row_cnt = len(duplicate_rows)
             is_m2m = False
             for rel in rel_props:
-                unique_rel_values = set([item[rel] for item in duplicate_rows])
+                unique_rel_values = set([item[rel] for item in duplicate_rows.values()])
                 if row_cnt == len(list(unique_rel_values)):
                     is_m2m = True
                     break
 
             if not is_m2m: # not a m2m rel or contain duplicate rel values
-                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {id}'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False  
+                for key in duplicate_rows.keys():
+                    msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}”: {id}.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                rtn_val = False  
             else:
                 other_props = [col for col in columns if col not in rel_props + [TYPE, id_field]]
                 for prop in other_props:
-                    unique_prop_values =  list(set([item[prop] for item in duplicate_rows]))
+                    unique_prop_values =  list(set([item[prop] for item in duplicate_rows.values()]))
                     if len(unique_prop_values) > 1:
-                        msg = f'“{file_info[FILE_NAME]}: {unique_prop_values[1]["index"] + 2}”: conflict data detected: “{prop}”: {unique_prop_values[1]}'
-                        self.log.error(msg)
-                        file_info[ERRORS].append(msg)
-                        self.batch[ERRORS].append(msg)
-                        return False  
-        return True
+                        for value in unique_prop_values:
+                            index = next(key for key, val in duplicate_rows.items() if val[prop] == value)
+                            msg = f'“{file_info[FILE_NAME]}: {index + 2}”: conflict data detected: “{prop}”: "{value}".'
+                            self.log.error(msg)
+                            file_info[ERRORS].append(msg)
+                            self.batch[ERRORS].append(msg)
+                        rtn_val = False
+                        break
+        return rtn_val
     """
     validate relationship
     """
