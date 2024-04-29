@@ -353,10 +353,14 @@ class FileValidator:
         if status == STATUS_ERROR:
             record[S3_FILE_INFO][STATUS] = STATUS_ERROR
             record[S3_FILE_INFO][ERRORS] = [error]
+            record[S3_FILE_INFO][WARNINGS] = []
             
         elif status == STATUS_WARNING: 
             record[S3_FILE_INFO][STATUS] = STATUS_WARNING
             record[S3_FILE_INFO][WARNINGS] = [error]
+            record[S3_FILE_INFO][ERRORS] = []
             
         else:
             record[S3_FILE_INFO][STATUS] = STATUS_PASSED
+            record[S3_FILE_INFO][WARNINGS] = []
+            record[S3_FILE_INFO][ERRORS] = []
