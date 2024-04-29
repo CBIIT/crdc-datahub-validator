@@ -269,9 +269,6 @@ class FileValidator:
         if len(temp_list) > 0:
             msg = f'File “{file_name}”: another file with the same MD5 found.'
             error = create_error("Duplicated file content detected", msg)
-            if fileRecord[STATUS] == STATUS_NEW:
-                self.log.error(msg)
-                return STATUS_ERROR, error
             self.log.warning(msg)
             return STATUS_WARNING, error 
             
@@ -356,10 +353,14 @@ class FileValidator:
         if status == STATUS_ERROR:
             record[S3_FILE_INFO][STATUS] = STATUS_ERROR
             record[S3_FILE_INFO][ERRORS] = [error]
+            record[S3_FILE_INFO][WARNINGS] = []
             
         elif status == STATUS_WARNING: 
             record[S3_FILE_INFO][STATUS] = STATUS_WARNING
             record[S3_FILE_INFO][WARNINGS] = [error]
+            record[S3_FILE_INFO][ERRORS] = []
             
         else:
             record[S3_FILE_INFO][STATUS] = STATUS_PASSED
+            record[S3_FILE_INFO][WARNINGS] = []
+            record[S3_FILE_INFO][ERRORS] = []
