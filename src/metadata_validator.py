@@ -8,7 +8,7 @@ from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, \
-    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY
+    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -142,7 +142,7 @@ class MetaDataValidator:
         validated_count = 0
         try:
             for record in data_records:
-                status, errors, warnings = self.validate_node(record)
+                status, errors, warnings = self.validate_node(record, submission_id, scope)
                 # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
                     record[ERRORS] = errors
@@ -174,7 +174,7 @@ class MetaDataValidator:
 
         return validated_count
 
-    def validate_node(self, data_record):
+    def validate_node(self, data_record, submission_id, scope):
         # set default return values
         errors = []
         warnings = []
@@ -189,7 +189,7 @@ class MetaDataValidator:
             # call validate_prop_value
             result_prop_value = self.validate_props(data_record)
             # call validate_relationship
-            result_rel = self.validate_relationship(data_record)
+            result_rel = self.validate_relationship(data_record, submission_id)
 
             # concatenation of all errors
             errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
@@ -281,7 +281,7 @@ class MetaDataValidator:
 
         return {VALIDATION_RESULT: STATUS_ERROR if len(errors) > 0 else STATUS_PASSED, ERRORS: errors, WARNINGS: []}
 
-    def get_parent_node_cache(self, data_record_parent_nodes):
+    def get_parent_nodes(self, data_record_parent_nodes):
         parent_nodes = []
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
@@ -290,14 +290,14 @@ class MetaDataValidator:
             if parent_type and parent_id_value and parent_id_value is not None:
                 parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": parent_id_value})
         exist_parent_nodes = self.mongo_dao.search_nodes_by_index(parent_nodes, self.submission[ID])
-        parent_node_cache = set()
+        parent_node_cache = []
         for node in exist_parent_nodes:
             if node.get(PROPERTIES):
                 for key, value in node[PROPERTIES].items():
-                    parent_node_cache.add(tuple([node.get("nodeType"), key, value]))
+                    parent_node_cache.append(tuple([node.get("nodeType"), key, value]))
         return parent_node_cache
     
-    def validate_relationship(self, data_record):
+    def validate_relationship(self, data_record, submission_id):
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
@@ -313,7 +313,7 @@ class MetaDataValidator:
             return result
         node_keys = self.model.get_node_keys()
         node_relationships = self.model.get_node_relationships(node_type)
-        parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
+        parent_nodes = self.get_parent_nodes(data_record_parent_nodes)
         data_common = data_record.get(DATA_COMMON_NAME)
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
@@ -345,10 +345,24 @@ class MetaDataValidator:
                 result[ERRORS].append(create_error("Invalid relationship", f'Property “{parent_id_property}" of related node “{parent_type}” is empty.'))
                 continue
 
-            if (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
+            if (parent_type, parent_id_property, parent_id_value) not in parent_nodes:
                 released_parent = self.mongo_dao.search_released_node(data_common, parent_type, parent_id_value)
                 if not released_parent:
                     result[ERRORS].append(create_error("Related node not found", f'Related node “{parent_type}” [“{parent_id_property}”: “{parent_id_value}"] not found.'))
+            else: 
+                rel_type = node_relationships[parent_type].get(TYPE)
+                if rel_type != "many_to_many":
+                    parents = [item for item in parent_nodes if item == (parent_type, parent_id_property, parent_id_value) ]
+                    if len(parents) > 1:
+                        result[ERRORS].append(create_error("One-to-one relationship conflict", 
+                                    f'associated node “{parent_type}”: “{parent_id_value}"] has multiple nodes associated: {json.dump(child_node_ids)}.'))
+                        
+                    if rel_type == "one_to_one":
+                        children = self.mongo_dao.get_nodes_by_parent_prop(parent_node, submission_id)
+                        if children and len(children) > 1:
+                            child_node_ids = [item[NODE_ID] for item in children]
+                            result[ERRORS].append(create_error("One-to-one relationship conflict", 
+                                        f'associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dump(child_node_ids)}.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
