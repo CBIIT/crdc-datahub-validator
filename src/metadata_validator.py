@@ -8,7 +8,7 @@ from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, \
-    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID
+    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -315,6 +315,7 @@ class MetaDataValidator:
         node_relationships = self.model.get_node_relationships(node_type)
         parent_nodes = self.get_parent_nodes(data_record_parent_nodes)
         data_common = data_record.get(DATA_COMMON_NAME)
+        checked_multi_parents = False
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
             if not parent_type or parent_type not in node_keys:
@@ -352,17 +353,20 @@ class MetaDataValidator:
             else: 
                 rel_type = node_relationships[parent_type].get(TYPE)
                 if rel_type != "many_to_many":
-                    parents = [item for item in parent_nodes if item == (parent_type, parent_id_property, parent_id_value) ]
-                    if len(parents) > 1:
-                        result[ERRORS].append(create_error("One-to-one relationship conflict", 
-                                    f'associated node “{parent_type}”: “{parent_id_value}"] has multiple nodes associated: {json.dump(child_node_ids)}.'))
+                    if not checked_multi_parents:
+                        parents = [item for item in data_record_parent_nodes if item[PARENT_TYPE] == parent_type and item[PARENT_ID_NAME] == parent_id_property ]
+                        if len(parents) > 1:
+                            parent_node_ids = [item[PARENT_ID_VAL] for item in parents]
+                            result[ERRORS].append(create_error("One-to-one relationship conflict", 
+                                        f'"{msg_prefix}": associated with multiple “{parent_type}” nodes: {json.dumps(parent_node_ids)}.'))
+                        checked_multi_parents = True
                         
                     if rel_type == "one_to_one":
                         children = self.mongo_dao.get_nodes_by_parent_prop(parent_node, submission_id)
                         if children and len(children) > 1:
                             child_node_ids = [item[NODE_ID] for item in children]
                             result[ERRORS].append(create_error("One-to-one relationship conflict", 
-                                        f'associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dump(child_node_ids)}.'))
+                                        f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
