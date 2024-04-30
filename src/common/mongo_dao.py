@@ -496,12 +496,12 @@ class MongoDao:
             return False, None
     
     """
-    find child node by parentType and parentIDProperty and parentID
+    find child nodes by nodeType, parentType and parentIDProperty and parentID
     """
-    def get_nodes_by_parent_prop(self, parent_prop, submission_id):
+    def get_nodes_by_parent_prop(self, node_type, parent_prop, submission_id):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
-        query = {SUBMISSION_ID: submission_id, PARENTS: {"$elemMatch": {PARENT_TYPE: parent_prop[PARENT_TYPE], 
+        query = {SUBMISSION_ID: submission_id, NODE_TYPE: node_type, PARENTS: {"$elemMatch": {PARENT_TYPE: parent_prop[PARENT_TYPE], 
                         PARENT_ID_NAME: parent_prop[PARENT_ID_NAME], PARENT_ID_VAL: parent_prop[PARENT_ID_VAL]}}}
         try:
             return list(data_collection.find(query))
@@ -697,6 +697,29 @@ class MongoDao:
             self.log.debug(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
+    
+    def find_released_nodes_by_parent(self, node_type, data_commons, parent_node):
+        """
+        find released certain type children nodes by parent
+        :param node_type:
+        :param data_commons:
+        :param parent_node:
+        :return:
+        """
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            return list(data_collection.find({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, PARENTS: {"$elemMatch": {PARENT_TYPE: parent_node[PARENT_TYPE], 
+                        PARENT_ID_NAME: parent_node[PARENT_ID_NAME], PARENT_ID_VAL: parent_node[PARENT_ID_VAL]}}}))
+
+        except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            self.log.exception(f"Failed to find release record for {data_commons}/{parent_node[PARENT_TYPE]}/{parent_node[PARENT_ID_VAL]}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f"Failed to find release record for {data_commons}/{parent_node[PARENT_TYPE]}/{parent_node[PARENT_ID_VAL]}: {get_exception_msg()}")
+            return None
     """
     count documents in a given collection and conditions 
     """  

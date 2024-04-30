@@ -346,27 +346,36 @@ class MetaDataValidator:
                 result[ERRORS].append(create_error("Invalid relationship", f'Property “{parent_id_property}" of related node “{parent_type}” is empty.'))
                 continue
 
+            rel_type = node_relationships[parent_type].get(TYPE)
+            # check if there is only one parent for both one_to_one and many_to_one relationships.
+            if rel_type != "many_to_many": 
+                if not checked_multi_parents:
+                    parents = [item for item in data_record_parent_nodes if item[PARENT_TYPE] == parent_type and item[PARENT_ID_NAME] == parent_id_property ]
+                    if len(parents) > 1:
+                        error_type = "One-to-one relationship conflict" if rel_type == "one_to_one" else "Many-to-one relationship conflict"
+                        parent_node_ids = [item[PARENT_ID_VAL] for item in parents]
+                        result[ERRORS].append(create_error(error_type, 
+                                    f'"{msg_prefix}": associated with multiple “{parent_type}” nodes: {json.dumps(parent_node_ids)}.'))
+                    checked_multi_parents = True
+
             if (parent_type, parent_id_property, parent_id_value) not in parent_nodes:
                 released_parent = self.mongo_dao.search_released_node(data_common, parent_type, parent_id_value)
                 if not released_parent:
                     result[ERRORS].append(create_error("Related node not found", f'Related node “{parent_type}” [“{parent_id_property}”: “{parent_id_value}"] not found.'))
-            else: 
-                rel_type = node_relationships[parent_type].get(TYPE)
-                if rel_type != "many_to_many":
-                    if not checked_multi_parents:
-                        parents = [item for item in data_record_parent_nodes if item[PARENT_TYPE] == parent_type and item[PARENT_ID_NAME] == parent_id_property ]
-                        if len(parents) > 1:
-                            parent_node_ids = [item[PARENT_ID_VAL] for item in parents]
-                            result[ERRORS].append(create_error("One-to-one relationship conflict", 
-                                        f'"{msg_prefix}": associated with multiple “{parent_type}” nodes: {json.dumps(parent_node_ids)}.'))
-                        checked_multi_parents = True
-                        
+                else:
                     if rel_type == "one_to_one":
-                        children = self.mongo_dao.get_nodes_by_parent_prop(parent_node, submission_id)
+                        children = self.mongo_dao.find_released_nodes_by_parent(node_type, data_common, parent_node)
                         if children and len(children) > 1:
                             child_node_ids = [item[NODE_ID] for item in children]
                             result[ERRORS].append(create_error("One-to-one relationship conflict", 
                                         f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
+            else: 
+                if rel_type == "one_to_one":
+                    children = self.mongo_dao.get_nodes_by_parent_prop(node_type, parent_node, submission_id)
+                    if children and len(children) > 1:
+                        child_node_ids = [item[NODE_ID] for item in children]
+                        result[ERRORS].append(create_error("One-to-one relationship conflict", 
+                                    f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
