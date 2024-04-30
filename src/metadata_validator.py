@@ -364,26 +364,16 @@ class MetaDataValidator:
                     result[ERRORS].append(create_error("Related node not found", f'Related node “{parent_type}” [“{parent_id_property}”: “{parent_id_value}"] not found.'))
                 else:
                     if rel_type == "one_to_one":
-                        # check release children by the released parent
-                        children = self.mongo_dao.find_released_nodes_by_parent(node_type, data_common, parent_node)
-                        if children and len(children) > 1:
-                            child_node_ids = [item[NODE_ID] for item in children]
+                        # check released and current children by released parent
+                        child_node_ids = self.get_unique_child_node_ids(data_common, node_type, parent_node, submission_id)
+                        if len(child_node_ids) > 1:
                             result[ERRORS].append(create_error("One-to-one relationship conflict", 
-                                        f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
-                        else: 
-                            # check children in current submission with released parent
-                            children = self.mongo_dao.get_nodes_by_parent_prop(node_type, parent_node, submission_id)
-                            if children and len(children) > 1:
-                                child_node_ids = [item[NODE_ID] for item in children]
-                                result[ERRORS].append(create_error("One-to-one relationship conflict", 
-                                            f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
-
-
+                                    f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
             else: 
                 if rel_type == "one_to_one":
-                    children = self.mongo_dao.get_nodes_by_parent_prop(node_type, parent_node, submission_id)
-                    if children and len(children) > 1:
-                        child_node_ids = [item[NODE_ID] for item in children]
+                    # check released and current children by current parent
+                    child_node_ids = self.get_unique_child_node_ids(data_common, node_type, parent_node, submission_id)
+                    if len(child_node_ids) > 1:
                         result[ERRORS].append(create_error("One-to-one relationship conflict", 
                                     f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
 
@@ -393,6 +383,19 @@ class MetaDataValidator:
         if len(result[ERRORS]) == 0 and len(result[WARNINGS]) == 0:
             result["result"] = STATUS_PASSED
         return result
+    
+    def get_unique_child_node_ids(self, data_common, node_type, parent_node, submission_id):
+        children = self.mongo_dao.get_nodes_by_parent_prop(node_type, parent_node, submission_id)
+        if not children:
+            return []
+        child_id_list = list(set([item[NODE_ID] for item in children]))
+        if len(child_id_list) > 1:
+            return child_id_list
+        else:
+            children = self.mongo_dao.find_released_nodes_by_parent(node_type, data_common, parent_node)
+            if children and len(children) > 0:
+                child_id_list = list(set(child_id_list + [item[NODE_ID] for item in children]))
+            return child_id_list
 
     def validate_prop_value(self, prop_name, value, prop_def, file_name, line_num):
         # set default return values
