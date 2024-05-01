@@ -95,9 +95,12 @@ class MetaDataValidator:
         self.mongo_dao = mongo_dao
         self.model_store = model_store
         self.model = None
+        self.submission_id = None
+        self.scope = None
         self.submission = None
         self.isError = None
         self.isWarning = None
+
 
     def validate(self, submission_id, scope):
         #1. # get data common from submission
@@ -110,6 +113,8 @@ class MetaDataValidator:
             msg = f'Invalid submission, no datacommon found, {submission_id}!'
             self.log.error(msg)
             return FAILED
+        self.submission_id = submission_id
+        self.scope = scope
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
         model_version = submission.get(MODEL_VERSION)
@@ -130,19 +135,19 @@ class MetaDataValidator:
                 return FAILED
             
             count = len(data_records) 
-            validated_count += self.validate_nodes(data_records, submission_id, scope)
+            validated_count += self.validate_nodes(data_records)
             if count < BATCH_SIZE: 
                 self.log.info(f"{submission_id}: {validated_count} out of {count + start_index} nodes are validated.")
                 return STATUS_ERROR if self.isError else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
             start_index += count  
 
-    def validate_nodes(self, data_records, submission_id, scope):
+    def validate_nodes(self, data_records):
         #2. loop through all records and call validateNode
         updated_records = []
         validated_count = 0
         try:
             for record in data_records:
-                status, errors, warnings = self.validate_node(record, submission_id, scope)
+                status, errors, warnings = self.validate_node(record)
                 # todo set record with status, errors and warnings
                 if errors and len(errors) > 0:
                     record[ERRORS] = errors
@@ -161,20 +166,20 @@ class MetaDataValidator:
                 validated_count += 1
         except Exception as e:
             self.log.debug(e)
-            msg = f'Failed to validate dataRecords for the submission, {submission_id} at scope, {scope}!'
+            msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
             self.isError = True 
         #3. update data records based on record's _id
         result = self.mongo_dao.update_data_records_status(updated_records)
         if not result:
             #4. set errors in submission
-            msg = f'Failed to update dataRecords for the submission, {submission_id} at scope, {scope}!'
+            msg = f'Failed to update dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.error(msg)
             self.isError = True
 
         return validated_count
 
-    def validate_node(self, data_record, submission_id, scope):
+    def validate_node(self, data_record):
         # set default return values
         errors = []
         warnings = []
@@ -189,7 +194,7 @@ class MetaDataValidator:
             # call validate_prop_value
             result_prop_value = self.validate_props(data_record)
             # call validate_relationship
-            result_rel = self.validate_relationship(data_record, submission_id)
+            result_rel = self.validate_relationship(data_record)
 
             # concatenation of all errors
             errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
@@ -203,7 +208,7 @@ class MetaDataValidator:
                 return STATUS_WARNING, errors, warnings
         except Exception as e:
             self.log.debug(e)
-            msg = f'Failed to validate dataRecords for the submission, {submission_id} at scope, {scope}!'
+            msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
             error = create_error("Internal error", "{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return STATUS_ERROR,[error], None
@@ -297,7 +302,7 @@ class MetaDataValidator:
                     parent_node_cache.append(tuple([node.get("nodeType"), key, value]))
         return parent_node_cache
     
-    def validate_relationship(self, data_record, submission_id):
+    def validate_relationship(self, data_record):
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
         msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
@@ -315,7 +320,7 @@ class MetaDataValidator:
         node_relationships = self.model.get_node_relationships(node_type)
         parent_nodes = self.get_parent_nodes(data_record_parent_nodes)
         data_common = data_record.get(DATA_COMMON_NAME)
-        checked_multi_parents = False
+        multi_parents = []
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
             if not parent_type or parent_type not in node_keys:
@@ -349,33 +354,28 @@ class MetaDataValidator:
             rel_type = node_relationships[parent_type].get(TYPE)
             # check if there is only one parent for both one_to_one and many_to_one relationships.
             if rel_type != "many_to_many": 
-                if not checked_multi_parents:
-                    parents = [item for item in data_record_parent_nodes if item[PARENT_TYPE] == parent_type and item[PARENT_ID_NAME] == parent_id_property ]
-                    if len(parents) > 1:
+                if parent_node not in multi_parents:
+                    multi_parents = [item for item in data_record_parent_nodes if item[PARENT_TYPE] == parent_type and item[PARENT_ID_NAME] == parent_id_property ]
+                    if len(multi_parents) > 1:
                         error_type = "One-to-one relationship conflict" if rel_type == "one_to_one" else "Many-to-one relationship conflict"
-                        parent_node_ids = [item[PARENT_ID_VAL] for item in parents]
+                        parent_node_ids = [item[PARENT_ID_VAL] for item in multi_parents]
                         result[ERRORS].append(create_error(error_type, 
                                     f'"{msg_prefix}": associated with multiple “{parent_type}” nodes: {json.dumps(parent_node_ids)}.'))
-                    checked_multi_parents = True
-
-            if (parent_type, parent_id_property, parent_id_value) not in parent_nodes:
+                        
+            has_parent = (parent_type, parent_id_property, parent_id_value) not in parent_nodes
+            if not has_parent:
                 released_parent = self.mongo_dao.search_released_node(data_common, parent_type, parent_id_value)
                 if not released_parent:
                     result[ERRORS].append(create_error("Related node not found", f'Related node “{parent_type}” [“{parent_id_property}”: “{parent_id_value}"] not found.'))
                 else:
-                    if rel_type == "one_to_one":
-                        # check released and current children by released parent
-                        child_node_ids = self.get_unique_child_node_ids(data_common, node_type, parent_node, submission_id)
-                        if child_node_ids and len(child_node_ids) > 1:
-                            result[ERRORS].append(create_error("One-to-one relationship conflict", 
-                                    f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
-            else: 
-                if rel_type == "one_to_one":
-                    # check released and current children by current parent
-                    child_node_ids = self.get_unique_child_node_ids(data_common, node_type, parent_node, submission_id)
-                    if child_node_ids and len(child_node_ids) > 1:
-                        result[ERRORS].append(create_error("One-to-one relationship conflict", 
-                                    f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
+                    has_parent = True
+
+            if has_parent and rel_type == "one_to_one":
+                # check released and current children by current parent
+                child_node_ids = self.get_unique_child_node_ids(data_common, node_type, parent_node, self.submission_id)
+                if child_node_ids and len(child_node_ids) > 1:
+                    result[ERRORS].append(create_error("One-to-one relationship conflict", 
+                                f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
