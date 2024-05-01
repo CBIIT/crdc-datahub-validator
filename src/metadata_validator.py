@@ -362,7 +362,7 @@ class MetaDataValidator:
                         result[ERRORS].append(create_error(error_type, 
                                     f'"{msg_prefix}": associated with multiple “{parent_type}” nodes: {json.dumps(parent_node_ids)}.'))
                         
-            has_parent = (parent_type, parent_id_property, parent_id_value) not in parent_nodes
+            has_parent = (parent_type, parent_id_property, parent_id_value) in parent_nodes
             if not has_parent:
                 released_parent = self.mongo_dao.search_released_node(data_common, parent_type, parent_id_value)
                 if not released_parent:
