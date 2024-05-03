@@ -9,10 +9,10 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, NODE_ID, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, BATCH_INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, INTENTION_DELETE, NODE_TYPE, \
-    SUBMISSION_INTENTION
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
+    SUBMISSION_INTENTION, BATCH_INTENTION_DELETE
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
 from common.model_store import ModelFactory
 from data_loader import DataLoader
@@ -341,7 +341,7 @@ class EssentialValidator:
                         line_num += 1
 
         id_field = self.model.get_node_id(type)
-        if self.submission_intention != INTENTION_DELETE: 
+        if self.submission_intention != SUBMISSION_INTENTION_DELETE: 
             # check missing required proper 
             required_props = self.model.get_node_req_props(type)
             missed_props = [ prop for prop in required_props if prop not in columns and prop != id_field]
@@ -400,13 +400,13 @@ class EssentialValidator:
                     file_info[ERRORS].append(msg)
                     self.batch[ERRORS].append(msg)
                   
-        if self.batch[BATCH_INTENTION] in [INTENTION_NEW, INTENTION_DELETE]:
+        if self.batch[BATCH_INTENTION] in [BATCH_INTENTION_NEW, BATCH_INTENTION_DELETE]:
             ids = list(set(self.df[id_field].tolist()))
             # query db to find existed nodes in current submission.  
             existed_nodes = self.mongo_dao.check_metadata_ids(type, ids, self.submission_id)  
             existed_ids = [item[NODE_ID] for item in existed_nodes]  
             # When metadata intention is "New", all IDs must not exist in the database 
-            if len(existed_ids) > 0 and self.batch[BATCH_INTENTION] == INTENTION_NEW:
+            if len(existed_ids) > 0 and self.batch[BATCH_INTENTION] == BATCH_INTENTION_NEW:
                 duplicated_rows = self.df[self.df[id_field].isin(existed_ids)].to_dict("index")
                 for key, val in duplicated_rows.items():
                     msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}": "{val[id_field]}".'
@@ -415,7 +415,7 @@ class EssentialValidator:
                     self.batch[ERRORS].append(msg)
                 return False
             # When metadata intention is "Delete", all IDs must exist in the database 
-            elif self.batch[BATCH_INTENTION] == INTENTION_DELETE:
+            elif self.batch[BATCH_INTENTION] == BATCH_INTENTION_DELETE:
                 not_existed_ids = list(set(ids) - set(existed_ids))
                 if len(not_existed_ids) > 0:
                     not_existed_rows = self.df[self.df[id_field].isin(not_existed_ids)].to_dict('index')

@@ -6,9 +6,9 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime, get_exception_msg
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_ID, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
-    MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
+    MD5, BATCH_INTENTION_NEW, BATCH_INTENTION_UPDATE, BATCH_INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, SUBMISSION_INTENTION, ADDITION_ERRORS, RAW_DATA
+    ORIN_FILE_NAME, SUBMISSION_INTENTION, ADDITION_ERRORS, RAW_DATA, SUBMISSION_INTENTION_DELETE
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -36,18 +36,18 @@ class DataLoader:
         self.errors = []
         intention = self.batch.get(BATCH_INTENTION)
         submission_intention = self.submission_intention
-        if not intention or not intention.strip() in [INTENTION_UPDATE, INTENTION_DELETE, INTENTION_NEW]:
+        if not intention or not intention.strip() in [BATCH_INTENTION_UPDATE, BATCH_INTENTION_DELETE, BATCH_INTENTION_NEW]:
              self.errors.append(f'Invalid metadata intention, "{intention}".')
              return False, self.errors
         else: 
             intention = intention.strip()
 
-        file_types = None if intention == INTENTION_DELETE else [k for (k,v) in self.file_nodes.items()]
+        file_types = None if intention == BATCH_INTENTION_DELETE else [k for (k,v) in self.file_nodes.items()]
        
         for file in file_path_list:
-            records = [] if intention != INTENTION_DELETE else None
-            deleted_nodes = [] if intention == INTENTION_DELETE else None
-            deleted_file_nodes = [] if intention == INTENTION_DELETE and submission_intention != INTENTION_DELETE else None
+            records = [] if intention != BATCH_INTENTION_DELETE else None
+            deleted_nodes = [] if intention == BATCH_INTENTION_DELETE else None
+            deleted_file_nodes = [] if intention == BATCH_INTENTION_DELETE and submission_intention != SUBMISSION_INTENTION_DELETE else None
             failed_at = 1
             file_name = os.path.basename(file)
             # 1. read file to dataframe
@@ -64,11 +64,11 @@ class DataLoader:
                 for index, row in df.iterrows():
                     type = row[TYPE]
                     node_id = self.get_node_id(type, row)
-                    exist_node = None if intention == INTENTION_NEW else self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
-                    if intention == INTENTION_DELETE:
+                    exist_node = None if intention == BATCH_INTENTION_NEW else self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
+                    if intention == BATCH_INTENTION_DELETE:
                         if exist_node:
                             deleted_nodes.append(exist_node)
-                            if submission_intention != INTENTION_DELETE and exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
+                            if submission_intention != BATCH_INTENTION_DELETE and exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
                                 deleted_file_nodes.append(exist_node[S3_FILE_INFO])
                         continue
                     # 2. construct dataRecord
@@ -76,7 +76,7 @@ class DataLoader:
                     del rawData['index'] #remove index column
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
-                    batchIds = [self.batch[ID]] if intention == INTENTION_NEW or not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
+                    batchIds = [self.batch[ID]] if intention == BATCH_INTENTION_NEW or not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
                     current_date_time = current_datetime()
                     id = self.get_record_id(intention, exist_node)
                     crdc_id = self.get_crdc_id(intention, exist_node, type, node_id)
@@ -92,7 +92,7 @@ class DataLoader:
                             STATUS: STATUS_NEW,
                             ERRORS: [],
                             WARNINGS: [],
-                            CREATED_AT : current_date_time if intention == INTENTION_NEW or not exist_node else exist_node[CREATED_AT], 
+                            CREATED_AT : current_date_time if intention == BATCH_INTENTION_NEW or not exist_node else exist_node[CREATED_AT], 
                             UPDATED_AT: current_date_time, 
                             ORIN_FILE_NAME: file_name,
                             "lineNumber":  index + 2,
@@ -109,24 +109,24 @@ class DataLoader:
                     failed_at += 1
 
                 # 3-1. insert data in a tsv file into mongo DB
-                if intention == INTENTION_NEW:
+                if intention == BATCH_INTENTION_NEW:
                     result, error = self.mongo_dao.insert_data_records(records)
                     if error:
                         self.errors.append(f'“{file_name}”: inserting metadata failed - database error.  Please try again and contact the helpdesk if this error persists.')
                     returnVal = returnVal and result
                     
-                elif intention == INTENTION_UPDATE:
+                elif intention == BATCH_INTENTION_UPDATE:
                     result, error = self.mongo_dao.update_data_records(records)
                     if error:
                         self.errors.append(f'“{file_name}”: updating metadata failed - database error.  Please try again and contact the helpdesk if this error persists.')
                     returnVal = returnVal and result
                 #3-2. delete all records in deleted_ids
-                elif intention == INTENTION_DELETE:
+                elif intention == BATCH_INTENTION_DELETE:
                     returnVal = self.delete_nodes(deleted_nodes, deleted_file_nodes, file_name)
 
             except Exception as e:
                     self.log.debug(e)
-                    upload_type = "inserting" if intention == INTENTION_NEW else "updating" if intention == INTENTION_UPDATE else "deleting"
+                    upload_type = "inserting" if intention == BATCH_INTENTION_NEW else "updating" if intention == BATCH_INTENTION_UPDATE else "deleting"
                     msg = f'“{file_name}”: {upload_type} metadata failed with internal error.  Please try again and contact the helpdesk if this error persists.'
                     self.log.exception(msg)
                     self.errors.append(msg)
@@ -260,7 +260,7 @@ class DataLoader:
     get node id 
     """
     def get_record_id(self, intention, node):
-        if intention == INTENTION_NEW:
+        if intention == BATCH_INTENTION_NEW:
             return get_uuid_str()
         else:
             return node[ID] if node else get_uuid_str()
@@ -269,7 +269,7 @@ class DataLoader:
     get node crdc id
     """
     def get_crdc_id(self, intention, exist_node, node_type, node_id):
-        if intention == INTENTION_NEW or not exist_node:
+        if intention == BATCH_INTENTION_NEW or not exist_node:
             if not self.data_common or not node_type or not node_id:
                 return None
             else:

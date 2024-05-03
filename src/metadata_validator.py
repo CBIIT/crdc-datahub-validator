@@ -7,8 +7,9 @@ from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, SUBMISSION_INTENTION, \
-    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, INTENTION_NEW, INTENTION_DELETE, \
-    SUBMISSION_REL_STATUS_RELEASED, ORIN_FILE_NAME, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION
+    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, BATCH_INTENTION_NEW, BATCH_INTENTION_DELETE, \
+    SUBMISSION_REL_STATUS_RELEASED, ORIN_FILE_NAME, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, SUBMISSION_INTENTION_NEW, \
+    SUBMISSION_INTENTION_DELETE
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -187,22 +188,22 @@ class MetaDataValidator:
         sub_intention = self.submission.get(SUBMISSION_INTENTION)
         try:
             # call validate_required_props
-            result_required= self.validate_required_props(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else self.validate_file_name(data_record, def_file_nodes, node_type, msg_prefix)
+            result_required= self.validate_required_props(data_record, msg_prefix) if sub_intention != SUBMISSION_INTENTION_DELETE else self.validate_file_name(data_record, def_file_nodes, node_type, msg_prefix)
             # call validate_prop_value
-            result_prop_value = self.validate_props(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else {}
+            result_prop_value = self.validate_props(data_record, msg_prefix) if sub_intention != SUBMISSION_INTENTION_DELETE else {}
             # call validate_relationship
-            result_rel = self.validate_relationship(data_record, msg_prefix) if sub_intention != INTENTION_DELETE else {}
+            result_rel = self.validate_relationship(data_record, msg_prefix) if sub_intention != SUBMISSION_INTENTION_DELETE else {}
 
             # concatenation of all errors
             errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
             # concatenation of all warnings
             warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
             #check if existed nodes in release collection
-            if sub_intention and sub_intention in [INTENTION_NEW, INTENTION_DELETE]:
+            if sub_intention and sub_intention in [SUBMISSION_INTENTION_NEW, SUBMISSION_INTENTION_DELETE]:
                 exist_releases = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
-                if sub_intention == INTENTION_NEW and (exist_releases and len(exist_releases) > 0):
+                if sub_intention == SUBMISSION_INTENTION_NEW and (exist_releases and len(exist_releases) > 0):
                     errors.append(create_error("Identical data found", f'{msg_prefix} Identical data for “{node_type}” (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
-                elif sub_intention == INTENTION_DELETE and (not exist_releases or len(exist_releases) == 0):
+                elif sub_intention == SUBMISSION_INTENTION_DELETE and (not exist_releases or len(exist_releases) == 0):
                     errors.append(create_error("Data not found", f'{msg_prefix} No data for “{node_type}” (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
             # if there are any errors set the result to "Error"
             if len(errors) > 0:
