@@ -181,7 +181,6 @@ class ExportMetadata:
             for r in data_records:
                 node_id = r.get(NODE_ID)
                 crdc_id = r.get(CRDC_ID)
-                self.save_release(r, node_type, node_id, crdc_id)
                 row_list = self.convert_2_row(r, node_type, crdc_id)
                 rows.extend(row_list)
                 if r.get(ORIN_FILE_NAME) != file_name:
