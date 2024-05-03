@@ -69,7 +69,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                     export_processed += 1
                     msg.delete()
                 except Exception as e:
-                    log.debug(e)
+                    log.critical(e)
                     log.critical(
                         f'Something wrong happened while exporting file! Check debug log for details.')
                 finally:
@@ -152,7 +152,7 @@ class ExportMetadata:
         try:
             self.s3_service.archive_s3_if_exists(bucket_name, root_path)
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f'{submission_id}: Failed to archive existed release: {get_exception_msg()}.')
             return
 
