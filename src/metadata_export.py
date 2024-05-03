@@ -69,7 +69,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                     export_processed += 1
                     msg.delete()
                 except Exception as e:
-                    log.debug(e)
+                    log.critical(e)
                     log.critical(
                         f'Something wrong happened while exporting file! Check debug log for details.')
                 finally:
