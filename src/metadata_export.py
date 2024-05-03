@@ -152,8 +152,8 @@ class ExportMetadata:
         try:
             self.s3_service.archive_s3_if_exists(bucket_name, root_path)
         except Exception as e:
-            self.log.debug(e)
-            self.log.exception(f'{submission_id}: Failed to archive existed release: {node_type} data: {get_exception_msg()}.')
+            self.log.exception(e)
+            self.log.exception(f'{submission_id}: Failed to archive existed release: {get_exception_msg()}.')
             return
 
         node_types = self.model.get_node_keys()
