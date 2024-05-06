@@ -7,7 +7,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     RELEASE, ARCHIVE_RELEASE, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
-    INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME
+    SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
 from common.model_store import ModelFactory
 import threading
@@ -274,7 +274,7 @@ class ExportMetadata:
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
-                self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are {'released' if self.intention != INTENTION_DELETE else 'deleted'}.")
+                self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are {'released' if self.intention != SUBMISSION_INTENTION_DELETE else 'deleted'}.")
                 return
 
             start_index += count 
@@ -287,7 +287,7 @@ class ExportMetadata:
         current_date = current_datetime()
         if not existed_crdc_record or existed_crdc_record.get(DATA_COMMON_NAME) != self.submission.get(DATA_COMMON_NAME) \
             or existed_crdc_record.get(NODE_ID) != node_id or existed_crdc_record.get(NODE_TYPE) != node_type:
-            if self.submission.get(SUBMISSION_INTENTION == INTENTION_DELETE):
+            if self.submission.get(SUBMISSION_INTENTION) == SUBMISSION_INTENTION_DELETE:
                 self.log.error(f"{self.submission[ID]}: No data found for delete: {self.submission.get(DATA_COMMON_NAME)}/{node_type}/{node_id}/{crdc_id}!")
                 return
             # create new crdc_record
@@ -309,7 +309,7 @@ class ExportMetadata:
                 self.log.error(f"{self.submission[ID]}: Failed to insert release for {node_type}/{node_id}/{crdc_id}!")
         else: 
             existed_crdc_record[UPDATED_AT] = current_date
-            if self.intention == INTENTION_DELETE:
+            if self.intention == SUBMISSION_INTENTION_DELETE:
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
             else: 
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
@@ -320,7 +320,7 @@ class ExportMetadata:
                 self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
                 return
             # process released children and set release status to "Deleted"
-            if self.intention == INTENTION_DELETE:
+            if self.intention == SUBMISSION_INTENTION_DELETE:
                 result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None])
                 if result and children and len(children) > 0: 
                     self.delete_release_children(children)
