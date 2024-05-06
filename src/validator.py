@@ -52,7 +52,7 @@ def controller():
             return 1
 
     except Exception as e:
-        log.debug(e)
+        log.exception(e)
         log.exception(f'Error occurred when initialize the application: {get_exception_msg()}')
         return 1
 

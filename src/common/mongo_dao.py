@@ -29,7 +29,7 @@ class MongoDao:
             self.log.exception(f"Failed to find batch, {batchId}: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find batch, {batchId}: {get_exception_msg()}")
             return None
         
@@ -53,7 +53,7 @@ class MongoDao:
             self.log.exception(f"Failed to find batch by file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find batch by file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
             return None
     """
@@ -69,7 +69,7 @@ class MongoDao:
             self.log.exception(f"Failed to find submission, {submissionId}: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find submission, {submissionId}: {get_exception_msg()}")
             return None
 
@@ -93,7 +93,7 @@ class MongoDao:
             self.log.exception(f"Failed to search nodes: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to search nodes: {get_exception_msg()}")
             return None
         
@@ -115,7 +115,7 @@ class MongoDao:
             self.log.exception(f"{submission_id}: Failed to search nodes: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to search nodes: {get_exception_msg()}")
             return None
         
@@ -134,7 +134,7 @@ class MongoDao:
             self.log.exception(f"Failed to search node for crdc_id: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to search node for crdc_id {get_exception_msg()}")
             return None
         
@@ -151,7 +151,7 @@ class MongoDao:
             self.log.exception(f"Failed to find file, {fileId}: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find file, {fileId}: {get_exception_msg()}")
             return None
     """
@@ -167,7 +167,7 @@ class MongoDao:
             self.log.exception(f"Failed to find file, {fileName}: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find file, {fileName}: {get_exception_msg()}")
             return None    
     """
@@ -183,7 +183,7 @@ class MongoDao:
             self.log.exception(f"Failed to find file for the submission, {submission_id}: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find file for the submission, {submission_id}: {get_exception_msg()}")
             return None
     
@@ -201,7 +201,7 @@ class MongoDao:
             self.log.exception(f"Failed to update batch, {batch[ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to update batch, {batch[ID]}: {get_exception_msg()}")
             return False
     """
@@ -219,7 +219,7 @@ class MongoDao:
             self.log.debug(oe)
             self.log.exception(f"{submission_id}: Failed to query DB, {nodeType}: {get_exception_msg()}!")
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to query DB, {nodeType}: {get_exception_msg()}!")
         return True
     
@@ -237,7 +237,7 @@ class MongoDao:
             self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
             return False  
         
@@ -255,7 +255,7 @@ class MongoDao:
             self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
             return False  
     """
@@ -299,7 +299,7 @@ class MongoDao:
             self.log.exception(f"Failed to update submission, {submission[ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to update file, {submission[ID]}: {get_exception_msg()}")
             return False
         
@@ -322,7 +322,7 @@ class MongoDao:
             self.log.exception(msg)
             return False, msg
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f"Failed to update file records, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
@@ -347,7 +347,7 @@ class MongoDao:
             self.log.exception(msg)
             return False, msg
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f"Failed to update file records, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
@@ -371,7 +371,7 @@ class MongoDao:
             self.log.exception(msg)
             return False, msg
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f"Failed to update file records, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
@@ -394,7 +394,7 @@ class MongoDao:
             self.log.exception(msg)
             return False, msg
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f"Failed to delete file records, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg
@@ -415,7 +415,7 @@ class MongoDao:
             self.log.exception(msg)
             return False, msg
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f"Failed to insert data records, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg
@@ -438,7 +438,7 @@ class MongoDao:
             self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None 
 
@@ -461,7 +461,7 @@ class MongoDao:
             self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None 
         
@@ -480,7 +480,7 @@ class MongoDao:
             self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data records, {get_exception_msg()}")
             return None 
 
@@ -498,7 +498,7 @@ class MongoDao:
             self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None   
     """
@@ -519,7 +519,7 @@ class MongoDao:
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
     """
@@ -543,7 +543,7 @@ class MongoDao:
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
     """
@@ -559,7 +559,7 @@ class MongoDao:
             self.log.exception(f"Failed to retrieve submissions: {get_exception_msg()}")
             return False, None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to retrieve submissions:: {get_exception_msg()}")
             return False, None  
     """
@@ -582,7 +582,7 @@ class MongoDao:
             self.log.exception(f"Failed to set search index: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to set search index: {get_exception_msg()}")
             return False
     
@@ -606,7 +606,7 @@ class MongoDao:
             self.log.exception(f"Failed to set search index in release collection: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to set search index in release collection: {get_exception_msg()}")
             return False
         
@@ -624,7 +624,7 @@ class MongoDao:
             self.log.exception(f"{submission_id}: Failed to retrieve file md5: {get_exception_msg()}")
             return None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve file md5: {get_exception_msg()}")
             return None
         
@@ -642,7 +642,7 @@ class MongoDao:
             self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save file md5: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save file md5: {get_exception_msg()}")
             return False
         
@@ -660,7 +660,7 @@ class MongoDao:
             self.log.exception(f"Failed to find release record for {crdc_id}: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find release record for {crdc_id}: {get_exception_msg()}")
             return False
     
@@ -678,7 +678,7 @@ class MongoDao:
             self.log.exception(f"Failed to insert crdcID record: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to insert crdcID record: {get_exception_msg()}")
             return False
     """
@@ -695,7 +695,7 @@ class MongoDao:
             self.log.exception(f"Failed to update release record: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to update release record: {get_exception_msg()}")
             return False
 
@@ -726,7 +726,7 @@ class MongoDao:
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
 
@@ -748,7 +748,7 @@ class MongoDao:
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
    
@@ -770,7 +770,7 @@ class MongoDao:
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
     
@@ -791,7 +791,7 @@ class MongoDao:
             self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
             return False, None
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
             return False, None
         
@@ -808,7 +808,7 @@ class MongoDao:
             self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
             return False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
             return False
         
