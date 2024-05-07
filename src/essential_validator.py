@@ -243,7 +243,7 @@ class EssentialValidator:
                 return True # if no exception
         except ClientError as ce:
             self.df = None
-            self.log.debug(ce)
+            self.log.exception(ce)
             self.log.exception(f"Failed to download file, {file_info[FILE_NAME]}. {get_exception_msg()}.")
             file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.']
             self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.')

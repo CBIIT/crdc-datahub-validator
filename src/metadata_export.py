@@ -94,7 +94,7 @@ class S3Service:
         try:
             self.s3_client.close()
         except Exception as e1:
-            log.debug(e1)
+            log.exception(e1)
             log.critical(
                 f'An error occurred while attempting to close the s3 client! Check debug log for details.')
 
