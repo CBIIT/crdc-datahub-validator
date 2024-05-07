@@ -302,7 +302,7 @@ class FileValidator:
             
             submission_intention = self.submission.get(SUBMISSION_INTENTION)
             # get manifest info for the submission
-            manifest_info_list = self.mongo_dao.get_files_by_submission(submission_id) if submission_intention != INTENTION_DELETE else []
+            manifest_info_list = self.mongo_dao.get_files_by_submission(submission_id) if submission_intention != SUBMISSION_INTENTION_DELETE else []
             # 1: check if Extra files, validate if there are files in files folder of the submission that are not specified 
             # in any manifests of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload 
             # the manifest. (error) included in total count.

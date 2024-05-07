@@ -217,7 +217,7 @@ class MetaDataValidator:
                 return STATUS_WARNING, errors, warnings
         except Exception as e:
             self.log.exception(e)
-            msg = f'Failed to validate dataRecords for the submission, {submission_id} at scope, {scope}!'
+            msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
             error = create_error("Internal error", "{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return STATUS_ERROR,[error], None
