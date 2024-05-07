@@ -35,7 +35,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
         # dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
         dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
-        log.debug(e)
+        log.exception(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
     #step 3: run validator as a service
@@ -112,7 +112,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     batches_processed += 1
                     msg.delete()
                 except Exception as e:
-                    log.debug(e)
+                    log.exception(e)
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:

@@ -30,7 +30,7 @@ def metadata_export(configs, job_queue, mongo_dao):
         # dump models to json files
         dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
-        log.debug(e)
+        log.exception(e)
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
     scale_in_protection_flag = False
@@ -94,7 +94,7 @@ class S3Service:
         try:
             self.s3_client.close()
         except Exception as e1:
-            log.debug(e1)
+            log.exception(e)e1)
             log.critical(
                 f'An error occurred while attempting to close the s3 client! Check debug log for details.')
 
@@ -200,7 +200,7 @@ class ExportMetadata:
                     self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are exported.")
                     return
                 except Exception as e:
-                    self.log.debug(e)
+                    self.log.exception(e)
                     self.log.exception(f'{submission_id}: Failed to export {node_type} data: {get_exception_msg()}.')
                 finally:
                     if buf:
