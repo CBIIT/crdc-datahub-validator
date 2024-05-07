@@ -777,7 +777,7 @@ class MongoDao:
     """
     find child node by type and id
     """
-    def get_released_nodes_by_parent_with_status(self, datacommon, parent, status):
+    def get_released_nodes_by_parent_with_status(self, datacommon, parent, status, submission_id):
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
         query = []
@@ -788,11 +788,11 @@ class MongoDao:
             return True, results
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f" Failed to retrieve child releases: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
             return False, None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to retrieve child releases: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
             return False, None
         
     """
