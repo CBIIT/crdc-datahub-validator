@@ -60,7 +60,7 @@ class CrossSubmissionValidator:
                 updated_records.append(record)
                 validated_count += 1
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f'Failed to validate dataRecords for the submission, {submission_id}.'
             self.log.exception(msg) 
             self.isError = True 

@@ -30,7 +30,7 @@ def metadata_export(configs, job_queue, mongo_dao):
         # dump models to json files
         dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
-        log.debug(e)
+        log.exception(e)
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
     scale_in_protection_flag = False
@@ -94,7 +94,7 @@ class S3Service:
         try:
             self.s3_client.close()
         except Exception as e1:
-            log.debug(e1)
+            log.exception(e1)
             log.critical(
                 f'An error occurred while attempting to close the s3 client! Check debug log for details.')
 
@@ -200,7 +200,7 @@ class ExportMetadata:
                     self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are exported.")
                     return
                 except Exception as e:
-                    self.log.debug(e)
+                    self.log.exception(e)
                     self.log.exception(f'{submission_id}: Failed to export {node_type} data: {get_exception_msg()}.')
                 finally:
                     if buf:
@@ -321,7 +321,7 @@ class ExportMetadata:
                 return
             # process released children and set release status to "Deleted"
             if self.intention == SUBMISSION_INTENTION_DELETE:
-                result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None])
+                result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[SUBMISSION_ID])
                 if result and children and len(children) > 0: 
                     self.delete_release_children(children)
     
@@ -335,7 +335,7 @@ class ExportMetadata:
                     self.log.error(f"{self.submission[ID]}: Failed to update release for {child.get(NODE_TYPE)}/{child.get(NODE_ID)}/{child.get(CRDC_ID)}!")
                     return
                 # process released children and set release status to "Deleted"
-                result, descendent = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], child, [SUBMISSION_REL_STATUS_RELEASED, None])
+                result, descendent = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], child, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[SUBMISSION_ID])
                 if result and descendent and len(descendent) > 0: 
                     self.delete_release_children(descendent)
         return

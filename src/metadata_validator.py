@@ -26,7 +26,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
         # dump models to json files
         dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
-        log.debug(e)
+        log.exception(e)
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
         return 1
 
@@ -73,7 +73,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     batches_processed += 1
                     msg.delete()
                 except Exception as e:
-                    log.debug(e)
+                    log.exception(e)
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
@@ -163,7 +163,7 @@ class MetaDataValidator:
                 updated_records.append(record)
                 validated_count += 1
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f'Failed to validate dataRecords for the submission, {submission_id} at scope, {scope}!'
             self.log.exception(msg) 
             self.isError = True 
