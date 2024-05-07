@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
 from common.constants import  ADDITION_ERRORS, STATUS_ERROR, FAILED, STATUS_PASSED, STATUS, UPDATED_AT, DATA_COMMON_NAME, \
-    NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ABBREVIATION, SUBMISSION_ID, ID
+    NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ABBREVIATION, ID
 from common.utils import current_datetime, create_error
 
 BATCH_SIZE = 1000

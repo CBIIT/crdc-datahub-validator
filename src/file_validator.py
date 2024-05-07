@@ -5,10 +5,9 @@ import os
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
-from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
+from common.constants import ERRORS, WARNINGS, STATUS, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
-    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE, SUBMISSION_INTENTION, INTENTION_DELETE, \
-    ORIN_FILE_NAME
+    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE, SUBMISSION_INTENTION, SUBMISSION_INTENTION_DELETE
 from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error, get_uuid_str
 from service.ecs_agent import set_scale_in_protection
 
@@ -83,7 +82,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                     file_processed += 1
                     msg.delete()
                 except Exception as e:
-                    log.debug(e)
+                    log.exception(e)
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
@@ -126,14 +125,14 @@ class FileValidator:
             if not self.validate_fileRecord(fileRecord):
                 return STATUS_ERROR
             #escape file validation if submission intention is Delete
-            if self.submission.get(SUBMISSION_INTENTION) == INTENTION_DELETE:
+            if self.submission.get(SUBMISSION_INTENTION) == SUBMISSION_INTENTION_DELETE:
                 return STATUS_PASSED
             # validate individual file
             status, error = self.validate_file(fileRecord)
             self.set_status(fileRecord, status, error)
             return status
         except Exception as e: #catch all unhandled exception
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f"{fileRecord.get(SUBMISSION_ID)}: Failed to validate file, {fileRecord.get(ID)}! {get_exception_msg()}!"
             self.log.exception(msg)
             error = create_error("Internal error", "File validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
@@ -273,9 +272,6 @@ class FileValidator:
         if len(temp_list) > 0:
             msg = f'File “{file_name}”: another file with the same MD5 found.'
             error = create_error("Duplicated file content detected", msg)
-            if fileRecord[STATUS] == STATUS_NEW:
-                self.log.error(msg)
-                return STATUS_ERROR, error
             self.log.warning(msg)
             return STATUS_WARNING, error 
             
@@ -338,7 +334,7 @@ class FileValidator:
                         "severity": "Error",
                         "uploadedDate": file.last_modified,
                         "validatedDate": current_datetime(),
-                        "errors": [create_error("Extra file found", msg)]
+                        "errors": [create_error("Orphaned file found", msg)]
                     }
                     errors.append(error)
                     missing_count += 1
@@ -357,7 +353,7 @@ class FileValidator:
                 return STATUS_PASSED, None
    
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f"{submission_id}: Failed to validate files! {get_exception_msg()}!"
             self.log.exception(msg)
             error = create_error("Internal error", "File validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
@@ -368,10 +364,14 @@ class FileValidator:
         if status == STATUS_ERROR:
             record[S3_FILE_INFO][STATUS] = STATUS_ERROR
             record[S3_FILE_INFO][ERRORS] = [error]
+            record[S3_FILE_INFO][WARNINGS] = []
             
         elif status == STATUS_WARNING: 
             record[S3_FILE_INFO][STATUS] = STATUS_WARNING
             record[S3_FILE_INFO][WARNINGS] = [error]
+            record[S3_FILE_INFO][ERRORS] = []
             
         else:
             record[S3_FILE_INFO][STATUS] = STATUS_PASSED
+            record[S3_FILE_INFO][WARNINGS] = []
+            record[S3_FILE_INFO][ERRORS] = []
