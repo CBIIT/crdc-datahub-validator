@@ -9,7 +9,6 @@ from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_
     MD5, BATCH_INTENTION_NEW, BATCH_INTENTION_UPDATE, BATCH_INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
     ORIN_FILE_NAME, SUBMISSION_INTENTION, ADDITION_ERRORS, RAW_DATA, SUBMISSION_INTENTION_DELETE
-
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
@@ -49,6 +48,7 @@ class DataLoader:
             records = [] if intention != BATCH_INTENTION_DELETE else None
             deleted_nodes = [] if intention == BATCH_INTENTION_DELETE else None
             deleted_file_nodes = [] if intention == BATCH_INTENTION_DELETE and submission_intention != SUBMISSION_INTENTION_DELETE else None
+
             failed_at = 1
             file_name = os.path.basename(file)
             # 1. read file to dataframe

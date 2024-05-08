@@ -335,7 +335,7 @@ class ExportMetadata:
                     self.log.error(f"{self.submission[ID]}: Failed to update release for {child.get(NODE_TYPE)}/{child.get(NODE_ID)}/{child.get(CRDC_ID)}!")
                     return
                 # process released children and set release status to "Deleted"
-                result, descendent = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], child, [SUBMISSION_REL_STATUS_RELEASED, None])
+                result, descendent = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], child, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[SUBMISSION_ID])
                 if result and descendent and len(descendent) > 0: 
                     self.delete_release_children(descendent)
         return
