@@ -338,7 +338,7 @@ class FileValidator:
                         "severity": "Error",
                         "uploadedDate": file.last_modified,
                         "validatedDate": current_datetime(),
-                        "errors": [create_error("Extra file found", msg)]
+                        "errors": [create_error("Orphaned file found", msg)]
                     }
                     errors.append(error)
                     missing_count += 1
