@@ -40,9 +40,9 @@ BATCH_STATUS_UPLOADED = "Uploaded"
 SUBMISSION_COLLECTION="submissions"
 DATA_COMMON_NAME ="dataCommons"
 BATCH_INTENTION = "metadataIntention"
-INTENTION_NEW = "New"
-INTENTION_DELETE = "Delete"
-INTENTION_UPDATE = "Update"
+INTENTION_NEW = "Add"
+INTENTION_DELETE = "Remove"
+INTENTION_UPDATE = "Add/Change"
 
 # export
 EXPORT_METADATA = "metadata"
