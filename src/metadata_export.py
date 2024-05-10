@@ -287,7 +287,7 @@ class ExportMetadata:
         current_date = current_datetime()
         if not existed_crdc_record or existed_crdc_record.get(DATA_COMMON_NAME) != self.submission.get(DATA_COMMON_NAME) \
             or existed_crdc_record.get(NODE_ID) != node_id or existed_crdc_record.get(NODE_TYPE) != node_type:
-            if self.submission.get(SUBMISSION_INTENTION == SUBMISSION_INTENTION_DELETE):
+            if self.submission.get(SUBMISSION_INTENTION) == SUBMISSION_INTENTION_DELETE:
                 self.log.error(f"{self.submission[ID]}: No data found for delete: {self.submission.get(DATA_COMMON_NAME)}/{node_type}/{node_id}/{crdc_id}!")
                 return
             # create new crdc_record
