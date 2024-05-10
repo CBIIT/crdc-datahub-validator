@@ -82,7 +82,7 @@ def fileValidate(configs, job_queue, mongo_dao):
                     file_processed += 1
                     msg.delete()
                 except Exception as e:
-                    log.debug(e)
+                    log.exception(e)
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
@@ -129,7 +129,7 @@ class FileValidator:
             self.set_status(fileRecord, status, error)
             return status
         except Exception as e: #catch all unhandled exception
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f"{fileRecord.get(SUBMISSION_ID)}: Failed to validate file, {fileRecord.get(ID)}! {get_exception_msg()}!"
             self.log.exception(msg)
             error = create_error("Internal error", "File validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
@@ -342,7 +342,7 @@ class FileValidator:
                 return STATUS_PASSED, None
    
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f"{submission_id}: Failed to validate files! {get_exception_msg()}!"
             self.log.exception(msg)
             error = create_error("Internal error", "File validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")

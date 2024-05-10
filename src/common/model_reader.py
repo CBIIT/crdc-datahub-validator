@@ -80,7 +80,7 @@ class YamlModelParser:
                     if schema:
                         self.schema.update(schema)
             except Exception as e:
-                self.log.debug(e)
+                self.log.exception(e)
                 msg = f'Failed to read yaml file to dict: {aFile}!'
                 self.log.exception(msg)
                 raise

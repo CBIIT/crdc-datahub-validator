@@ -121,7 +121,7 @@ class DataLoader:
                     returnVal = self.delete_nodes(deleted_nodes, deleted_file_nodes, file_name)
 
             except Exception as e:
-                    self.log.debug(e)
+                    self.log.exception(e)
                     upload_type = "inserting" if intention == INTENTION_NEW else "updating" if intention == INTENTION_UPDATE else "deleting"
                     msg = f'“{file_name}”: {upload_type} metadata failed with internal error.  Please try again and contact the helpdesk if this error persists.'
                     self.log.exception(msg)
@@ -245,7 +245,7 @@ class DataLoader:
                     self.log.info(f'"{file_name}": data file "{s3_info[FILE_NAME]}" does not exit in s3 bucket!')
                     rtn_val = rtn_val and True
             except Exception  as e:
-                self.log.debug(e)
+                self.log.exception(e)
                 msg = f"Failed to delete file in s3 bucket, {key}! {get_exception_msg()}."
                 self.log.exception(msg)
                 self.errors.append(f'"{file_name}": deleting data file “{s3_info[FILE_NAME]}” failed.  Please try again and contact the helpdesk if this error persists.')

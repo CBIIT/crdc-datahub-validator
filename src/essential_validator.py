@@ -34,7 +34,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
         # dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
         dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
-        log.debug(e)
+        log.exception(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
     #step 3: run validator as a service
@@ -111,7 +111,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     batches_processed += 1
                     msg.delete()
                 except Exception as e:
-                    log.debug(e)
+                    log.exception(e)
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
@@ -169,7 +169,7 @@ class EssentialValidator:
                     file_info[STATUS] = STATUS_ERROR
             return True if len(self.batch[ERRORS]) == 0 else False
         except Exception as e:
-            self.log.debug(e)
+            self.log.exception(e)
             msg = f'Failed to validate the batch files, {get_exception_msg()}!'
             self.log.exception(msg)
             batch[ERRORS].append(f'Batch validation failed - internal error. Please try again and contact the helpdesk if this error persists.')
@@ -237,14 +237,14 @@ class EssentialValidator:
                 return True # if no exception
         except ClientError as ce:
             self.df = None
-            self.log.debug(ce)
+            self.log.exception(ce)
             self.log.exception(f"Failed to download file, {file_info[FILE_NAME]}. {get_exception_msg()}.")
             file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.']
             self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.')
             return False
         except Exception as e:
             self.df = None
-            self.log.debug(e)
+            self.log.exception(e)
             self.log.exception('Invalid metadata file! Check debug log for detailed information.')
             file_info[ERRORS] = [f'“{file_info[FILE_NAME]}” is not a valid TSV file.']
             self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}” is not a valid TSV file.')
