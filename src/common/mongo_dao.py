@@ -1,11 +1,11 @@
 from pymongo import MongoClient, errors, ReplaceOne, UpdateOne, DeleteOne, TEXT, DESCENDING
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
-    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
+    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, \
-    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, SUBMISSION_REL_STATUS, \
-    SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, FAILED, DATA_COMMON_NAME, KEY, \
+    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
+    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
@@ -522,6 +522,26 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
+        
+    """
+    find child nodes by nodeType, parentType and parentIDProperty and parentID
+    """
+    def get_nodes_by_parent_prop(self, node_type, parent_prop, submission_id):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        query = {SUBMISSION_ID: submission_id, NODE_TYPE: node_type, PARENTS: {"$elemMatch": {PARENT_TYPE: parent_prop[PARENT_TYPE], 
+                        PARENT_ID_NAME: parent_prop[PARENT_ID_NAME], PARENT_ID_VAL: parent_prop[PARENT_ID_VAL]}}}
+        try:
+            return list(data_collection.find(query))
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
+            return None
+        
     """
     find node in other submission with the same study
     """   
@@ -794,6 +814,29 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
             return False, None
+    
+    def find_released_nodes_by_parent(self, node_type, data_commons, parent_node):
+        """
+        find released certain type children nodes by parent
+        :param node_type:
+        :param data_commons:
+        :param parent_node:
+        :return:
+        """
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            return list(data_collection.find({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, PARENTS: {"$elemMatch": {PARENT_TYPE: parent_node[PARENT_TYPE], 
+                        PARENT_ID_NAME: parent_node[PARENT_ID_NAME], PARENT_ID_VAL: parent_node[PARENT_ID_VAL]}}}))
+
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to find release record for {data_commons}/{parent_node[PARENT_TYPE]}/{parent_node[PARENT_ID_VAL]}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to find release record for {data_commons}/{parent_node[PARENT_TYPE]}/{parent_node[PARENT_ID_VAL]}: {get_exception_msg()}")
+            return None
         
     """
     count documents in a given collection and conditions 

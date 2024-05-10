@@ -6,10 +6,9 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, SUBMISSION_INTENTION, \
-    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, BATCH_INTENTION_NEW, BATCH_INTENTION_DELETE, \
-    SUBMISSION_REL_STATUS_RELEASED, ORIN_FILE_NAME, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, SUBMISSION_INTENTION_NEW, \
-    SUBMISSION_INTENTION_DELETE
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, ORIN_FILE_NAME, \
+    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
+    SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, SUBMISSION_REL_STATUS_RELEASED
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -98,9 +97,12 @@ class MetaDataValidator:
         self.mongo_dao = mongo_dao
         self.model_store = model_store
         self.model = None
+        self.submission_id = None
+        self.scope = None
         self.submission = None
         self.isError = None
         self.isWarning = None
+
 
     def validate(self, submission_id, scope):
         #1. # get data common from submission
@@ -113,6 +115,8 @@ class MetaDataValidator:
             msg = f'Invalid submission, no datacommon found, {submission_id}!'
             self.log.error(msg)
             return FAILED
+        self.submission_id = submission_id
+        self.scope = scope
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
         model_version = submission.get(MODEL_VERSION)
@@ -133,13 +137,13 @@ class MetaDataValidator:
                 return FAILED
             
             count = len(data_records) 
-            validated_count += self.validate_nodes(data_records, submission_id, scope)
+            validated_count += self.validate_nodes(data_records)
             if count < BATCH_SIZE: 
                 self.log.info(f"{submission_id}: {validated_count} out of {count + start_index} nodes are validated.")
                 return STATUS_ERROR if self.isError else STATUS_WARNING if self.isWarning  else STATUS_PASSED 
             start_index += count  
 
-    def validate_nodes(self, data_records, submission_id, scope):
+    def validate_nodes(self, data_records):
         #2. loop through all records and call validateNode
         updated_records = []
         validated_count = 0
@@ -164,14 +168,14 @@ class MetaDataValidator:
                 validated_count += 1
         except Exception as e:
             self.log.exception(e)
-            msg = f'Failed to validate dataRecords for the submission, {submission_id} at scope, {scope}!'
+            msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
             self.isError = True 
         #3. update data records based on record's _id
         result = self.mongo_dao.update_data_records_status(updated_records)
         if not result:
             #4. set errors in submission
-            msg = f'Failed to update dataRecords for the submission, {submission_id} at scope, {scope}!'
+            msg = f'Failed to update dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.error(msg)
             self.isError = True
 
@@ -212,8 +216,10 @@ class MetaDataValidator:
             if len(warnings) > 0:
                 return STATUS_WARNING, errors, warnings
         except Exception as e:
-            self.log.exception(e) 
-            error = create_error("Internal error", f"{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            self.log.exception(e)
+            msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
+            self.log.exception(msg) 
+            error = create_error("Internal error", "{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return STATUS_ERROR,[error], None
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors, warnings
@@ -299,7 +305,7 @@ class MetaDataValidator:
 
         return {VALIDATION_RESULT: STATUS_ERROR if len(errors) > 0 else STATUS_PASSED, ERRORS: errors, WARNINGS: []}
 
-    def get_parent_node_cache(self, data_record_parent_nodes):
+    def get_parent_nodes(self, data_record_parent_nodes):
         parent_nodes = []
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
@@ -308,11 +314,11 @@ class MetaDataValidator:
             if parent_type and parent_id_value and parent_id_value is not None:
                 parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": parent_id_value})
         exist_parent_nodes = self.mongo_dao.search_nodes_by_index(parent_nodes, self.submission[ID])
-        parent_node_cache = set()
+        parent_node_cache = []
         for node in exist_parent_nodes:
             if node.get(PROPERTIES):
                 for key, value in node[PROPERTIES].items():
-                    parent_node_cache.add(tuple([node.get("nodeType"), key, value]))
+                    parent_node_cache.append(tuple([node.get("nodeType"), key, value]))
         return parent_node_cache
     
     def validate_relationship(self, data_record, msg_prefix):
@@ -331,8 +337,9 @@ class MetaDataValidator:
 
         node_keys = self.model.get_node_keys()
         node_relationships = self.model.get_node_relationships(node_type)
-        parent_node_cache = self.get_parent_node_cache(data_record_parent_nodes)
+        parent_nodes = self.get_parent_nodes(data_record_parent_nodes)
         data_common = data_record.get(DATA_COMMON_NAME)
+        multi_parents = []
         for parent_node in data_record_parent_nodes:
             parent_type = parent_node.get("parentType")
             if not parent_type or parent_type not in node_keys:
@@ -363,10 +370,31 @@ class MetaDataValidator:
                 result[ERRORS].append(create_error("Invalid relationship", f'Property “{parent_id_property}" of related node “{parent_type}” is empty.'))
                 continue
 
-            if (parent_type, parent_id_property, parent_id_value) not in parent_node_cache:
-                released_parent = self.mongo_dao.search_released_node_with_status(data_common, parent_type, parent_id_value, [SUBMISSION_REL_STATUS_RELEASED, None])
+            rel_type = node_relationships[parent_type].get(TYPE)
+            # check if there is only one parent for both one_to_one and many_to_one relationships.
+            if rel_type != "many_to_many": 
+                if parent_node not in multi_parents:
+                    multi_parents = [item for item in data_record_parent_nodes if item[PARENT_TYPE] == parent_type and item[PARENT_ID_NAME] == parent_id_property ]
+                    if len(multi_parents) > 1:
+                        error_type = "One-to-one relationship conflict" if rel_type == "one_to_one" else "Many-to-one relationship conflict"
+                        parent_node_ids = [item[PARENT_ID_VAL] for item in multi_parents]
+                        result[ERRORS].append(create_error(error_type, 
+                                    f'"{msg_prefix}": associated with multiple “{parent_type}” nodes: {json.dumps(parent_node_ids)}.'))
+                        
+            has_parent = (parent_type, parent_id_property, parent_id_value) in parent_nodes
+            if not has_parent:
+                released_parent = self.mongo_dao.search_released_node(data_common, parent_type, parent_id_value)
                 if not released_parent:
                     result[ERRORS].append(create_error("Related node not found", f'Related node “{parent_type}” [“{parent_id_property}”: “{parent_id_value}"] not found.'))
+                else:
+                    has_parent = True
+
+            if has_parent and rel_type == "one_to_one":
+                # check released and current children by current parent
+                child_node_ids = self.get_unique_child_node_ids(data_common, node_type, parent_node, self.submission_id)
+                if child_node_ids and len(child_node_ids) > 1:
+                    result[ERRORS].append(create_error("One-to-one relationship conflict", 
+                                f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.'))
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
@@ -374,6 +402,19 @@ class MetaDataValidator:
         if len(result[ERRORS]) == 0 and len(result[WARNINGS]) == 0:
             result["result"] = STATUS_PASSED
         return result
+    
+    def get_unique_child_node_ids(self, data_common, node_type, parent_node, submission_id):
+        children = self.mongo_dao.get_nodes_by_parent_prop(node_type, parent_node, submission_id)
+        if not children:
+            return None
+        child_id_list = list(set([item[NODE_ID] for item in children]))
+        if len(child_id_list) > 1:
+            return child_id_list
+        else:
+            children = self.mongo_dao.find_released_nodes_by_parent(node_type, data_common, parent_node)
+            if children and len(children) > 0:
+                child_id_list = list(set(child_id_list + [item[NODE_ID] for item in children]))
+            return child_id_list
 
     def validate_prop_value(self, prop_name, value, prop_def, msg_prefix):
         # set default return values

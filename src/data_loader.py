@@ -48,6 +48,7 @@ class DataLoader:
             records = [] if intention != BATCH_INTENTION_DELETE else None
             deleted_nodes = [] if intention == BATCH_INTENTION_DELETE else None
             deleted_file_nodes = [] if intention == BATCH_INTENTION_DELETE and submission_intention != SUBMISSION_INTENTION_DELETE else None
+
             failed_at = 1
             file_name = os.path.basename(file)
             # 1. read file to dataframe
@@ -68,7 +69,7 @@ class DataLoader:
                     if intention == BATCH_INTENTION_DELETE:
                         if exist_node:
                             deleted_nodes.append(exist_node)
-                            if submission_intention != BATCH_INTENTION_DELETE and exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
+                            if submission_intention != SUBMISSION_INTENTION_DELETE and exist_node.get(NODE_TYPE) in self.file_nodes.keys() and exist_node.get(S3_FILE_INFO):
                                 deleted_file_nodes.append(exist_node[S3_FILE_INFO])
                         continue
                     # 2. construct dataRecord

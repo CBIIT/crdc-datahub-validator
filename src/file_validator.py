@@ -5,10 +5,9 @@ import os
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
-from common.constants import ERRORS, WARNINGS, STATUS, STATUS_NEW, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
+from common.constants import ERRORS, WARNINGS, STATUS, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
-    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE, SUBMISSION_INTENTION, SUBMISSION_INTENTION_DELETE, \
-    ORIN_FILE_NAME
+    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE, SUBMISSION_INTENTION, SUBMISSION_INTENTION_DELETE
 from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error, get_uuid_str
 from service.ecs_agent import set_scale_in_protection
 
@@ -273,9 +272,6 @@ class FileValidator:
         if len(temp_list) > 0:
             msg = f'File “{file_name}”: another file with the same MD5 found.'
             error = create_error("Duplicated file content detected", msg)
-            if fileRecord[STATUS] == STATUS_NEW:
-                self.log.error(msg)
-                return STATUS_ERROR, error
             self.log.warning(msg)
             return STATUS_WARNING, error 
             
@@ -368,10 +364,14 @@ class FileValidator:
         if status == STATUS_ERROR:
             record[S3_FILE_INFO][STATUS] = STATUS_ERROR
             record[S3_FILE_INFO][ERRORS] = [error]
+            record[S3_FILE_INFO][WARNINGS] = []
             
         elif status == STATUS_WARNING: 
             record[S3_FILE_INFO][STATUS] = STATUS_WARNING
             record[S3_FILE_INFO][WARNINGS] = [error]
+            record[S3_FILE_INFO][ERRORS] = []
             
         else:
             record[S3_FILE_INFO][STATUS] = STATUS_PASSED
+            record[S3_FILE_INFO][WARNINGS] = []
+            record[S3_FILE_INFO][ERRORS] = []
