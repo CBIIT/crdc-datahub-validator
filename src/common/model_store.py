@@ -70,7 +70,7 @@ class ModelFactory:
                     self.create_model(data_common, version)
                     model = self.models.get(model_key(data_common, version))
                 except Exception as e:
-                    self.log.debug(e)
+                    self.log.exception(e)
                     msg = f"Failed to create data model: {data_common}/{version}!"
                     self.log.exception(f"{msg} {get_exception_msg()}")
             return DataModel(model)   

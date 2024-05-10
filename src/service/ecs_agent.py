@@ -22,5 +22,5 @@ def set_scale_in_protection(status):
             log.exception(f'Failed error messages setting scale-in protection: {response}')
 
     except Exception as e:
-        log.debug(e)
+        log.exception(e)
         log.exception(f'Unexpected error occurred during setting scale-in protection setup: {get_exception_msg()}')
