@@ -130,6 +130,7 @@ TYPE_CROSS_SUBMISSION = "Validate Cross-submission"
 FAILED = "Failed"
 ADDITION_ERRORS = "additionalErrors"
 STUDY_ABBREVIATION = "studyAbbreviation"
+LIST_DELIMITER_PROP = "list-delimiter"
 
 #dataRecords
 CRDC_ID = "CRDC_ID"
