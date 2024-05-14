@@ -55,11 +55,6 @@ valid_prop_types = [
 
 valid_relationship_types = ["many_to_one", "one_to_one", "many_to_many"]
 
-
-def get_list_values(list_str, list_delimiter):
-    return [item.strip() for item in list_str.split(list_delimiter) if item.strip()]
-
-
 def is_parent_pointer(field_name):
     return re.fullmatch(r'\w+\.\w+', field_name) is not None
 
@@ -86,7 +81,7 @@ class YamlModelParser:
                 raise
 
         self.model.update({MODEL_SOURCE: model_file_src})
-        self.model.update({LIST_DELIMITER_PROP: delimiter if delimiter else ','})
+        self.model.update({LIST_DELIMITER_PROP: delimiter if delimiter else '|'})
         self.nodes = {}
         self.relationships = {}
         self.relationship_props = {}
