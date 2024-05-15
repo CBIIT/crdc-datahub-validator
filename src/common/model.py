@@ -1,4 +1,4 @@
-from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS
+from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS, LIST_DELIMITER_PROP
 
 class DataModel:
     def __init__(self, model):
@@ -65,4 +65,10 @@ class DataModel:
         file_nodes_dict =  self.model.get("file-nodes", {})
         file_nodes_vals = list(file_nodes_dict.values())
         return file_nodes_vals[0]["name-field"] if len(file_nodes_vals) > 0 else None
+    
+    """
+    get list delimiter
+    """
+    def get_list_delimiter(self):
+        return self.model.get(LIST_DELIMITER_PROP)
     

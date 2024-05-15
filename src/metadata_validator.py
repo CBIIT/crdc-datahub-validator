@@ -482,7 +482,8 @@ class MetaDataValidator:
             
             elif type == "array" or type == "value-list":
                 val = str(value)
-                arr = val.split("*") if "*" in val else val.split(",") if "," in val else [value]
+                list_delimiter = self.model.get_list_delimiter()
+                arr = val.split(list_delimiter) if list_delimiter in val else [value]
                 for item in arr:
                     val = item.strip() if item and isinstance(item, str) else item
                     result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
