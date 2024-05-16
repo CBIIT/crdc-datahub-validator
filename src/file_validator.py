@@ -237,13 +237,13 @@ class FileValidator:
         if int(org_size) != int(size):
             msg = f'File “{file_name}”: expected size: {org_size}, actual size: {size}.'
             self.log.error(msg)
-            error = create_error("Data file Integrity check failed", msg)
+            error = create_error("Data file size mismatch", msg)
             return STATUS_ERROR, error
         
         if org_md5 != md5:
             msg = f'File “{file_name}”: expected MD5: {org_md5}, actual MD5: {md5}.'
             self.log.error(msg)
-            error = create_error("Data file Integrity check failed", msg)
+            error = create_error("Data file MD5 mismatch", msg)
             return STATUS_ERROR, error
         
         # check duplicates in manifest
@@ -329,7 +329,7 @@ class FileValidator:
                         "severity": "Error",
                         "uploadedDate": file.last_modified,
                         "validatedDate": current_datetime(),
-                        "errors": [create_error("Extra file found", msg)]
+                        "errors": [create_error("Orphaned file found", msg)]
                     }
                     errors.append(error)
                     missing_count += 1
