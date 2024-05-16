@@ -253,9 +253,11 @@ class YamlModelParser:
                         if ITEM_TYPE in prop_desc:
                             item_type = self._get_item_type(prop_desc[ITEM_TYPE])
                             result[ITEM_TYPE] = item_type
-                        elif PROP_ENUM in prop_desc:
+                        if PROP_ENUM in prop_desc:
                             item_type = self._get_item_type(prop_desc[PROP_ENUM])
-                            result[ITEM_TYPE] = item_type
+                            result[ALLOWED_VALUES] = item_type[ALLOWED_VALUES]
+                            if prop_desc[VALUE_TYPE] != "list":
+                                result[ITEM_TYPE] = item_type[TYPE]
                         if UNITS in prop_desc:
                             result[HAS_UNIT] = True
                 elif isinstance(prop_desc, list):
