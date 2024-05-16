@@ -1,4 +1,4 @@
-from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS
+from common.constants import NODES_LABEL, RELATIONSHIPS, LIST_DELIMITER_PROP
 
 class DataModel:
     def __init__(self, model):
@@ -57,3 +57,9 @@ class DataModel:
     """
     def get_file_nodes(self):
         return self.model.get("file-nodes", {})
+    
+    """
+    get list delimiter
+    """
+    def get_list_delimiter(self):
+        return self.model.get(LIST_DELIMITER_PROP)

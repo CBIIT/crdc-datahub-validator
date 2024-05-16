@@ -110,6 +110,7 @@ FILE_VALIDATION_STATUS = "fileValidationStatus"
 METADATA_VALIDATION_STATUS = "metadataValidationStatus"
 MODEL_VERSION = "modelVersion"
 KEY = "key"
+LIST_DELIMITER_PROP = "list-delimiter"
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
 ROOT_PATH = "rootPath"
