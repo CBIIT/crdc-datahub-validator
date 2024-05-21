@@ -7,6 +7,8 @@ import json
 import requests
 import yaml
 import boto3 
+import pandas as pd
+import numpy as np
 from bento.common.utils import get_stream_md5
 from datetime import datetime
 import uuid
@@ -172,6 +174,22 @@ create error dict
 """
 def create_error(title, msg):
     return {"title": title, "description": msg}
+
+"""
+dataframe util to remove tailing empty rows and columns
+"""
+def removeTailingEmptyColumnsAndRows(df):
+     # remove empty column from last 
+    columns = df.columns.tolist()
+    col_length = len(columns)
+    index = col_length - 1
+    while not columns[index] or  "Unnamed:" in columns[index]:
+        df = df.drop(df.columns[index], axis=1)
+        index -= 1
+    test = df.iloc[[-1]].isnull().all(1)
+    while  df.iloc[[-1]].isnull().all(1).values[0]:
+        df = df.iloc[:-1]
+    return df
 
 
 
