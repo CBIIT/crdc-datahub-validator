@@ -243,6 +243,15 @@ class EssentialValidator:
             file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.']
             self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.')
             return False
+        except pd.errors.ParserError as pe:
+            self.df = None
+            self.log.exception(pe)
+            msg = get_exception_msg()
+            self.log.exception(f'Invalid metadata file! {msg}.')
+            msg = msg.split(":")[-1].strip()
+            file_info[ERRORS] = [f'“{file_info[FILE_NAME]}”: {msg}.']
+            self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}”: {msg}.')
+            return False
         except UnicodeDecodeError as ue:
             self.df = None
             self.log.exception(ue)
