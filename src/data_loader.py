@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 from bento.common.utils import get_logger
-from common.utils import get_uuid_str, current_datetime, get_exception_msg
+from common.utils import get_uuid_str, current_datetime, get_exception_msg, removeTailingEmptyColumnsAndRows
 from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_ID, \
     ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, BATCH_INTENTION, S3_FILE_INFO, FILE_NAME, \
     MD5, INTENTION_NEW, INTENTION_UPDATE, INTENTION_DELETE, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
@@ -54,6 +54,7 @@ class DataLoader:
             try:
                 df = pd.read_csv(file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE,keep_default_na=False,na_values=[''])
                 df = (df.rename(columns=lambda x: x.strip())).apply(lambda x: x.str.strip() if x.dtype == 'object' else x) # stripe white space.
+                df = removeTailingEmptyColumnsAndRows(df)
                 df = df.replace({np.nan: None})  # replace Nan in dataframe with None
                 df = df.reset_index()  # make sure indexes pair with number of rows
                 col_names =list(df.columns)

@@ -12,7 +12,7 @@ from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, INTENTION_DELETE, NODE_TYPE
-from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json
+from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows
 from common.model_store import ModelFactory
 from data_loader import DataLoader
 from service.ecs_agent import set_scale_in_protection
@@ -163,7 +163,8 @@ class EssentialValidator:
                 #1. download the file in s3 and load tsv file into dataframe
                 if not self.download_file(file_info):
                     file_info[STATUS] = STATUS_ERROR
-                    return False
+                    # return False
+                    continue
                 #2. validate meatadata in self.df
                 if not self.validate_data(file_info):
                     file_info[STATUS] = STATUS_ERROR
@@ -242,12 +243,19 @@ class EssentialValidator:
             file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.']
             self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.')
             return False
+        except UnicodeDecodeError as ue:
+            self.df = None
+            self.log.exception(ue)
+            self.log.exception('Invalid metadata file! non UTF-8 character(s) found.')
+            file_info[ERRORS] = [f'“{file_info[FILE_NAME]}”: non UTF-8 character(s) found.']
+            self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}”: non UTF-8 character(s) found')
+            return False
         except Exception as e:
             self.df = None
             self.log.exception(e)
             self.log.exception('Invalid metadata file! Check debug log for detailed information.')
-            file_info[ERRORS] = [f'“{file_info[FILE_NAME]}” is not a valid TSV file.']
-            self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}” is not a valid TSV file.')
+            file_info[ERRORS] = [f'“{file_info[FILE_NAME]}”: is not a valid TSV file.']
+            self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}”: is not a valid TSV file.')
             return False
     
     def validate_data(self, file_info):
@@ -260,7 +268,7 @@ class EssentialValidator:
         msg = None
         type= None
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
-
+        
         # check if has rows
         if len(self.df.index) == 0:
             msg = f'“{file_info[FILE_NAME]}": no metadata in the file.'
@@ -269,20 +277,23 @@ class EssentialValidator:
             self.batch[ERRORS].append(msg)
             return False
         
-        # check if empty row.
-        idx = self.df.index[self.df.isnull().all(1)]
-        if not idx.empty: 
-            msg = f'“{file_info[FILE_NAME]}": empty row is not allowed.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
-
+        # remove tailing empty columns and rows
+        self.df = removeTailingEmptyColumnsAndRows(self.df)
         # Each row in a metadata file must have same number of columns as the header row
         # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
         columns = self.df.columns.tolist()
         empty_cols = [col for col in columns if not col or "Unnamed:" in col ]
         if empty_cols and len(empty_cols) > 0:
             msg = f'“{file_info[FILE_NAME]}": some rows have extra columns.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+
+        # check if empty row.
+        # remove tailing empty rows
+        idx = self.df.index[self.df.isnull().all(1)]
+        if not idx.empty: 
+            msg = f'“{file_info[FILE_NAME]}": empty row is not allowed.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
@@ -303,6 +314,8 @@ class EssentialValidator:
             self.batch[ERRORS].append(msg)
             return False
         else: 
+            type = self.df[TYPE][0]
+            file_info[NODE_TYPE] = type
             nan_count = self.df.isnull().sum()[TYPE] #check if any rows with empty node type
             if nan_count > 0: 
                 msg = f'“{file_info[FILE_NAME]}”: “type” value is required'
@@ -312,9 +325,7 @@ class EssentialValidator:
                 return False
             else:
                 node_types = self.model.get_node_keys()
-                type = self.df[TYPE][0]
                 line_num = 2
-                file_info[NODE_TYPE] = type
                 if type not in node_types:
                     msg = f'“{file_info[FILE_NAME]}: {line_num}": Node type “{type}” is not defined.'
                     self.log.error(msg)
@@ -490,5 +501,7 @@ class EssentialValidator:
     def close(self):
         if self.bucket:
             del self.bucket
+
+    
 
 
