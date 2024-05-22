@@ -189,6 +189,7 @@ def removeTailingEmptyColumnsAndRows(df):
         else:
             break
         index -= 1
+    # remove tailing empty row
     while  df.iloc[[-1]].isnull().all(1).values[0]:
         df = df.iloc[:-1]
     return df
