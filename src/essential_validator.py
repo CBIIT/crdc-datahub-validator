@@ -253,7 +253,7 @@ class EssentialValidator:
             if " line " in msg and "," in msg:
                 line_number = msg.split(" line ")[1].split(",")[0]
             if line_number and line_number.strip():
-                msg = f'“{file_info[FILE_NAME]}: {line_number.strip()}": {" ".join(msg.split(" in line " + line_number + ", "))}.'
+                msg = f'“{file_info[FILE_NAME]}: line {line_number.strip()}": {" ".join(msg.split(" in line " + line_number + ", "))}.'
             else:
                 msg = f'“{file_info[FILE_NAME]}”: {msg}.'
             file_info[ERRORS] = [msg]
