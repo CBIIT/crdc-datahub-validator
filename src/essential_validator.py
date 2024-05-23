@@ -485,7 +485,7 @@ class EssentialValidator:
         
         # check if has relationship
         if len(rel_props) == 0:
-            return False, [f'“{file_info[FILE_NAME]}”: No relationships specified.']
+            return False, [f'“{file_info[FILE_NAME]}”: All relationship columns are missing. Please ensure at least one relationship column is included.']
         
         def_rel_nodes = [ key for key in def_rel.keys()]
         rel_props_dic = {rel.split(".")[0]: rel.split(".")[1] for rel in rel_props}
