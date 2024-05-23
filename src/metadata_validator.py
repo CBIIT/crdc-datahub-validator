@@ -314,7 +314,7 @@ class MetaDataValidator:
         data_record_parent_nodes = data_record.get(PARENTS)
         if not data_record_parent_nodes or len(data_record_parent_nodes) == 0:
             result["result"] = STATUS_WARNING
-            result[ERRORS].append(create_error("Relationship not specified", f'{msg_prefix} No relationships specified.'))
+            result[ERRORS].append(create_error("Relationship not specified", f'{msg_prefix} All relationship columns are missing. Please ensure at least one relationship column is included.'))
             return result
         node_keys = self.model.get_node_keys()
         node_relationships = self.model.get_node_relationships(node_type)
