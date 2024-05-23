@@ -295,6 +295,15 @@ class EssentialValidator:
         
         # remove tailing empty columns and rows
         self.df = removeTailingEmptyColumnsAndRows(self.df)
+
+        # check if there are rows after trimmed empty rows
+        if len(self.df.index) == 0:
+            msg = f'“{file_info[FILE_NAME]}": no metadata in the file.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False 
+        
         # Each row in a metadata file must have same number of columns as the header row
         # dataframe will set the column name to "Unnamed: {index}" when parsing a tsv file with empty header.
         columns = self.df.columns.tolist()
@@ -304,22 +313,6 @@ class EssentialValidator:
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
-
-        # check if empty row.
-        # idx = self.df.index[self.df.isnull().all(1)]
-        # if not idx.empty: 
-        #     msg = f'“{file_info[FILE_NAME]}": empty row is not allowed.'
-        #     self.log.error(msg)
-        #     file_info[ERRORS].append(msg)
-        #     self.batch[ERRORS].append(msg)
-
-        # check if there are rows after trimmed empty rows
-        if len(self.df.index) == 0:
-            msg = f'“{file_info[FILE_NAME]}": no metadata in the file.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
-            return False
 
         # check duplicate columns.
         for col in columns:
