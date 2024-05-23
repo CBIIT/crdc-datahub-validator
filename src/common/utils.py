@@ -184,9 +184,12 @@ def removeTailingEmptyColumnsAndRows(df):
     col_length = len(columns)
     index = col_length - 1
     while not columns[index] or  "Unnamed:" in columns[index]:
-        df = df.drop(df.columns[index], axis=1)
+        if df["Unnamed: " + str(index)].notna().sum() == 0: 
+            df = df.drop(df.columns[index], axis=1)
+        else:
+            break
         index -= 1
-    test = df.iloc[[-1]].isnull().all(1)
+    # remove tailing empty row
     while  df.iloc[[-1]].isnull().all(1).values[0]:
         df = df.iloc[:-1]
     return df

@@ -272,8 +272,8 @@ class MongoDao:
                     updated_submission[FILE_ERRORS] = []
             if metadata_status:
                 if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED):
-                    if metadata_status == STATUS_ERROR: 
-                        overall_metadata_status = STATUS_ERROR
+                    if metadata_status == STATUS_ERROR or metadata_status == STATUS_NEW: 
+                        overall_metadata_status = metadata_status
                     else:
                         error_nodes = self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], STATUS: STATUS_ERROR})
                         if error_nodes > 0:
