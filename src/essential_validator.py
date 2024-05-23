@@ -285,7 +285,7 @@ class EssentialValidator:
         type= None
         file_info[ERRORS] = [] if not file_info.get(ERRORS) else file_info[ERRORS] 
         
-        # check if has rows
+        # check if there are rows
         if len(self.df.index) == 0:
             msg = f'“{file_info[FILE_NAME]}": no metadata in the file.'
             self.log.error(msg)
@@ -306,13 +306,20 @@ class EssentialValidator:
             self.batch[ERRORS].append(msg)
 
         # check if empty row.
-        # remove tailing empty rows
-        idx = self.df.index[self.df.isnull().all(1)]
-        if not idx.empty: 
-            msg = f'“{file_info[FILE_NAME]}": empty row is not allowed.'
+        # idx = self.df.index[self.df.isnull().all(1)]
+        # if not idx.empty: 
+        #     msg = f'“{file_info[FILE_NAME]}": empty row is not allowed.'
+        #     self.log.error(msg)
+        #     file_info[ERRORS].append(msg)
+        #     self.batch[ERRORS].append(msg)
+
+        # check if there are rows after trimmed empty rows
+        if len(self.df.index) == 0:
+            msg = f'“{file_info[FILE_NAME]}": no metadata in the file.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
+            return False
 
         # check duplicate columns.
         for col in columns:
