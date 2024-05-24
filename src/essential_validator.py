@@ -309,10 +309,13 @@ class EssentialValidator:
         columns = self.df.columns.tolist()
         empty_cols = [col for col in columns if not col or "Unnamed:" in col ]
         if empty_cols and len(empty_cols) > 0:
-            msg = f'“{file_info[FILE_NAME]}": some rows have extra columns.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
+            for col in empty_cols:
+                extra_cell_list = self.df[self.df[col].notna()].index.astype(int).tolist()
+                for index in extra_cell_list: 
+                    msg = f'“{file_info[FILE_NAME]}: line {index + 2}": some rows have extra columns.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
 
         # check duplicate columns.
         for col in columns:
@@ -330,7 +333,7 @@ class EssentialValidator:
             self.batch[ERRORS].append(msg)
             return False
         else: 
-            type = self.df[TYPE][0]
+            type = self.df[TYPE].iloc[0]
             file_info[NODE_TYPE] = type
             nan_count = self.df.isnull().sum()[TYPE] #check if any rows with empty node type
             if nan_count > 0: 
