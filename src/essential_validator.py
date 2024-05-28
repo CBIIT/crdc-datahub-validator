@@ -311,11 +311,28 @@ class EssentialValidator:
         if empty_cols and len(empty_cols) > 0:
             for col in empty_cols:
                 extra_cell_list = self.df[self.df[col].notna()].index.astype(int).tolist()
-                for index in extra_cell_list: 
-                    msg = f'“{file_info[FILE_NAME]}: line {index + 2}": some rows have extra columns.'
+                if extra_cell_list and len(extra_cell_list):
+                    for index in extra_cell_list: 
+                        msg = f'“{file_info[FILE_NAME]}: line {index + 2}": some rows have extra columns.'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                else:
+                    msg = f'“{file_info[FILE_NAME]}": empty column(s) found.'
                     self.log.error(msg)
                     file_info[ERRORS].append(msg)
                     self.batch[ERRORS].append(msg)
+                    break
+
+        # check if empty row.
+        idx = self.df.index[self.df.isnull().all(1)]
+        if not idx.empty: 
+            for index in idx:
+                msg = f'“{file_info[FILE_NAME]}: line {index + 2}": empty row found.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+            return False
 
         # check duplicate columns.
         for col in columns:
