@@ -324,6 +324,14 @@ class EssentialValidator:
                     self.batch[ERRORS].append(msg)
                     break
 
+        # check duplicate columns.
+        for col in columns:
+            if ".1" in col and col.replace(".1", "") in columns:
+                msg = f'“{file_info[FILE_NAME]}": multiple columns with the same header ("{col.replace(".1", "")}") is not allowed.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+
         # check if empty row.
         idx = self.df.index[self.df.isnull().all(1)]
         if not idx.empty: 
@@ -333,14 +341,6 @@ class EssentialValidator:
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
             return False
-
-        # check duplicate columns.
-        for col in columns:
-            if ".1" in col and col.replace(".1", "") in columns:
-                msg = f'“{file_info[FILE_NAME]}": multiple columns with the same header ("{col.replace(".1", "")}") is not allowed.'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
         
         # check if missing "type" column
         if not TYPE in columns:
