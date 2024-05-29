@@ -455,6 +455,7 @@ class EssentialValidator:
                     file_info[ERRORS].append(msg)
                     self.batch[ERRORS].append(msg)
                 rtn_val = False  
+                break
             else:
                 other_props = [col for col in columns if col not in rel_props + [TYPE, id_field]]
                 for prop in other_props:
