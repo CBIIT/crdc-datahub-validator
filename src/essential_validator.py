@@ -313,7 +313,7 @@ class EssentialValidator:
                 extra_cell_list = self.df[self.df[col].notna()].index.astype(int).tolist()
                 if extra_cell_list and len(extra_cell_list):
                     for index in extra_cell_list: 
-                        msg = f'“{file_info[FILE_NAME]}: line {index + 2}": some rows have extra columns.'
+                        msg = f'“{file_info[FILE_NAME]}: line {index + 2}": extra columns/cells found.'
                         self.log.error(msg)
                         file_info[ERRORS].append(msg)
                         self.batch[ERRORS].append(msg)
