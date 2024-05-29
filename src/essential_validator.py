@@ -309,10 +309,20 @@ class EssentialValidator:
         columns = self.df.columns.tolist()
         empty_cols = [col for col in columns if not col or "Unnamed:" in col ]
         if empty_cols and len(empty_cols) > 0:
-            msg = f'“{file_info[FILE_NAME]}": some rows have extra columns.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
+            for col in empty_cols:
+                extra_cell_list = self.df[self.df[col].notna()].index.astype(int).tolist()
+                if extra_cell_list and len(extra_cell_list):
+                    for index in extra_cell_list: 
+                        msg = f'“{file_info[FILE_NAME]}: line {index + 2}": extra columns/cells found.'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                else:
+                    msg = f'“{file_info[FILE_NAME]}": empty column(s) found.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                    break
 
         # check duplicate columns.
         for col in columns:
@@ -321,6 +331,16 @@ class EssentialValidator:
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
+
+        # check if empty row.
+        idx = self.df.index[self.df.isnull().all(1)]
+        if not idx.empty: 
+            for index in idx:
+                msg = f'“{file_info[FILE_NAME]}: line {index + 2}": empty row found.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+            return False
         
         # check if missing "type" column
         if not TYPE in columns:
