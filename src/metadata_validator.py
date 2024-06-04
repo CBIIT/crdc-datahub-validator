@@ -8,7 +8,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, ORIN_FILE_NAME, \
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
-    SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, SUBMISSION_REL_STATUS_RELEASED
+    SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, SUBMISSION_REL_STATUS_RELEASED
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -203,10 +203,10 @@ class MetaDataValidator:
             # concatenation of all warnings
             warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
             #check if existed nodes in release collection
-            if sub_intention and sub_intention in [SUBMISSION_INTENTION_NEW, SUBMISSION_INTENTION_DELETE]:
+            if sub_intention and sub_intention in [SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE]:
                 exist_releases = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
-                if sub_intention == SUBMISSION_INTENTION_NEW and (exist_releases and len(exist_releases) > 0):
-                    errors.append(create_error("Identical data found", f'{msg_prefix} Identical data for “{node_type}” (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
+                if sub_intention == SUBMISSION_INTENTION_NEW_UPDATE and (exist_releases and len(exist_releases) > 0):
+                    warnings.append(create_error("Identical data found", f'{msg_prefix} Identical data for “{node_type}” (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
                 elif sub_intention == SUBMISSION_INTENTION_DELETE and (not exist_releases or len(exist_releases) == 0):
                     errors.append(create_error("Data not found", f'{msg_prefix} No data for “{node_type}” (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
             # if there are any errors set the result to "Error"
