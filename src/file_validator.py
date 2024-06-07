@@ -237,10 +237,16 @@ class FileValidator:
             }
             self.mongo_dao.save_file_md5(md5_info)
 
-        if int(org_size) != int(size) or org_md5 != md5:
-            msg = f'File “{file_name}”: file integrity check failed.'
+        if int(org_size) != int(size):
+            msg = f'File “{file_name}”: expected size: {org_size}, actual size: {size}.'
             self.log.error(msg)
-            error = create_error("Data file Integrity check failed", msg)
+            error = create_error("Data file size mismatch", msg)
+            return STATUS_ERROR, error
+        
+        if org_md5 != md5:
+            msg = f'File “{file_name}”: expected MD5: {org_md5}, actual MD5: {md5}.'
+            self.log.error(msg)
+            error = create_error("Data file MD5 mismatch", msg)
             return STATUS_ERROR, error
         
         # check duplicates in manifest
@@ -323,7 +329,7 @@ class FileValidator:
                     file_batch = self.mongo_dao.find_batch_by_file_name(submission_id, "data file", file_name)
                     batchID = file_batch[ID] if file_batch else "-"
                     displayID = file_batch["displayID"] if file_batch else None
-                    msg = f'File “{file_name}”: no record found.'
+                    msg = f'File “{file_name}”: associated metadata not found. Please upload associated metadata (aka. manifest) file'
                     self.log.error(msg)
                     error = {
                         TYPE: "Data File",
