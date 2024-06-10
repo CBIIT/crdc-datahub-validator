@@ -36,7 +36,6 @@ def essentialValidate(configs, job_queue, mongo_dao):
         dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
         log.exception(e)
-        log.exception(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
         return 1
     #step 3: run validator as a service
@@ -479,7 +478,6 @@ class EssentialValidator:
     validate many to many relationship
     """
     def check_m2m_relationship(self, columns, duplicate_ids, id_field, rel_props, file_info):
-        rtn_val = True
         rtn_val = True
         for id in duplicate_ids:
             duplicate_rows = self.df[self.df[id_field] == id].to_dict('index')

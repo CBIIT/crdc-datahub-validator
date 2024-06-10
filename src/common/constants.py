@@ -73,7 +73,6 @@ PARENTS = "parents"
 PARENT_TYPE = "parentType"
 PARENT_ID_VAL = "parentIDValue"
 PARENT_ID_NAME = "parentIDPropName"
-PARENT_ID_NAME = "parentIDPropName"
 RAW_DATA = "rawData"
 
 FILE_NAME_FIELD = "name-field"
