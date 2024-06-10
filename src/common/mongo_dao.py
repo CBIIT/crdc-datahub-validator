@@ -276,8 +276,8 @@ class MongoDao:
 
             if metadata_status:
                 if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED):
-                    if metadata_status == STATUS_ERROR: 
-                        overall_metadata_status = STATUS_ERROR
+                    if metadata_status == STATUS_ERROR or metadata_status == STATUS_NEW: 
+                        overall_metadata_status = metadata_status
                     else:
                         error_nodes = self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], STATUS: STATUS_ERROR})
                         if error_nodes > 0:
@@ -342,7 +342,7 @@ class MongoDao:
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')
             return True, None
         except errors.PyMongoError as pe:
-            self.log.exception(pe)
+            self.log.debug(pe)
             msg = f"Failed to update metadata."
             self.log.exception(msg)
             return False, msg
@@ -352,7 +352,7 @@ class MongoDao:
             self.log.exception(msg)
             return False, msg 
     """
-    update record's status, errors and warnings based on node ID in dataRecords
+    update record's status, errors by additional error
     """
     def update_data_records_addition_error(self, data_records):
         db = self.client[self.db_name]
@@ -522,7 +522,7 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
             return False, None
-        
+    
     """
     find child nodes by nodeType, parentType and parentIDProperty and parentID
     """

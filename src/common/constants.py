@@ -114,6 +114,7 @@ METADATA_VALIDATION_STATUS = "metadataValidationStatus"
 CROSS_SUBMISSION_VALIDATION_STATUS = "crossSubmissionStatus"
 MODEL_VERSION = "modelVersion"
 KEY = "key"
+LIST_DELIMITER_PROP = "list-delimiter"
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
 ROOT_PATH = "rootPath"

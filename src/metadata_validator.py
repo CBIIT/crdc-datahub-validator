@@ -103,7 +103,6 @@ class MetaDataValidator:
         self.isError = None
         self.isWarning = None
 
-
     def validate(self, submission_id, scope):
         #1. # get data common from submission
         submission = self.mongo_dao.get_submission(submission_id)
@@ -219,7 +218,7 @@ class MetaDataValidator:
             self.log.exception(e)
             msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
-            error = create_error("Internal error", "{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("Internal error", "Metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return STATUS_ERROR,[error], None
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors, warnings
@@ -332,7 +331,7 @@ class MetaDataValidator:
         data_record_parent_nodes = data_record.get(PARENTS)
         if not data_record_parent_nodes or len(data_record_parent_nodes) == 0:
             result["result"] = STATUS_WARNING
-            result[ERRORS].append(create_error("Relationship not specified", f'{msg_prefix} No relationships specified.'))
+            result[ERRORS].append(create_error("Relationship not specified", f'{msg_prefix} All related node IDs are missing. Please ensure at least one related node ID is included.'))
             return result
 
         node_keys = self.model.get_node_keys()
