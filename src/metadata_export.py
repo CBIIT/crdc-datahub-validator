@@ -315,6 +315,7 @@ class ExportMetadata:
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
                 existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
                 existed_crdc_record[PARENTS] = data_record.get(PARENTS)
+                existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
