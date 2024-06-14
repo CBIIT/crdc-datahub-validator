@@ -205,7 +205,11 @@ class MetaDataValidator:
             if sub_intention and sub_intention in [SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE]:
                 exist_releases = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
                 if sub_intention == SUBMISSION_INTENTION_NEW_UPDATE and (exist_releases and len(exist_releases) > 0):
-                    warnings.append(create_error("Identical data found", f'{msg_prefix} Identical data for “{node_type}” (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
+                    # check if file node
+                    if not node_type in def_file_nodes:
+                        warnings.append(create_error("Updating existing data", f'{msg_prefix} “{node_type}”: {{“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}"}} already exists and will be updated.'))
+                    else:
+                        warnings.append(create_error("Updating existing data", f'{msg_prefix} “{node_type}”: {{“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}"}} already exists and will be updated. Its associated data file will also be replaced if uploaded.'))
                 elif sub_intention == SUBMISSION_INTENTION_DELETE and (not exist_releases or len(exist_releases) == 0):
                     errors.append(create_error("Data not found", f'{msg_prefix} No data for “{node_type}” (“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}") has been released before.'))
             # if there are any errors set the result to "Error"
