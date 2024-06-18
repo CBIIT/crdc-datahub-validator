@@ -6,7 +6,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, FAILED, DATA_COMMON_NAME, KEY, \
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
-    CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS
+    CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -273,7 +273,7 @@ class MongoDao:
                     updated_submission[FILE_ERRORS] = fileErrors
                 else:
                     updated_submission[FILE_ERRORS] = []
-
+                updated_submission[VALIDATION_ENDED] = submission[VALIDATION_ENDED]
             if metadata_status:
                 if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED):
                     if metadata_status == STATUS_ERROR or metadata_status == STATUS_NEW: 
@@ -289,6 +289,7 @@ class MongoDao:
                             else:
                                 overall_metadata_status = metadata_status
                 updated_submission[METADATA_VALIDATION_STATUS] = overall_metadata_status
+                updated_submission[VALIDATION_ENDED] = submission[VALIDATION_ENDED]
                 
             if cross_submission_status:
                 updated_submission[CROSS_SUBMISSION_VALIDATION_STATUS] = cross_submission_status
@@ -853,6 +854,23 @@ class MongoDao:
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
+            return False
+    """
+    update validation status
+    """   
+    def update_validation_status(self, validation_id, status, validation_end_at):
+        db = self.client[self.db_name]
+        data_collection = db[VALIDATION_COLLECTION]
+        try:
+            result = data_collection.update_one({ID: validation_id}, {"$set": {STATUS: status, "ended": validation_end_at}})
+            return True if result.modified_count > 0 else False
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
             return False
         
 """
