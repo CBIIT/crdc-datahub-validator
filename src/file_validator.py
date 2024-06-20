@@ -77,7 +77,7 @@ def fileValidate(configs, job_queue, mongo_dao):
 
                         # update validation records
                         validation_id = data[VALIDATION_ID]
-                        validation_end_at = current_datetime
+                        validation_end_at = current_datetime()
                         mongo_dao.update_validation_status(validation_id, status, validation_end_at)
                         validator.submission[VALIDATION_ENDED] = validation_end_at   
                         #update submission
