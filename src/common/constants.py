@@ -147,3 +147,8 @@ SUBMISSION_STATUS_SUBMITTED = "Submitted"
 SUBMISSION_REL_STATUS = "status"
 SUBMISSION_REL_STATUS_RELEASED = "Released"
 SUBMISSION_REL_STATUS_DELETED= "Deleted"
+
+# validation collection
+VALIDATION_COLLECTION = "validation"
+VALIDATION_ID = "validationID"
+VALIDATION_ENDED= "validationEnded"
