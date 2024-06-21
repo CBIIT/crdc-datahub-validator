@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
 from common.constants import  ADDITION_ERRORS, STATUS_ERROR, FAILED, STATUS_PASSED, STATUS, UPDATED_AT, DATA_COMMON_NAME, \
-    NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ABBREVIATION, ID
+    NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ABBREVIATION, ID, SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED
 from common.utils import current_datetime, create_error
 
 BATCH_SIZE = 1000
@@ -27,6 +27,11 @@ class CrossSubmissionValidator:
             return FAILED
         self.submission = submission
 
+        if submission.get(STATUS) not in [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED]:
+            msg = f'Invalid submission, wrong status, {submission_id}!'
+            self.log.error(msg)
+            return FAILED
+        
         #2 retrieve data batch by batch
         start_index = 0
         validated_count = 0
@@ -82,11 +87,12 @@ class CrossSubmissionValidator:
         node_id = data_record.get(NODE_ID)
         try:
             # validate cross submission
-            result, duplicate_submissions = self.mongo_dao.find_node_in_other_submission(submission_id, self.submission[STUDY_ABBREVIATION], self.submission[DATA_COMMON_NAME], node_type, node_id)
+            result, duplicate_submissions = self.mongo_dao.find_node_in_other_submissions_in_status(submission_id, self.submission[STUDY_ABBREVIATION], 
+                        self.submission[DATA_COMMON_NAME], node_type, node_id, [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED])
             if result and duplicate_submissions and len(duplicate_submissions):
-                for sub in duplicate_submissions:
-                    error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in another submission: "{sub["name"]}"({sub[ID]}).')
-                    errors.append(error)
+                error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in other submissions')
+                error.update({"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]}) # add submission id to errors
+                errors.append(error)
                 return STATUS_ERROR, errors
         except Exception as e:
             self.log.exception(e) 
