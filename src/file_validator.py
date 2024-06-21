@@ -17,7 +17,7 @@ Interface for validate files via SQS
 """
 def fileValidate(configs, job_queue, mongo_dao):
     file_processed = 0
-    log = get_logger('File Validation Service')
+    log = get_logger('Data file Validation Service')
     #run file validator as a service
     scale_in_protection_flag = False
     log.info(f'{SERVICE_TYPE_FILE} service started')
@@ -26,7 +26,7 @@ def fileValidate(configs, job_queue, mongo_dao):
             msgs = job_queue.receiveMsgs(VISIBILITY_TIMEOUT)
             if len(msgs) > 0:
                 log.info(f'New message is coming: {configs[SQS_NAME]}, '
-                         f'{file_processed} file(s) have been processed so far')
+                         f'{file_processed} data file(s) have been processed so far')
                 scale_in_protection_flag = True
                 set_scale_in_protection(True)
             else:
@@ -51,16 +51,16 @@ def fileValidate(configs, job_queue, mongo_dao):
                         validator = FileValidator(mongo_dao)
                         status = validator.validate(fileRecord)
                         if status == STATUS_ERROR:
-                            log.error(f'The file record is invalid, {data[FILE_ID]}!')
+                            log.error(f'The data file record is invalid, {data[FILE_ID]}!')
                         elif status == STATUS_WARNING:
-                            log.error(f'The file record is valid but with warning, {data[FILE_ID]}!')
+                            log.error(f'The data file record is valid but with warning, {data[FILE_ID]}!')
                         else:
-                            log.info(f'The file record passed validation, {data[FILE_ID]}.')
+                            log.info(f'The data file record passed validation, {data[FILE_ID]}.')
                         #4. update dataRecords
                         if not mongo_dao.update_file_info(fileRecord):
-                            log.error(f'Failed to update file record, {data[FILE_ID]}!')
+                            log.error(f'Failed to update data file record, {data[FILE_ID]}!')
                         else:
-                            log.info(f'The file record is updated,{data[FILE_ID]}.')
+                            log.info(f'The data file record is updated,{data[FILE_ID]}.')
 
                     elif data.get(SQS_TYPE) == "Validate Submission Files" and data.get(SUBMISSION_ID):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
@@ -78,13 +78,13 @@ def fileValidate(configs, job_queue, mongo_dao):
                     else:
                         log.error(f'Invalid message: {data}!')
                     
-                    log.info(f'Processed {SERVICE_TYPE_FILE} validation for the {"file, "+ data.get(FILE_ID) if data.get(FILE_ID) else "submission, " + data.get(SUBMISSION_ID)}!')
+                    log.info(f'Processed {SERVICE_TYPE_FILE} validation for the {"data file, "+ data.get(FILE_ID) if data.get(FILE_ID) else "submission, " + data.get(SUBMISSION_ID)}!')
                     file_processed += 1
                     msg.delete()
                 except Exception as e:
                     log.exception(e)
                     log.critical(
-                        f'Something wrong happened while processing file! Check debug log for details.')
+                        f'Something wrong happened while processing data file! Check debug log for details.')
                 finally:
                     if validator:
                         del validator
@@ -111,7 +111,7 @@ def fileValidate(configs, job_queue, mongo_dao):
 class FileValidator:
     
     def __init__(self, mongo_dao):
-        self.log = get_logger('File Validator')
+        self.log = get_logger('Data file Validator')
         self.mongo_dao = mongo_dao
         self.bucket_name = None
         self.bucket = None
@@ -133,9 +133,9 @@ class FileValidator:
             return status
         except Exception as e: #catch all unhandled exception
             self.log.exception(e)
-            msg = f"{fileRecord.get(SUBMISSION_ID)}: Failed to validate file, {fileRecord.get(ID)}! {get_exception_msg()}!"
+            msg = f"{fileRecord.get(SUBMISSION_ID)}: Failed to validate data file, {fileRecord.get(ID)}! {get_exception_msg()}!"
             self.log.exception(msg)
-            error = create_error("Internal error", "File validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             self.set_status(fileRecord, STATUS_ERROR, error)
             return STATUS_ERROR
         finally:
@@ -154,14 +154,14 @@ class FileValidator:
         else:
             if not fileRecord[S3_FILE_INFO].get(FILE_NAME) or not fileRecord[S3_FILE_INFO].get(SIZE) \
                     or not fileRecord[S3_FILE_INFO].get(MD5):
-                msg = f'Invalid file object, invalid s3 file info, {fileRecord[ID]}!'
+                msg = f'Invalid data file object: invalid s3 data file info, {fileRecord[ID]}!'
                 self.log.error(msg)
-                error = create_error("Invalid file info", msg)
+                error = create_error("Invalid data file info", msg)
                 self.set_status(fileRecord, STATUS_ERROR, error)
                 return False
 
         if not fileRecord.get(SUBMISSION_ID):
-            msg = f'Invalid file object, no submission Id found, {fileRecord[ID]}!'
+            msg = f'Invalid data file object: no submission Id found, {fileRecord[ID]}!'
             self.log.error(msg)
             error = create_error("Invalid submission Id", msg)
             self.set_status(fileRecord, STATUS_ERROR, error)
@@ -211,7 +211,7 @@ class FileValidator:
 
         # 1. check if exists
         if not self.bucket.file_exists_on_s3(key):
-            msg = f'File “{file_name}” not found.'
+            msg = f'Data file “{file_name}” not found.'
             self.log.error(msg)
             error = create_error("Data File not found", msg)
             return STATUS_ERROR, error
@@ -238,13 +238,13 @@ class FileValidator:
             self.mongo_dao.save_file_md5(md5_info)
 
         if int(org_size) != int(size):
-            msg = f'File “{file_name}”: expected size: {org_size}, actual size: {size}.'
+            msg = f'Data file “{file_name}”: expected size: {org_size}, actual size: {size}.'
             self.log.error(msg)
             error = create_error("Data file size mismatch", msg)
             return STATUS_ERROR, error
         
         if org_md5 != md5:
-            msg = f'File “{file_name}”: expected MD5: {org_md5}, actual MD5: {md5}.'
+            msg = f'Data file “{file_name}”: expected MD5: {org_md5}, actual MD5: {md5}.'
             self.log.error(msg)
             error = create_error("Data file MD5 mismatch", msg)
             return STATUS_ERROR, error
@@ -252,32 +252,32 @@ class FileValidator:
         # check duplicates in manifest
         manifest_info_list = self.mongo_dao.get_files_by_submission(fileRecord[SUBMISSION_ID])
         if not manifest_info_list or  len(manifest_info_list) == 0:
-            msg = f"No file records found for the submission."
+            msg = f"No data file records found for the submission."
             self.log.error(msg)
-            error = create_error("File records not found", msg)
+            error = create_error("Data file records not found", msg)
             return STATUS_ERROR, error
         
         # 3. check if Same MD5 checksum and same filename 
         temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] == file_name and file[S3_FILE_INFO][MD5] == org_md5]
         if len(temp_list) > 1:
-            msg = f'File “{file_name}”: already exists with the same name and md5 value.'
+            msg = f'Data file “{file_name}”: already exists with the same name and md5 value.'
             self.log.warning(msg)
-            error = create_error("Duplicated file records detected", msg)
+            error = create_error("Duplicated data file records detected", msg)
             return STATUS_WARNING, error 
         
         # 4. check if Same filename but different MD5 checksum 
         temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] == file_name and file[S3_FILE_INFO][MD5] != org_md5]
         if len(temp_list) > 0:
-            msg = f'File “{file_name}”: A file with the same name but different md5 value was found.'
+            msg = f'Data file “{file_name}”: A data file with the same name but different md5 value was found.'
             self.log.warning(msg)
-            error = create_error("Conflict file records detected", msg)
+            error = create_error("Conflict data file records detected", msg)
             return STATUS_WARNING, error
         
         # 5. check if Same MD5 checksum but different filename
         temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] != file_name and file[S3_FILE_INFO][MD5] == org_md5]
         if len(temp_list) > 0:
-            msg = f'File “{file_name}”: another file with the same MD5 found.'
-            error = create_error("Duplicated file content detected", msg)
+            msg = f'Data file “{file_name}”: another data file with the same MD5 found.'
+            error = create_error("Duplicated data file content detected", msg)
             self.log.warning(msg)
             return STATUS_WARNING, error 
             
@@ -329,7 +329,7 @@ class FileValidator:
                     file_batch = self.mongo_dao.find_batch_by_file_name(submission_id, "data file", file_name)
                     batchID = file_batch[ID] if file_batch else "-"
                     displayID = file_batch["displayID"] if file_batch else None
-                    msg = f'File “{file_name}”: associated metadata not found. Please upload associated metadata (aka. manifest) file'
+                    msg = f'Data file “{file_name}”: associated metadata not found. Please upload associated metadata (aka. manifest) file'
                     self.log.error(msg)
                     error = {
                         TYPE: "Data File",
@@ -360,9 +360,9 @@ class FileValidator:
    
         except Exception as e:
             self.log.exception(e)
-            msg = f"{submission_id}: Failed to validate files! {get_exception_msg()}!"
+            msg = f"{submission_id}: Failed to validate data files! {get_exception_msg()}!"
             self.log.exception(msg)
-            error = create_error("Internal error", "File validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return None, [error]
 
     def set_status(self, record, status, error):
