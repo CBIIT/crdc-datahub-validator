@@ -213,7 +213,7 @@ class FileValidator:
         if not self.bucket.file_exists_on_s3(key):
             msg = f'Data file “{file_name}” not found.'
             self.log.error(msg)
-            error = create_error("Data File not found", msg)
+            error = create_error("Data file not found", msg)
             return STATUS_ERROR, error
         
         # 2. check file integrity
@@ -332,7 +332,7 @@ class FileValidator:
                     msg = f'Data file “{file_name}”: associated metadata not found. Please upload associated metadata (aka. manifest) file'
                     self.log.error(msg)
                     error = {
-                        TYPE: "Data File",
+                        TYPE: "data file",
                         "validationType": "data file",
                         "submittedID": file_name,
                         "batchID": batchID,
