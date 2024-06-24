@@ -354,10 +354,11 @@ class EssentialValidator:
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
+            file_info[NODE_TYPE] = ""
             return False
         else: 
             type = self.df[TYPE].iloc[0]
-            file_info[NODE_TYPE] = type
+            file_info[NODE_TYPE] = type if not pd.isnull(type) else ""
             nan_count = self.df.isnull().sum()[TYPE] #check if any rows with empty node type
             if nan_count > 0: 
                 msg = f'“{file_info[FILE_NAME]}”: “type” value is required'
