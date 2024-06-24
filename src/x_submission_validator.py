@@ -25,12 +25,11 @@ class CrossSubmissionValidator:
             msg = f'Invalid submission, no datacommon found, {submission_id}!'
             self.log.error(msg)
             return FAILED
-        self.submission = submission
-
         if submission.get(STATUS) not in [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED]:
             msg = f'Invalid submission, wrong status, {submission_id}!'
             self.log.error(msg)
             return FAILED
+        self.submission = submission
         
         #2 retrieve data batch by batch
         start_index = 0
