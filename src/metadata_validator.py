@@ -61,11 +61,13 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         scope = data[SCOPE]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submission_id, scope)
-                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None)
+                        if validator.submission:
+                            mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None)
                     elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and submission_id:
                         validator = CrossSubmissionValidator(mongo_dao)
                         status = validator.validate(submission_id)
-                        mongo_dao.set_submission_validation_status(validator.submission, None, None, status, None)
+                        if validator.submission:
+                            mongo_dao.set_submission_validation_status(validator.submission, None, None, status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
                     log.info(f'Processed {SERVICE_TYPE_METADATA} validation for the submission: {data[SUBMISSION_ID]}!')

@@ -388,6 +388,23 @@ class EssentialValidator:
                         line_num += 1
 
         id_field = self.model.get_node_id(type)
+        # check if missing id property
+        if id_field and not id_field in columns: 
+            msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
+            self.log.error(msg)
+            file_info[ERRORS].append(msg)
+            self.batch[ERRORS].append(msg)
+            return False
+        #check if id property value is empty
+        nan_count = self.df.isnull().sum()[id_field]
+        if nan_count > 0: 
+            nan_rows = self.df[self.df[id_field].isnull()].to_dict("index")
+            for key in nan_rows.keys():
+                msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  Key property “{id_field}” value is required.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+            return False
         if self.submission_intention != SUBMISSION_INTENTION_DELETE: 
             # check missing required proper 
             required_props = self.model.get_node_req_props(type)
@@ -405,23 +422,7 @@ class EssentialValidator:
                 self.log.error(msgs)
                 file_info[ERRORS].extend(msgs)
                 self.batch[ERRORS].extend(msgs)
-            # check if missing id property
-            if id_field and not id_field in columns: 
-                msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False
-            #check if id property value is empty
-            nan_count = self.df.isnull().sum()[id_field]
-            if nan_count > 0: 
-                nan_rows = self.df[self.df[id_field].isnull()].to_dict("index")
-                for key in nan_rows.keys():
-                    msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  Key property “{id_field}” value is required.'
-                    self.log.error(msg)
-                    file_info[ERRORS].append(msg)
-                    self.batch[ERRORS].append(msg)
-                return False
+            
             # check duplicate rows with the same nodeID
             duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
             if len(duplicate_ids) > 0:
@@ -446,6 +447,17 @@ class EssentialValidator:
                     self.log.error(msg)
                     file_info[ERRORS].append(msg)
                     self.batch[ERRORS].append(msg)
+                    return False
+                #check if file name property value is empty
+                nan_count = self.df.isnull().sum()[self.def_file_name]
+                if nan_count > 0: 
+                    nan_rows = self.df[self.df[self.def_file_name].isnull()].to_dict("index")
+                    for key in nan_rows.keys():
+                        msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  file name property “{self.def_file_name}” value is required.'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                    return False
                   
         if self.batch[BATCH_INTENTION] in [BATCH_INTENTION_NEW, BATCH_INTENTION_DELETE]:
             ids = list(set(self.df[id_field].tolist()))

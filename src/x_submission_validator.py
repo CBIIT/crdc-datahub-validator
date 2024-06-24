@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+import json
 from bento.common.utils import get_logger
 from common.constants import  ADDITION_ERRORS, STATUS_ERROR, FAILED, STATUS_PASSED, STATUS, UPDATED_AT, DATA_COMMON_NAME, \
     NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ABBREVIATION, ID, SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED
@@ -89,8 +90,10 @@ class CrossSubmissionValidator:
             result, duplicate_submissions = self.mongo_dao.find_node_in_other_submissions_in_status(submission_id, self.submission[STUDY_ABBREVIATION], 
                         self.submission[DATA_COMMON_NAME], node_type, node_id, [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED])
             if result and duplicate_submissions and len(duplicate_submissions):
-                error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in other submissions')
-                error.update({"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]}) # add submission id to errors
+                error = {"conflictingSubmissions": json.dumps([sub[ID] for sub in duplicate_submissions])}# add submission id to errors
+                orig_error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in other submissions')
+                error.update(orig_error)
+                
                 errors.append(error)
                 return STATUS_ERROR, errors
         except Exception as e:
