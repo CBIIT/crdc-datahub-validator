@@ -289,7 +289,7 @@ class MongoDao:
                             else:
                                 overall_metadata_status = metadata_status
                 updated_submission[METADATA_VALIDATION_STATUS] = overall_metadata_status
-                updated_submission[VALIDATION_ENDED] = submission[VALIDATION_ENDED]
+                updated_submission[VALIDATION_ENDED] = submission.get(VALIDATION_ENDED)
                 
             if cross_submission_status:
                 updated_submission[CROSS_SUBMISSION_VALIDATION_STATUS] = cross_submission_status
