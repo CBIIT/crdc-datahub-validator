@@ -79,7 +79,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                 except Exception as e:
                     log.exception(e)
                     log.critical(
-                        f'Something wrong happened while processing file! Check debug log for details.')
+                        f'Something wrong happened while processing metadata! Check debug log for details.')
                 finally:
                     if validator:
                         del validator

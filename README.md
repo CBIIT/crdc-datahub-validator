@@ -11,7 +11,7 @@ The application is consist of multiple python modules/classes to support multipl
 3) Metadata model reader that is called by the metadata model factory to parse data model yaml files currently and is expendable for different model sources.
 4) Mongo database access layer for services to retrieve batch detail, loading metadata into DB and update batch or dataRecords after validation and data loading.
 5) File downloader that get metadata file objects from S3 bucket based on batch.
-6) Essential validator, file validator and metadata validator to validate file and/or contents.
+6) Essential validator, data file validator and metadata validator to validate tsv file and/or contents.
 7) Data loader thats insert, update or delete validated data in tsv file to Mongo database.
 8) Log info, error and exceptions.
 
@@ -37,8 +37,8 @@ Major implemented modules/classes in src dir:
     This module provides utility functions such as dumping dictionary to tsv file, json file, extracting exception code and messages.
 
 7) file_validator.py contains:
-    A service that polls messages in a specific sqs queue, file_queue, and call file validator class for validation and duplication checking.
-    A class, FileValidator, validates individual file or files uploaded for a submission and check duplications.
+    A service that polls messages in a specific sqs queue, file_queue, and call data file validator class for validation and duplication checking.
+    A class, FileValidator, validates individual data file or data files uploaded for a submission and check duplications.
 
 8) metadata_validator.py contains:
     A service that polls messages in a specific sqs queue, metadata_queue, and call metadata validator class for validation.
@@ -49,7 +49,7 @@ Environment settings:
 1) ECR tier:  - key: TIER.  #possible value in ["dev2", "qa"....]
 2) STS queues:
     2-1 key: LOADER_QUEUE, for essential validation requests.
-    2-2 key: FILE_QUEUE, for file validation requests.
+    2-2 key: FILE_QUEUE, for data file validation requests.
     2-3 key: METADATA_QUEUE, for metadata validation requests.
 3) Mongo database configurations:
     3-1 key: MONGO_DB_HOST, Mongo DB server host.
@@ -69,11 +69,11 @@ Usage of the CLI tool:
 2) Start essential validation service command:
     $ python src/validator.py configs/validator-essential-config.yml
 
-3) Start file validation service command:
+3) Start data file validation service command:
     $ python src/validator.py configs/validator-file-config.yml
 
 4) Start metadata validation service command:
     $ python src/validator.py configs/validator-metadata-config.yml
 
-5) Start file export service command:
+5) Start data export service command:
     $ python src/validator.py configs/validator-export-config.yml
