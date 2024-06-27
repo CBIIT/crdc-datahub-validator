@@ -472,32 +472,6 @@ class EssentialValidator:
                         file_info[ERRORS].append(msg)
                         self.batch[ERRORS].append(msg)
                     return False
-                  
-        if self.batch[BATCH_INTENTION] in [BATCH_INTENTION_NEW, BATCH_INTENTION_DELETE]:
-            ids = list(set(self.df[id_field].tolist()))
-            # query db to find existed nodes in current submission.  
-            existed_nodes = self.mongo_dao.check_metadata_ids(type, ids, self.submission_id)  
-            existed_ids = [item[NODE_ID] for item in existed_nodes]  
-            # When metadata intention is "New", all IDs must not exist in the database 
-            if len(existed_ids) > 0 and self.batch[BATCH_INTENTION] == BATCH_INTENTION_NEW:
-                duplicated_rows = self.df[self.df[id_field].isin(existed_ids)].to_dict("index")
-                for key, val in duplicated_rows.items():
-                    msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}": "{val[id_field]}".'
-                    self.log.error(msg)
-                    file_info[ERRORS].append(msg)
-                    self.batch[ERRORS].append(msg)
-                return False
-            # When metadata intention is "Delete", all IDs must exist in the database 
-            elif self.batch[BATCH_INTENTION] == BATCH_INTENTION_DELETE:
-                not_existed_ids = list(set(ids) - set(existed_ids))
-                if len(not_existed_ids) > 0:
-                    not_existed_rows = self.df[self.df[id_field].isin(not_existed_ids)].to_dict('index')
-                    for key, val in not_existed_rows.items():
-                        msg = f'“{file_info[FILE_NAME]}:{key + 2}”: metadata not found: “{type}": "{val[id_field]}".'
-                        self.log.error(msg)
-                        file_info[ERRORS].append(msg)
-                        self.batch[ERRORS].append(msg)
-                    return False
                 
         return True if len(self.batch[ERRORS]) == 0 else False
     """
