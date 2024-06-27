@@ -4,7 +4,6 @@ import numpy as np
 import re
 import json
 import os
-from botocore.exceptions import ClientError
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import DATA_COMMON_NAME,NODE_ID, FILE_NAME, MODEL_VERSION, ROOT_PATH, \
