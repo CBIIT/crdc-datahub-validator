@@ -26,6 +26,7 @@ class MetadataRemover:
         self.submission_id = None
         self.root_path = None
         self.bucket = None
+        self.def_file_nodes = None
 
     def remove_metadata(self, submission_id, node_type, node_ids):
         msg = None
@@ -50,10 +51,11 @@ class MetadataRemover:
                 msg = f'{self.datacommon} model version "{model_version}" is not available.'
                 self.log.error(msg)
                 return False
+            self.def_file_nodes = self.model.get_file_nodes()
             self.bucket = S3Bucket(submission.get(BATCH_BUCKET))
             #2. validate meatadata for the type and ids
             existed_nodes = self.validate_data(submission_id, node_type, node_ids)
-            if not existed_nodes or len(existed_nodes):
+            if not existed_nodes or len(existed_nodes) == 0:
                 return False
             return self.delete_nodes(existed_nodes)
         except Exception as e:
@@ -77,7 +79,7 @@ class MetadataRemover:
             return None
                 
         # query db to find existed nodes in current submission.  
-        existed_nodes = self.mongo_dao.check_metadata_ids(type, node_ids, self.submission_id)  
+        existed_nodes = self.mongo_dao.check_metadata_ids(node_type, node_ids, submission_id)  
         if not existed_nodes or len(existed_nodes) == 0:
             msg = f'No metadata found for “{node_type}: "{json.dumps(node_ids)}.'
             self.log.error(msg)
@@ -115,7 +117,7 @@ class MetadataRemover:
     """
     def process_children(self, deleted_nodes):
         # retrieve child nodes
-        status, child_nodes = self.mongo_dao.get_nodes_by_parents(deleted_nodes, self.batch[SUBMISSION_ID])
+        status, child_nodes = self.mongo_dao.get_nodes_by_parents(deleted_nodes, self.submission_id)
         if not status: # if exception occurred
             self.errors.append(f'deleting metadata failed with database error.  Please try again and contact the helpdesk if this error persists.')
             return False
@@ -128,7 +130,7 @@ class MetadataRemover:
         updated_child_nodes = []
         file_nodes = []
         parent_types = [item[NODE_TYPE] for item in deleted_nodes]
-        file_def_types = self.file_nodes.keys()
+        file_def_types = self.def_file_nodes.keys()
         for node in child_nodes:
             parents = list(filter(lambda x: (x[PARENT_TYPE] not in parent_types), node.get(PARENTS)))
             if len(parents) == 0:  #delete if no other parents
@@ -190,4 +192,9 @@ class MetadataRemover:
                 self.errors.append(f'deleting data file “{s3_info[FILE_NAME]}” failed.  Please try again and contact the helpdesk if this error persists.')
                 rtn_val = rtn_val and False
         return rtn_val
+    
+    def close(self):
+        if self.bucket:
+            del self.bucket
+
   

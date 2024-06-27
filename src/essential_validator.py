@@ -107,7 +107,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             if validator.submission and submission_meta_status == STATUS_NEW:
                                 mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, None)
                     
-                    elif data.get(SQS_TYPE) == TYPE_DELETE and not data.get(SUBMISSION_ID) and data.get(NODE_TYPE) and data.get("nodeIDs"):
+                    elif data.get(SQS_TYPE) == TYPE_DELETE and data.get(SUBMISSION_ID) and data.get(NODE_TYPE) and data.get("nodeIDs"):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         submission_id = data.get(SUBMISSION_ID)
                         node_type = data.get(NODE_TYPE)

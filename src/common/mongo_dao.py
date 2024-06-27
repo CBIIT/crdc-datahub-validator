@@ -210,10 +210,10 @@ class MongoDao:
     def check_metadata_ids(self, nodeType, ids, submission_id):
         #1. check if collection exist
         db = self.client[self.db_name]
+        collection = db[DATA_COLlECTION]
         try:
-            collection = db[DATA_COLlECTION]
             #2 check if keys existing in the collection
-            result = list(collection.find({NODE_ID: {'$in': ids}, SUBMISSION_ID: submission_id, NODE_TYPE: nodeType}, {ID: 0, NODE_ID: 1}))
+            result = list(collection.find({NODE_ID: {'$in': ids}, SUBMISSION_ID: submission_id, NODE_TYPE: nodeType}))
             return result 
         except errors.OperationFailure as oe: 
             self.log.exception(oe)
@@ -315,7 +315,7 @@ class MongoDao:
                 ReplaceOne( {ID: m[ID]}, remove_id(m),  upsert=True)
                     for m in list(data_records)
                 ])
-            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
+            self.log.info(f'Total {result.upserted_count} dataRecords are upserted!')
             return True, None
         except errors.PyMongoError as pe:
             self.log.exception(pe)

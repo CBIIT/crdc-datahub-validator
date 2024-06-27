@@ -108,8 +108,6 @@ class DataLoader:
             finally:
                 del df
                 del records
-                del deleted_nodes
-                del deleted_file_nodes
 
         del file_path_list
         return returnVal, self.errors
