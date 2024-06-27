@@ -50,11 +50,11 @@ class MongoDao:
             return results[0] if results and len(results) > 0 else None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to find batch by file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find batch by data file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to find batch by file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find batch by data file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
             return None
     """
     get submission by id
@@ -148,11 +148,11 @@ class MongoDao:
             return file_collection.find_one({ID: fileId})
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to find file, {fileId}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file, {fileId}: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to find file, {fileId}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file, {fileId}: {get_exception_msg()}")
             return None
     """
     get file in dataRecord collection by fileName
@@ -164,11 +164,11 @@ class MongoDao:
             return file_collection.find_one({"S3FileInfo.fileName": fileName})
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to find file, {fileName}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file, {fileName}: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to find file, {fileName}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file, {fileName}: {get_exception_msg()}")
             return None    
     """
     get file records in dataRecords collection by submissionID
@@ -180,11 +180,11 @@ class MongoDao:
             return list(file_collection.find({SUBMISSION_ID: submission_id, S3_FILE_INFO: {"$nin": [None, ""]}}))
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to find file for the submission, {submission_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file for the submission, {submission_id}: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to find file for the submission, {submission_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file for the submission, {submission_id}: {get_exception_msg()}")
             return None
     
     def update_batch(self, batch):
@@ -234,11 +234,11 @@ class MongoDao:
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update data file, {file_record[ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update data file, {file_record[ID]}: {get_exception_msg()}")
             return False  
         
     """
@@ -252,11 +252,11 @@ class MongoDao:
             return result.modified_count > 0 
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update data file, {file_record[ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update data file, {file_record[ID]}: {get_exception_msg()}")
             return False  
     """
     update errors in submissions collection
@@ -301,7 +301,7 @@ class MongoDao:
             return False
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to update file, {submission[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update submission, {submission[ID]}: {get_exception_msg()}")
             return False
         
     """
@@ -324,7 +324,7 @@ class MongoDao:
             return False, msg
         except Exception as e:
             self.log.exception(e)
-            msg = f"Failed to update file records, {get_exception_msg()}"
+            msg = f"Failed to update metadata, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
         
@@ -349,7 +349,7 @@ class MongoDao:
             return False, msg
         except Exception as e:
             self.log.exception(e)
-            msg = f"Failed to update file records, {get_exception_msg()}"
+            msg = f"Failed to update metadata, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
     """
@@ -373,7 +373,7 @@ class MongoDao:
             return False, msg
         except Exception as e:
             self.log.exception(e)
-            msg = f"Failed to update file records, {get_exception_msg()}"
+            msg = f"Failed to update metadata, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
     """
@@ -391,12 +391,12 @@ class MongoDao:
             return True, None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            msg = f"Failed to delete file records, {get_exception_msg()}"
+            msg = f"Failed to delete metadata, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg
         except Exception as e:
             self.log.exception(e)
-            msg = f"Failed to delete file records, {get_exception_msg()}"
+            msg = f"Failed to delete metadata, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg
     """
@@ -546,12 +546,12 @@ class MongoDao:
     """
     find node in other submission with the same study
     """   
-    def find_node_in_other_submission(self, submission_id, study, data_common, node_type, nodeId):
+    def find_node_in_other_submissions_in_status(self, submission_id, study, data_common, node_type, nodeId, status_list):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
             submissions = None
-            other_submissions = self.find_submissions({STUDY_ABBREVIATION: study, SUBMISSION_STATUS: SUBMISSION_STATUS_SUBMITTED, ID: {"$ne": submission_id}})
+            other_submissions = self.find_submissions({STUDY_ABBREVIATION: study, SUBMISSION_STATUS: {"$in": status_list}, ID: {"$ne": submission_id}})
             if len(other_submissions) > 0:
                 other_submission_ids = [item[ID] for item in other_submissions]
                 duplicate_nodes = list(data_collection.find({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}}))
@@ -642,11 +642,11 @@ class MongoDao:
             return md5_info
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"{submission_id}: Failed to retrieve file md5: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data file md5: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"{submission_id}: Failed to retrieve file md5: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data file md5: {get_exception_msg()}")
             return None
         
     """
@@ -660,11 +660,11 @@ class MongoDao:
             return (result and result.upserted_id)
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save file md5: {get_exception_msg()}")
+            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save data file md5: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save file md5: {get_exception_msg()}")
+            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save data file md5: {get_exception_msg()}")
             return False
         
     """

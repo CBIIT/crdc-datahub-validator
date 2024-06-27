@@ -57,7 +57,6 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     log.debug(data)
                     extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                     submission_id = data.get(SUBMISSION_ID)
-                    # Make sure job is in correct format
                     if data.get(SQS_TYPE) == TYPE_METADATA_VALIDATE and submission_id and data.get(SCOPE) and data.get(VALIDATION_ID):
                         scope = data[SCOPE]
                         validator = MetaDataValidator(mongo_dao, model_store)
@@ -70,7 +69,8 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and submission_id:
                         validator = CrossSubmissionValidator(mongo_dao)
                         status = validator.validate(submission_id)
-                        mongo_dao.set_submission_validation_status(validator.submission, None, None, status, None)
+                        if validator.submission:
+                            mongo_dao.set_submission_validation_status(validator.submission, None, None, status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
                     log.info(f'Processed {SERVICE_TYPE_METADATA} validation for the submission: {data[SUBMISSION_ID]}!')
@@ -79,7 +79,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                 except Exception as e:
                     log.exception(e)
                     log.critical(
-                        f'Something wrong happened while processing file! Check debug log for details.')
+                        f'Something wrong happened while processing metadata! Check debug log for details.')
                 finally:
                     if validator:
                         del validator
