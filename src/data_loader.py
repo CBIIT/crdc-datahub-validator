@@ -82,6 +82,7 @@ class DataLoader:
                             "lineNumber":  index + 2,
                             NODE_TYPE: type,
                             NODE_ID: node_id,
+                            "IDPropName": self.model.get_node_id(type),
                             PROPERTIES: {k: v for (k, v) in rawData.items() if k in prop_names},
                             PARENTS: self.get_parents(relation_fields, row),
                             RAW_DATA:  rawData,
@@ -160,6 +161,8 @@ class DataLoader:
     def get_node_id(self, type, row):
         id_field = self.model.get_node_id(type)
         return row[id_field] if id_field else None
+    
+
     
     """
     get parents based on relationship fields that in format of
