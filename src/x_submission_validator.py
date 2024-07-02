@@ -60,7 +60,6 @@ class CrossSubmissionValidator:
                     self.isError = True
                 # set status, errors and warnings
                 record[ADDITION_ERRORS] = errors
-                record[STATUS] = status if status == STATUS_ERROR else record[STATUS]
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
                 validated_count += 1
