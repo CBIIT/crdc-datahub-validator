@@ -47,9 +47,18 @@ class ModelFactory:
         props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
         delimiter = v.get(LIST_DELIMITER_PROP)
         #process model files for the data common
-        model_reader = YamlModelParser([file_name, props_file_name], dc, delimiter, version)
-        model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES]})
-        self.models.update({model_key(dc, version): model_reader.model})
+        try:
+            model_reader = YamlModelParser([file_name, props_file_name], dc, delimiter, version)
+            model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES]})
+            self.models.update({model_key(dc, version): model_reader.model})
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to create data model: {data_common}/{version}!"
+            self.log.exception(f"{msg} {get_exception_msg()}")
+
+    """
+    get all models
+    """
 
     """
     get model by data common
