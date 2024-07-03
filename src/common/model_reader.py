@@ -69,7 +69,7 @@ class YamlModelParser:
         for aFile in yaml_files:
             try:
                 self.log.info('Reading model file: {} ...'.format(aFile))
-                if aFile and '.' in aFile and aFile.split('.')[-1].lower() == "yml":
+                if aFile and '.' in aFile and aFile.split('.')[-1].lower() in ["yml", "yaml"]:
                     model_file_src.append(os.path.basename(aFile))
                     schema = download_file_to_dict(aFile)
                     if schema:
