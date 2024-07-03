@@ -114,7 +114,7 @@ def download_file_to_dict(url):
             raise Exception(f"Can't find model file at {url}, {r.content}!")
         if file_ext == "json":
             return r.json()
-        elif file_ext == "yml": 
+        elif file_ext in ["yml", "yaml"]: 
             return yaml.safe_load(r.content)
         else:
             raise Exception(f'File type is not supported: {file_ext}!')
