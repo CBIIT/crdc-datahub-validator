@@ -7,7 +7,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     RELEASE, ARCHIVE_RELEASE, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
-    SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME
+    SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
 from common.model_store import ModelFactory
 import threading
@@ -54,7 +54,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
-                    if not data.get(SQS_TYPE) in [TYPE_EXPORT_METADATA, TYPE_COMPLETE_SUB] or not data.get(SUBMISSION_ID):
+                    if not data.get(SQS_TYPE) in [TYPE_EXPORT_METADATA, TYPE_COMPLETE_SUB, TYPE_GENERATE_DCF] or not data.get(SUBMISSION_ID):
                         pass
                     
                     extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
@@ -63,9 +63,14 @@ def metadata_export(configs, job_queue, mongo_dao):
                     if data.get(SQS_TYPE) == TYPE_EXPORT_METADATA: 
                         export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store)
                         export_validator.export_data_to_file()
-                    else:
+                    elif data.get(SQS_TYPE) == TYPE_COMPLETE_SUB:
                         export_validator = ExportMetadata(mongo_dao, submission, None, model_store)
                         export_validator.release_data()
+                    elif data.get(SQS_TYPE) == TYPE_GENERATE_DCF:
+                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store)
+                        export_validator.generate_dcf()
+                    else:
+                        pass
                     export_processed += 1
                     msg.delete()
                 except Exception as e:
