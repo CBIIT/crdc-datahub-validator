@@ -7,10 +7,12 @@ import json
 import requests
 import yaml
 import boto3 
+import pandas as pd
+import numpy as np
 from bento.common.utils import get_stream_md5
 from datetime import datetime
 import uuid
-from common.constants import DATA_COMMON, VERSION
+from common.constants import DATA_COMMON, VERSION, LAST_MODIFIED
 
 """ 
 clean_up_key_value(dict)
@@ -63,14 +65,13 @@ Dump list of dictionary to json file, caller needs handle exception.
 :param: file_path as str
 :return: boolean
 """
-def dump_dict_to_json(dict_list, file_path):
-    if not dict_list or len(dict_list) == 0:
+def dump_dict_to_json(dict, file_path):
+    if not dict or len(dict.items()) == 0:
         return False 
-    
-    for dic in dict_list:
-        path = file_path.replace("data", f'{dic["model"][DATA_COMMON]}_{dic["model"][VERSION]}')
+    for k, v in dict.items():
+        path = file_path.replace("data", f'{k}')
         output_file = open(path, 'w', encoding='utf-8')
-        json.dump(dic, output_file, default=set_default) 
+        json.dump(v, output_file, default=set_default) 
     return True
 
 def set_default(obj):
@@ -109,6 +110,8 @@ def download_file_to_dict(url):
     # NOTE the stream=True parameter below
     file_ext = url.split('.')[-1]
     with requests.get(url) as r:
+        if r.status_code > 400: 
+            raise Exception(f"Can't find model file at {url}, {r.content}!")
         if file_ext == "json":
             return r.json()
         elif file_ext == "yml": 
@@ -137,20 +140,59 @@ def get_uuid_str():
 """
 get MD5 and object size by object stream 
 """
-def get_file_md5_size(bucket_name, key):
-    s3 = boto3.client('s3') 
-    response = s3.get_object(Bucket=bucket_name, Key=key) 
-    object_data = response['Body'] 
-    md5 = get_stream_md5(object_data)
-    res = s3.head_object(Bucket=bucket_name, Key=key)
-    size = res['ContentLength']
-    return size, md5
+def get_s3_file_info(bucket_name, key):
+    s3 = None
+    try:
+        s3 = boto3.client('s3') 
+        res = s3.head_object(Bucket=bucket_name, Key=key)
+        size = res['ContentLength']
+        last_updated = res[LAST_MODIFIED]
+        return size, last_updated, 
+    except Exception as e:
+        raise e
+    finally:
+        s3 = None
+
+"""
+get MD5 and object size by object stream 
+"""
+def get_s3_file_md5(bucket_name, key):
+    s3 = None
+    try:
+        s3 = boto3.client('s3') 
+        response = s3.get_object(Bucket=bucket_name, Key=key) 
+        object_data = response['Body'] 
+        md5 = get_stream_md5(object_data)
+        return md5
+    except Exception as e:
+        raise e
+    finally:
+        s3 = None
 
 """
 create error dict
 """
 def create_error(title, msg):
     return {"title": title, "description": msg}
+
+"""
+dataframe util to remove tailing empty rows and columns
+"""
+def removeTailingEmptyColumnsAndRows(df):
+     # remove empty column from last 
+    columns = df.columns.tolist()
+    col_length = len(columns)
+    index = col_length - 1
+    while not columns[index] or  "Unnamed:" in columns[index]:
+        if df["Unnamed: " + str(index)].notna().sum() == 0: 
+            df = df.drop(df.columns[index], axis=1)
+        else:
+            break
+        index -= 1
+    # remove tailing empty row
+    while  df.iloc[[-1]].isnull().all(1).values[0]:
+        df = df.iloc[:-1]
+    return df
 
 
 

@@ -3,7 +3,7 @@ import os
 import yaml
 from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, \
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
-        SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG
+    SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE
 from bento.common.utils import get_logger
 from common.utils import clean_up_key_value
 
@@ -11,7 +11,7 @@ class Config():
     def __init__(self):
         self.log = get_logger('Upload Config')
         parser = argparse.ArgumentParser(description='Upload files to AWS s3 bucket')
-        parser.add_argument('-t', '--service-type', type=str, choices=["essential", "file", "metadata"], help='validation type, required')
+        parser.add_argument('-t', '--service-type', type=str, choices=["essential", "file", "metadata", "export"], help='validation type, required')
         parser.add_argument('-s', '--server', help='Mongo database host, optional, it can be acquired from env.')
         parser.add_argument('-o', '--port', help='Mongo database port, optional, it can be acquired from env.')
         parser.add_argument('-u', '--user', help='Mongo database user id, optional, it can be acquired from env.')
@@ -28,8 +28,8 @@ class Config():
                 self.data = yaml.safe_load(c_file)['Config']
         else: 
             self.log.critical(f'No configuration file is found!  Please check the file path: "{args.config}"')
-            return None
-        
+            return
+
         self._override(args)
 
     def _override(self, args):
@@ -49,7 +49,7 @@ class Config():
         self.data = clean_up_key_value(self.data)
         service_type = self.data.get(SERVICE_TYPE)
         if service_type is None or service_type not in SERVICE_TYPES:
-            self.log.critical(f'Service type is required and must be "essential", "file" or "metadata"!')
+            self.log.critical(f'Service type is required and must be "essential", "file" or "metadata" or "export"!')
             return False
         
         db_server = self.data.get("server", os.environ.get("MONGO_DB_HOST"))
@@ -66,7 +66,7 @@ class Config():
             self.data[MONGO_DB] = f"mongodb://{db_user_id}:{db_user_password}@{db_server}:{db_port}/?authMechanism=DEFAULT"
 
         models_loc= self.data.get(MODEL_FILE_DIR)
-        if models_loc is None and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE:
+        if models_loc is None and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE and self.data[SERVICE_TYPE] != SERVICE_TYPE_EXPORT:
             self.log.critical(f'Metadata models location is required!')
             return False
         
@@ -77,6 +77,8 @@ class Config():
             sqs = os.environ.get(FILE_QUEUE, self.data.get(SQS_NAME))
         elif self.data[SERVICE_TYPE] == SERVICE_TYPE_METADATA:
             sqs = os.environ.get(METADATA_QUEUE, self.data.get(SQS_NAME))
+        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
+            sqs = os.environ.get(EXPORTER_QUEUE, self.data.get(SQS_NAME))
         else:
             sqs = None
         
@@ -88,7 +90,7 @@ class Config():
                 self.data[SQS_NAME] = sqs
 
         tier = os.environ.get(TIER, self.data.get(TIER_CONFIG))
-        if not tier and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE:
+        if not tier and self.data[SERVICE_TYPE] not in [SERVICE_TYPE_FILE, SERVICE_TYPE_EXPORT]:
             self.log.critical(f'No tier is configured in both env and args!')
             return False
         else:

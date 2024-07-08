@@ -3,7 +3,7 @@ import re
 from bento.common.utils import get_logger, MULTIPLIER, DEFAULT_MULTIPLIER
 from common.constants import DATA_COMMON, VERSION, MODEL_SOURCE, NAME_PROP, DESC_PROP, ID_PROPERTY, VALUE_PROP, \
     VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, TYPE, NODE_LABEL, NODE_PROPERTIES, PROP_REQUIRED, MD5, \
-        FILE_SIZE
+    FILE_SIZE, LIST_DELIMITER_PROP
 from common.utils import download_file_to_dict, case_insensitive_get
 
 NODES = 'Nodes'
@@ -47,22 +47,19 @@ valid_prop_types = [
     "datetime",
     "date",
     "boolean", # true/false or yes/no
+    "value-list", # value_type: value type: list
+            # a string with comma ',' characters as deliminator, e.g, "value1,value2,value3", represents a value list value1,value2,value3
     "array" # value_type: list
-            # a string with asterisk '*' characters as deliminator, e.g, "value1 * value2 * value3", represents a array [value1, value2, value3]
+            # a string with asterisk '*' characters as deliminator, e.g, "value1*value2+value3", represents a array [value1, value2, value3]
 ]
 
 valid_relationship_types = ["many_to_one", "one_to_one", "many_to_many"]
-
-
-def get_list_values(list_str):
-    return [item.strip() for item in list_str.split(LIST_DELIMITER) if item.strip()]
-
 
 def is_parent_pointer(field_name):
     return re.fullmatch(r'\w+\.\w+', field_name) is not None
 
 class YamlModelParser:
-    def __init__(self, yaml_files, data_common, version=DEFAULT_VERSION):
+    def __init__(self, yaml_files, data_common, delimiter, version=DEFAULT_VERSION):
         self.log = get_logger('Model Reader')
         # initialize the data model
         self.model = {DATA_COMMON: data_common, VERSION: version}
@@ -78,12 +75,13 @@ class YamlModelParser:
                     if schema:
                         self.schema.update(schema)
             except Exception as e:
-                self.log.debug(e)
+                self.log.exception(e)
                 msg = f'Failed to read yaml file to dict: {aFile}!'
                 self.log.exception(msg)
                 raise
 
         self.model.update({MODEL_SOURCE: model_file_src})
+        self.model.update({LIST_DELIMITER_PROP: delimiter if delimiter else '|'})
         self.nodes = {}
         self.relationships = {}
         self.relationship_props = {}
@@ -204,7 +202,7 @@ class YamlModelParser:
             return
         
         node = self.nodes[name]
-        node[RELATIONSHIPS.lower()]={dest: {"dest_node": dest, TYPE: multiplier, RELATION_LABEL: relationship}}
+        node[RELATIONSHIPS.lower()].update({dest: {"dest_node": dest, TYPE: multiplier, RELATION_LABEL: relationship}})
 
     def is_required_prop(self, name):
         if name in self.schema[PROP_DEFINITIONS]:
@@ -251,19 +249,21 @@ class YamlModelParser:
                     result[TYPE] = prop_desc.lower()
                 elif isinstance(prop_desc, dict):
                     if VALUE_TYPE in prop_desc:
-                        result[TYPE] = prop_desc[VALUE_TYPE]
+                        result[TYPE] = prop_desc[VALUE_TYPE] if prop_desc[VALUE_TYPE] != "list" else "value-list"
                         if ITEM_TYPE in prop_desc:
                             item_type = self._get_item_type(prop_desc[ITEM_TYPE])
                             result[ITEM_TYPE] = item_type
-                        elif PROP_ENUM in prop_desc:
+                        if PROP_ENUM in prop_desc:
                             item_type = self._get_item_type(prop_desc[PROP_ENUM])
-                            result[ITEM_TYPE] = item_type
+                            result[ALLOWED_VALUES] = item_type[ALLOWED_VALUES]
+                            if prop_desc[VALUE_TYPE] != "list":
+                                result[ITEM_TYPE] = item_type[TYPE]
                         if UNITS in prop_desc:
                             result[HAS_UNIT] = True
                 elif isinstance(prop_desc, list):
                     enum = []
                     for t in prop_desc:
-                        if not re.search(r'://', t):
+                        # if not re.search(r'://', t):
                             enum.append(t)
                     if len(enum) > 0:
                         result[ALLOWED_VALUES] = enum

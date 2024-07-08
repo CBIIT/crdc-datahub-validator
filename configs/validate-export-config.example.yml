@@ -1,0 +1,19 @@
+Config:
+    # service type value in essential, file and metadata
+    service-type: export
+    # MongoDB configurations
+    # please note all mongo database settings here are optional since will use env settings
+    # db server
+    server: localhost
+    # db port
+    port: 27017
+    # db user id
+    user: xxx
+    # db user password
+    pwd: ***
+    # db name
+    db: crdc-datahub
+    #sqs configuration
+    sqs: test.fifo
+    models-loc: https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/
+    tier: dev2
