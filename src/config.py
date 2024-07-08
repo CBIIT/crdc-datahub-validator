@@ -96,5 +96,12 @@ class Config():
         else:
             self.data[TIER_CONFIG] = tier
 
+        production_bucket_name = os.environ.get("DM_BUCKET_NAME", self.data.get("production_bucket_name"))
+        if not production_bucket_name and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
+            self.log.critical(f'No production bucket name is configured in both env and args!')
+            return False
+        else:
+            self.data["production_bucket_name"] = production_bucket_name
+
         return True
 
