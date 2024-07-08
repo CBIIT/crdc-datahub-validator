@@ -9,12 +9,13 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, NODE_ID, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, BATCH_INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
-    BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, SQS_TYPE, TYPE_LOAD, \
+    BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
-    SUBMISSION_INTENTION, BATCH_INTENTION_DELETE
+    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows
 from common.model_store import ModelFactory
+from metadata_remover import MetadataRemover
 from data_loader import DataLoader
 from service.ecs_agent import set_scale_in_protection
 
@@ -104,7 +105,19 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             #5. update submission's metadataValidationStatus
                             mongo_dao.update_batch(batch)
                             if validator.submission and submission_meta_status == STATUS_NEW:
-                                mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, None, batch[BATCH_INTENTION] == BATCH_INTENTION_DELETE )
+                                mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, None)
+                    
+                    elif data.get(SQS_TYPE) == TYPE_DELETE and data.get(SUBMISSION_ID) and data.get(NODE_TYPE) and data.get("nodeIDs"):
+                        extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
+                        submission_id = data.get(SUBMISSION_ID)
+                        node_type = data.get(NODE_TYPE)
+                        node_ids = data.get("nodeIDs")
+                        validator = MetadataRemover(mongo_dao, model_store)
+                        try:
+                            result = validator.remove_metadata(submission_id, node_type, node_ids)
+                        except Exception as e:  # catch any unhandled errors
+                            error = f'{submission_id}: Failed to delete metadata, {get_exception_msg()}!'
+                            log.error(error)
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -158,7 +171,7 @@ class EssentialValidator:
         self.def_file_name = None
 
     def validate(self,batch):
-        self.bucket = S3Bucket(batch.get("bucketName"))
+        self.bucket = S3Bucket(batch.get(BATCH_BUCKET))
         if not self.validate_batch(batch):
             return False
         self.def_file_nodes = self.model.get_file_nodes()
@@ -455,32 +468,6 @@ class EssentialValidator:
                     nan_rows = self.df[self.df[self.def_file_name].isnull()].to_dict("index")
                     for key in nan_rows.keys():
                         msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  file name property “{self.def_file_name}” value is required.'
-                        self.log.error(msg)
-                        file_info[ERRORS].append(msg)
-                        self.batch[ERRORS].append(msg)
-                    return False
-                  
-        if self.batch[BATCH_INTENTION] in [BATCH_INTENTION_NEW, BATCH_INTENTION_DELETE]:
-            ids = list(set(self.df[id_field].tolist()))
-            # query db to find existed nodes in current submission.  
-            existed_nodes = self.mongo_dao.check_metadata_ids(type, ids, self.submission_id)  
-            existed_ids = [item[NODE_ID] for item in existed_nodes]  
-            # When metadata intention is "New", all IDs must not exist in the database 
-            if len(existed_ids) > 0 and self.batch[BATCH_INTENTION] == BATCH_INTENTION_NEW:
-                duplicated_rows = self.df[self.df[id_field].isin(existed_ids)].to_dict("index")
-                for key, val in duplicated_rows.items():
-                    msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}": "{val[id_field]}".'
-                    self.log.error(msg)
-                    file_info[ERRORS].append(msg)
-                    self.batch[ERRORS].append(msg)
-                return False
-            # When metadata intention is "Delete", all IDs must exist in the database 
-            elif self.batch[BATCH_INTENTION] == BATCH_INTENTION_DELETE:
-                not_existed_ids = list(set(ids) - set(existed_ids))
-                if len(not_existed_ids) > 0:
-                    not_existed_rows = self.df[self.df[id_field].isin(not_existed_ids)].to_dict('index')
-                    for key, val in not_existed_rows.items():
-                        msg = f'“{file_info[FILE_NAME]}:{key + 2}”: metadata not found: “{type}": "{val[id_field]}".'
                         self.log.error(msg)
                         file_info[ERRORS].append(msg)
                         self.batch[ERRORS].append(msg)
