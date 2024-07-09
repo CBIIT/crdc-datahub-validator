@@ -1,43 +1,29 @@
 #!/usr/bin/env python3
 import pandas as pd
-import json, os
-from bento.common.sqs import VisibilityExtender
+import os, io
 from bento.common.utils import get_logger
-from common.constants import S3_FILE_INFO, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
-    RELEASE, ARCHIVE_RELEASE, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
-    DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
-    PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
-    SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, \
-    S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
-    FILE_NAME, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
-    BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE, SUBMISSION_INTENTION, SUBMISSION_INTENTION_DELETE,\
-    VALIDATION_ID, VALIDATION_ENDED
-from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
-from common.model_store import ModelFactory
-import threading
-import io
+from common.constants import S3_FILE_INFO, ID, EXPORT_METADATA, DATA_COMMON_NAME,\
+    S3_FILE_INFO, ID, SIZE, MD5, FILE_NAME
+from common.utils import get_date_time, get_exception_msg
 
 # Private class
 class GenerateDCF:
-    def __init__(self, mongo_dao, submission, s3_service, model_store):
-        self.log = get_logger(TYPE_EXPORT_METADATA)
-        self.model_store = model_store
-        self.model = None
+    def __init__(self, mongo_dao, submission, s3_service):
+        self.log = get_logger("Generate DCF manifest")
         self.mongo_dao = mongo_dao
         self.submission = submission
         self.s3_service = s3_service
-        self.intention = submission.get(SUBMISSION_INTENTION)
         self.production_bucket_name = os.environ.get('DM_BUCKET_NAME')
 
     def close(self):
         if self.s3_service:
             self.s3_service.close(self.log)
 
-    def generate(self):
+    def generate_dcf(self):
         # 1) get file nodes by submission id
         file_nodes = self.mongo_dao.get_files_by_submission(self.submission[ID])
         if not file_nodes or len(file_nodes) == 0:
-            return True  #if noting to generate
+            return True  #if nothing to generate
         manifest_file_list = [ manifest_info[S3_FILE_INFO] for manifest_info in file_nodes]
         #2) create df and add records for DCF manifest
         """GUID: file ID, in CDS it's value of property file_id
@@ -85,6 +71,9 @@ class GenerateDCF:
 
         return True
     
-    def upload_to_s3(self):
-        return True
+    def upload_file(self, buf):
+        id, root_path, bucket_name = self.get_submission_info()      
+        full_name = f"{root_path}/{EXPORT_METADATA}/dcf_manifest/{id}-{get_date_time()}-indexd.tsv"
+        self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
+    
         

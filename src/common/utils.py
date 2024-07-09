@@ -124,6 +124,11 @@ get current datetime string in iso format
 def current_datetime_str():
     return datetime.now(tz = datetime.now().astimezone().tzinfo).isoformat(timespec='milliseconds')
 
+def get_date_time(format = "%Y-%m-%d_%H%M%S"):
+    """
+    get current time in format
+    """  
+    return datetime.strftime(datetime.now(), format)
 """
 get current datetime
 """

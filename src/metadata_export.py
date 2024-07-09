@@ -10,6 +10,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
 from common.model_store import ModelFactory
+from dcf_manifest_generator import GenerateDCF
 import threading
 import boto3
 import io
@@ -67,7 +68,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                         export_validator = ExportMetadata(mongo_dao, submission, None, model_store)
                         export_validator.release_data()
                     elif data.get(SQS_TYPE) == TYPE_GENERATE_DCF:
-                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store)
+                        export_validator = GenerateDCF(mongo_dao, submission, S3Service())
                         export_validator.generate_dcf()
                     else:
                         pass
