@@ -3,13 +3,14 @@ import pandas as pd
 import os, io
 from bento.common.utils import get_logger
 from common.constants import S3_FILE_INFO, ID, EXPORT_METADATA, DATA_COMMON_NAME,\
-    S3_FILE_INFO, ID, SIZE, MD5, FILE_NAME
-from common.utils import get_date_time, get_exception_msg
+    S3_FILE_INFO, ID, SIZE, MD5, FILE_NAME, ROOT_PATH, BATCH_BUCKET, NODE_ID, PROD_BUCKET_CONFIG_NAME
+from common.utils import get_date_time, get_exception_msg, get_uuid_str
 
 # Private class
 class GenerateDCF:
-    def __init__(self, mongo_dao, submission, s3_service):
+    def __init__(self, configs, mongo_dao, submission, s3_service):
         self.log = get_logger("Generate DCF manifest")
+        self.config = configs
         self.mongo_dao = mongo_dao
         self.submission = submission
         self.s3_service = s3_service
@@ -23,8 +24,8 @@ class GenerateDCF:
         # 1) get file nodes by submission id
         file_nodes = self.mongo_dao.get_files_by_submission(self.submission[ID])
         if not file_nodes or len(file_nodes) == 0:
-            return True  #if nothing to generate
-        manifest_file_list = [ manifest_info[S3_FILE_INFO] for manifest_info in file_nodes]
+            self.log.error(f'{self.submission[ID]}: No file nodes for the submission.')
+            return False
         #2) create df and add records for DCF manifest
         """GUID: file ID, in CDS it's value of property file_id
         md5: file's MD5
@@ -35,17 +36,17 @@ class GenerateDCF:
         """            
         rows = []
         columns = ["GUID", "md5", "size", "acl", "authz", "urls"]
-        acl ='["*"]' if not self.submission.get("controlledAccess", False) else f'[{self.submission.get("dbGaPID")}]'
-        authz = '["/open"]' if not self.submission.get("controlledAccess", False) else f'["/programs/{self.submission.get('dbGaPID')}"]'
-        url =  f"S3://{self.config.get("production_bucket_name")}/{self.submission[DATA_COMMON_NAME]}/{self.submission["studyID"]}/"
-        for r in manifest_file_list:
+        acl ='["*"]' if not self.submission.get("controlledAccess", False) else f'["{self.submission.get("dbGapID")}"]'
+        authz = '["/open"]' if not self.submission.get("controlledAccess", False) else f'["/programs/{self.submission.get("dbGapID")}"]'
+        url =  f'S3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission[DATA_COMMON_NAME]}/{self.submission.get("studyID")}/'
+        for r in file_nodes:
             row = {
-                "GUID": r.get("file_id"),
-                "md5": r.get(MD5),
-                "size": r.get(SIZE),
+                "GUID": r[NODE_ID],
+                "md5": r[S3_FILE_INFO].get(MD5),
+                "size": r[S3_FILE_INFO].get(SIZE),
                 "acl": acl,
                 "authz": authz,
-                "urls": os.path.join(url, r.get(FILE_NAME))
+                "urls": os.path.join(url, r[S3_FILE_INFO].get(FILE_NAME))
             }
             rows.append(row)
 
@@ -56,12 +57,14 @@ class GenerateDCF:
             buf = io.BytesIO()
             df.to_csv(buf, sep ='\t', index=False)
             buf.seek(0)
+            # 3) upload buffer to s3 bucket
             self.upload_file(buf)
             self.log.info(f"{self.submission[ID]}: DCF manifest are exported.")
-            return
+            return True
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f'{self.submission[ID]}: Failed to generate DCF manifest: {get_exception_msg()}.')
+            return False
         finally:
             if buf:
                 del buf
@@ -72,8 +75,7 @@ class GenerateDCF:
         return True
     
     def upload_file(self, buf):
-        id, root_path, bucket_name = self.get_submission_info()      
+        id, root_path, bucket_name = self.submission[ID], self.submission[ROOT_PATH], self.submission[BATCH_BUCKET]   
         full_name = f"{root_path}/{EXPORT_METADATA}/dcf_manifest/{id}-{get_date_time()}-indexd.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
-    
         

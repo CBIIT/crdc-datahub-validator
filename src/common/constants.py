@@ -152,3 +152,6 @@ SUBMISSION_REL_STATUS_DELETED= "Deleted"
 VALIDATION_COLLECTION = "validation"
 VALIDATION_ID = "validationID"
 VALIDATION_ENDED= "validationEnded"
+
+#DCF Manifest
+PROD_BUCKET_CONFIG_NAME = "production_bucket_name"

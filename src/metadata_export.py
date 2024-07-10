@@ -61,6 +61,9 @@ def metadata_export(configs, job_queue, mongo_dao):
                     extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                     submission_id = data[SUBMISSION_ID]
                     submission = mongo_dao.get_submission(submission_id)
+                    if not submission:
+                        log.error(f'Submission {submission_id} does not exist!')
+                        continue
                     if data.get(SQS_TYPE) == TYPE_EXPORT_METADATA: 
                         export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store)
                         export_validator.export_data_to_file()
@@ -68,7 +71,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                         export_validator = ExportMetadata(mongo_dao, submission, None, model_store)
                         export_validator.release_data()
                     elif data.get(SQS_TYPE) == TYPE_GENERATE_DCF:
-                        export_validator = GenerateDCF(mongo_dao, submission, S3Service())
+                        export_validator = GenerateDCF(configs, mongo_dao, submission, S3Service())
                         export_validator.generate_dcf()
                     else:
                         pass
