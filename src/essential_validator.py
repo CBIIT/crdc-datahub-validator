@@ -118,6 +118,10 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         except Exception as e:  # catch any unhandled errors
                             error = f'{submission_id}: Failed to delete metadata, {get_exception_msg()}!'
                             log.error(error)
+                        finally:
+                            #5. update submission's metadataValidationStatus
+                            if validator.submission:
+                                mongo_dao.set_submission_validation_status(validator.submission, None, "Passed", None, None, True)
                     else:
                         log.error(f'Invalid message: {data}!')
 

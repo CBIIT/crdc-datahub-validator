@@ -275,7 +275,7 @@ class MongoDao:
                     updated_submission[FILE_ERRORS] = []
                 updated_submission[VALIDATION_ENDED] = submission[VALIDATION_ENDED]
             if metadata_status:
-                if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED):
+                if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0)):
                     if metadata_status == STATUS_ERROR or metadata_status == STATUS_NEW: 
                         overall_metadata_status = metadata_status
                     else:
@@ -288,6 +288,8 @@ class MongoDao:
                                 overall_metadata_status = STATUS_WARNING
                             else:
                                 overall_metadata_status = metadata_status
+                else:
+                    updated_submission[FILE_VALIDATION_STATUS] = None
                 updated_submission[METADATA_VALIDATION_STATUS] = overall_metadata_status
                 updated_submission[VALIDATION_ENDED] = submission.get(VALIDATION_ENDED)
                 
