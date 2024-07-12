@@ -35,13 +35,13 @@ class GenerateDCF:
         urls: file's S3 URL, in the form of "S3://<data_management_bucket_name>/<Submission.dataCommons>/<Submission.studyID>/<file_name>
         """            
         rows = []
-        columns = ["GUID", "md5", "size", "acl", "authz", "urls"]
-        acl ='["*"]' if not self.submission.get("controlledAccess", False) else f'["{self.submission.get("dbGapID")}"]'
-        authz = '["/open"]' if not self.submission.get("controlledAccess", False) else f'["/programs/{self.submission.get("dbGapID")}"]'
-        url =  f'S3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission[DATA_COMMON_NAME]}/{self.submission.get("studyID")}/'
+        columns = ["guid", "md5", "size", "acl", "authz", "urls"]
+        acl ="['*']" if not self.submission.get("controlledAccess", False) else f"['{self.submission.get('dbGapID')}']"
+        authz = "['/open']" if not self.submission.get("controlledAccess", False) else f"['/programs/{self.submission.get('dbGapID')}']"
+        url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission[DATA_COMMON_NAME]}/{self.submission.get("studyID")}/'
         for r in file_nodes:
             row = {
-                "GUID": r[NODE_ID],
+                "guid": r[NODE_ID],
                 "md5": r[S3_FILE_INFO].get(MD5),
                 "size": r[S3_FILE_INFO].get(SIZE),
                 "acl": acl,
@@ -76,6 +76,6 @@ class GenerateDCF:
     
     def upload_file(self, buf):
         id, root_path, bucket_name = self.submission[ID], self.submission[ROOT_PATH], self.submission[BATCH_BUCKET]   
-        full_name = f"{root_path}/{EXPORT_METADATA}/dcf_manifest/{id}-{get_date_time()}-indexd.tsv"
+        full_name = f"{root_path}/{EXPORT_METADATA}/dcf_manifest/{get_date_time()}-{id}-indexd.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
         
