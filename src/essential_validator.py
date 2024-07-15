@@ -9,7 +9,7 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, NODE_ID, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, SQS_TYPE, TYPE_LOAD, \
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, SQS_TYPE, TYPE_LOAD, STATUS_PASSED,\
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
     SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET
@@ -118,6 +118,10 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         except Exception as e:  # catch any unhandled errors
                             error = f'{submission_id}: Failed to delete metadata, {get_exception_msg()}!'
                             log.error(error)
+                        finally:
+                            #5. update submission's metadataValidationStatus
+                            if validator.submission:
+                                mongo_dao.set_submission_validation_status(validator.submission, None, STATUS_PASSED, None, None, True)
                     else:
                         log.error(f'Invalid message: {data}!')
 
