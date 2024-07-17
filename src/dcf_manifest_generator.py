@@ -36,8 +36,8 @@ class GenerateDCF:
         """            
         rows = []
         columns = ["guid", "md5", "size", "acl", "authz", "urls"]
-        acl ="['*']" if not self.submission.get("controlledAccess", False) else f"['{self.submission.get('dbGapID')}']"
-        authz = "['/open']" if not self.submission.get("controlledAccess", False) else f"['/programs/{self.submission.get('dbGapID')}']"
+        acl ="['*']" if not self.submission.get("controlledAccess", False) else f"['{self.submission.get('dbGaPID')}']"
+        authz = "['/open']" if not self.submission.get("controlledAccess", False) else f"['/programs/{self.submission.get('dbGaPID')}']"
         url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission[DATA_COMMON_NAME]}/{self.submission.get("studyID")}/'
         for r in file_nodes:
             row = {
