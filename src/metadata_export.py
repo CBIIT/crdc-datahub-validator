@@ -10,7 +10,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
-    STUDY_ID
+    STUDY_ID, DM_BUCKET_CONFIG_NAME
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
@@ -138,8 +138,9 @@ class S3Service:
 
 # Private class
 class ExportMetadata:
-    def __init__(self, mongo_dao, submission, s3_service, model_store):
+    def __init__(self, mongo_dao, submission, s3_service, model_store, configs):
         self.log = get_logger(TYPE_EXPORT_METADATA)
+        self.configs = configs
         self.model_store = model_store
         self.model = None
         self.mongo_dao = mongo_dao
@@ -381,7 +382,7 @@ class ExportMetadata:
         transfer released files includes data files and metadata files to data manage bucket by aws datasync
         """
         id, root_path, bucket_name, dataCommon, study_id = self.get_submission_info()
-        dest_bucket_name = self.config.get("DataManageBucket")
+        dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
         dest_file_folder =  os.path.join(dataCommon, study_id)
         data_file_folder = os.path.join(root_path, "file/")
         session = boto3.Session()
@@ -419,7 +420,7 @@ class ExportMetadata:
             self.log.info(f"Started DataSync task execution: {task_execution['TaskExecutionArn']}")
 
         except ClientError as ce:
-            self.log.exception(e)
+            self.log.exception(ce)
             self.log.exception(f"Failed to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {ce.response['Error']['Message']}")
         except Exception as e:
             self.log.exception(e)

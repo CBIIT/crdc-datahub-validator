@@ -102,7 +102,7 @@ class Config():
             self.log.critical(f'No data management bucket is configured in both env and args!')
             return False
         else:
-            self.data[TIER_CONFIG] = tier
+            self.data[DM_BUCKET_CONFIG_NAME] = dm_bucket
 
         production_bucket_name = os.environ.get(DM_BUCKET_NAME_ENV, self.data.get(PROD_BUCKET_CONFIG_NAME))
         if not production_bucket_name and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
