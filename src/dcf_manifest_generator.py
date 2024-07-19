@@ -3,7 +3,9 @@ import pandas as pd
 import os, io
 from bento.common.utils import get_logger
 from common.constants import S3_FILE_INFO, ID, EXPORT_METADATA, DATA_COMMON_NAME,\
-    S3_FILE_INFO, ID, SIZE, MD5, FILE_NAME, ROOT_PATH, BATCH_BUCKET, NODE_ID, PROD_BUCKET_CONFIG_NAME
+    S3_FILE_INFO, ID, SIZE, MD5, FILE_NAME, ROOT_PATH, BATCH_BUCKET, NODE_ID, PROD_BUCKET_CONFIG_NAME,\
+    DCF_PREFIX
+
 from common.utils import get_date_time, get_exception_msg, get_uuid_str
 
 # Private class
@@ -39,9 +41,11 @@ class GenerateDCF:
         acl ="['*']" if not self.submission.get("controlledAccess", False) else f"['{self.submission.get('dbGaPID')}']"
         authz = "['/open']" if not self.submission.get("controlledAccess", False) else f"['/programs/{self.submission.get('dbGaPID')}']"
         url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission[DATA_COMMON_NAME]}/{self.submission.get("studyID")}/'
+        
         for r in file_nodes:
+            node_id = r[NODE_ID] if r[NODE_ID].startswith(DCF_PREFIX) else DCF_PREFIX + r[NODE_ID]
             row = {
-                "guid": r[NODE_ID],
+                "guid": node_id,
                 "md5": r[S3_FILE_INFO].get(MD5),
                 "size": r[S3_FILE_INFO].get(SIZE),
                 "acl": acl,
