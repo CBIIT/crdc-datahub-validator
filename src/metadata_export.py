@@ -10,7 +10,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
-    STUDY_ID, DM_BUCKET_CONFIG_NAME
+    STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
@@ -383,22 +383,22 @@ class ExportMetadata:
         """
         id, root_path, bucket_name, dataCommon, study_id = self.get_submission_info()
         dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
+        datasync_role = self.configs.get(DATASYNC_ROLE_ARN_CONFIG)
         dest_file_folder =  os.path.join(dataCommon, study_id)
-        data_file_folder = os.path.join(root_path, "file/")
-        session = boto3.Session()
-        datasync = session.client('datasync')
+        data_file_folder = os.path.join(root_path, "file")
+        datasync = boto3.client('datasync')
         try:
             # Create source S3 location
             source_location = datasync.create_location_s3(
                 S3BucketArn=f'arn:aws:s3:::{bucket_name}',
-                S3Config={'BucketAccessRoleArn': 'arn:aws:iam::420434175168:role/DataSyncS3Role'},
+                S3Config={'BucketAccessRoleArn': datasync_role},
                 Subdirectory= f'{data_file_folder}'
             )
 
             # Create destination S3 location
             destination_location = datasync.create_location_s3(
-                S3BucketArn='arn:aws:s3:::your-destination-bucket',
-                S3Config={'BucketAccessRoleArn': 'arn:aws:iam::420434175168:role/DataSyncS3Role'},
+                S3BucketArn=f'arn:aws:s3:::{dest_bucket_name}',
+                S3Config={'BucketAccessRoleArn': datasync_role},
                 Subdirectory=f'{dest_file_folder}'
             )
 
