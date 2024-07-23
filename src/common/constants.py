@@ -155,6 +155,7 @@ VALIDATION_ENDED= "validationEnded"
 
 #DCF Manifest
 PROD_BUCKET_CONFIG_NAME = "production_bucket_name"
+DCF_PREFIX = "dg.4DFC/"
 STUDY_ID = "studyID"
 DBGA_PID = "dbGaPID"
 CONTROL_ACCESS = "controlledAccess"
