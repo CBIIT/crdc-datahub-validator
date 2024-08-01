@@ -324,17 +324,17 @@ class YamlModelParser:
         unit_prop_name = self.get_unit_property_name(name)
         return self.get_valid_values(node_name, unit_prop_name)
 
-    def get_extra_props(self, node_name, name, value):
-        results = {}
-        prop = self.get_prop(node_name, name)
-        if prop and HAS_UNIT in prop and prop[HAS_UNIT]:
-            # For MVP use default unit for all values
-            results[self.get_unit_property_name(name)] = self.get_default_unit(node_name, name)
-            org_prop_name = self.get_original_value_property_name(name)
-            # For MVP use value is same as original value
-            results[org_prop_name] = value
-            results[self.get_unit_property_name(org_prop_name)] = self.get_default_unit(node_name, name)
-        return results
+    # def get_extra_props(self, node_name, name, value):
+    #     results = {}
+    #     prop = self.get_prop(node_name, name)
+    #     if prop and HAS_UNIT in prop and prop[HAS_UNIT]:
+    #         # For MVP use default unit for all values
+    #         results[self.get_unit_property_name(name)] = self.get_default_unit(node_name, name)
+    #         org_prop_name = self.get_original_value_property_name(name)
+    #         # For MVP use value is same as original value
+    #         results[org_prop_name] = value
+    #         results[self.get_unit_property_name(org_prop_name)] = self.get_default_unit(node_name, name)
+    #     return results
 
     def process_value_unit_type(self, name, prop_type):
         results = {}
@@ -349,19 +349,19 @@ class YamlModelParser:
                             enum = set(units)
                             unit_prop_name = self.get_unit_property_name(name)
                             results[unit_prop_name] = {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: enum, DEFAULT_VALUE: units[0]}
-                            org_prop_name = self.get_original_value_property_name(name)
-                            org_unit_prop_name = self.get_unit_property_name(org_prop_name)
-                            results[org_prop_name] = prop_type
-                            results[org_unit_prop_name] = {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: enum, DEFAULT_VALUE: units[0]}
+                            # org_prop_name = self.get_original_value_property_name(name)
+                            # org_unit_prop_name = self.get_unit_property_name(org_prop_name)
+                            # results[org_prop_name] = prop_type
+                            # results[org_unit_prop_name] = {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: enum, DEFAULT_VALUE: units[0]}
         return results
 
     @staticmethod
     def get_unit_property_name(name):
         return name + '_unit'
 
-    @staticmethod
-    def get_original_value_property_name(name):
-        return name + '_original'
+    # @staticmethod
+    # def get_original_value_property_name(name):
+    #     return name + '_original'
 
 
     @staticmethod

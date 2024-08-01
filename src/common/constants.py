@@ -162,3 +162,5 @@ CONTROL_ACCESS = "controlledAccess"
 DM_BUCKET_CONFIG_NAME = "dm_bucket"
 DATASYNC_ROLE_ARN_ENV = "DATASYNC_ROLE_ARN"
 DATASYNC_ROLE_ARN_CONFIG = "datasync_role"
+
+CONFIG_COLLECTION = "configuration"
