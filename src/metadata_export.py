@@ -72,11 +72,12 @@ def metadata_export(configs, job_queue, mongo_dao):
                     if data.get(SQS_TYPE) == TYPE_EXPORT_METADATA: 
                         export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store, configs)
                         export_validator.export_data_to_file()
+                        # transfer metadata to destination s3 bucket if error occurred.
+                        export_validator.transfer_release_metadata()
                     elif data.get(SQS_TYPE) == TYPE_COMPLETE_SUB:
                         export_validator = ExportMetadata(mongo_dao, submission, None, model_store, configs)
                         if export_validator.release_data():
                             export_validator.transfer_released_files()
-                            export_validator.transfer_release_metadata()
                     elif data.get(SQS_TYPE) == TYPE_GENERATE_DCF:
                         export_validator = GenerateDCF(configs, mongo_dao, submission, S3Service())
                         export_validator.generate_dcf()
