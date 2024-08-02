@@ -467,13 +467,13 @@ class MetaDataValidator:
                 if len(errs) > 0:
                     errors.extend(errs)
 
-            elif type == "datetime":
-                try:
-                    val = datetime.strptime(value, DATETIME_FORMAT)
-                except ValueError as e:
-                    errors.append(create_error("Invalid datetime value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid datetime type.'))
+            # elif type == "datetime":
+            #     try:
+            #         val = datetime.strptime(value, DATETIME_FORMAT)
+            #     except ValueError as e:
+            #         errors.append(create_error("Invalid datetime value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid datetime type.'))
 
-            elif type == "date":
+            elif type == "date" or type == "datetime":
                 val = None
                 for date_format in DATE_FORMATS:
                     try:
