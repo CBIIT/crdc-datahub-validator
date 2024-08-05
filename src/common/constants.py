@@ -156,3 +156,11 @@ VALIDATION_ENDED= "validationEnded"
 #DCF Manifest
 PROD_BUCKET_CONFIG_NAME = "production_bucket_name"
 DCF_PREFIX = "dg.4DFC/"
+STUDY_ID = "studyID"
+DBGA_PID = "dbGaPID"
+CONTROL_ACCESS = "controlledAccess"
+DM_BUCKET_CONFIG_NAME = "dm_bucket"
+DATASYNC_ROLE_ARN_ENV = "DATASYNC_ROLE_ARN"
+DATASYNC_ROLE_ARN_CONFIG = "datasync_role"
+
+CONFIG_COLLECTION = "configuration"

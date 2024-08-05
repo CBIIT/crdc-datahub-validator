@@ -1,20 +1,25 @@
 #!/usr/bin/env python3
 import pandas as pd
 import json
+import boto3
+from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
     RELEASE, ARCHIVE_RELEASE, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
-    SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF
-from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
+    SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
+    STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG
+from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
 import threading
 import boto3
 import io
 from service.ecs_agent import set_scale_in_protection
+import os
+import os
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
@@ -65,11 +70,14 @@ def metadata_export(configs, job_queue, mongo_dao):
                         log.error(f'Submission {submission_id} does not exist!')
                         continue
                     if data.get(SQS_TYPE) == TYPE_EXPORT_METADATA: 
-                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store)
+                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store, configs)
                         export_validator.export_data_to_file()
+                        # transfer metadata to destination s3 bucket if error occurred.
+                        export_validator.transfer_release_metadata()
                     elif data.get(SQS_TYPE) == TYPE_COMPLETE_SUB:
-                        export_validator = ExportMetadata(mongo_dao, submission, None, model_store)
-                        export_validator.release_data()
+                        export_validator = ExportMetadata(mongo_dao, submission, None, model_store, configs)
+                        if export_validator.release_data():
+                            export_validator.transfer_released_files()
                     elif data.get(SQS_TYPE) == TYPE_GENERATE_DCF:
                         export_validator = GenerateDCF(configs, mongo_dao, submission, S3Service())
                         export_validator.generate_dcf()
@@ -132,8 +140,9 @@ class S3Service:
 
 # Private class
 class ExportMetadata:
-    def __init__(self, mongo_dao, submission, s3_service, model_store):
+    def __init__(self, mongo_dao, submission, s3_service, model_store, configs):
         self.log = get_logger(TYPE_EXPORT_METADATA)
+        self.configs = configs
         self.model_store = model_store
         self.model = None
         self.mongo_dao = mongo_dao
@@ -145,7 +154,7 @@ class ExportMetadata:
             self.s3_service.close(self.log)
 
     def export_data_to_file(self):
-        submission_id, root_path, bucket_name = self.get_submission_info()
+        submission_id, root_path, bucket_name, _, _ = self.get_submission_info()
         if not root_path or not submission_id or not bucket_name:
             self.log(f"{submission_id}: The process of exporting metadata stopped due to incomplete data in the submission.")
 
@@ -248,7 +257,7 @@ class ExportMetadata:
         return rows
     
     def upload_file(self, buf, node_type):
-        id, root_path, bucket_name = self.get_submission_info()      
+        id, root_path, bucket_name,_,_ = self.get_submission_info()      
         full_name = f"{ValidationDirectory.get_release(root_path)}/{id}-{node_type}.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
 
@@ -261,12 +270,18 @@ class ExportMetadata:
         if not self.model.model or not self.model.get_nodes():
             msg = f'{submission_id}: {self.datacommon} model version "{model_version}" is not available.'
             self.log.error(msg)
-            return 
+            return False
         
         node_types = self.model.get_node_keys()
-        #2 retrieve data for nodeType and save data to release collection
-        for node_type in list(node_types)[::-1]:
-            self.save_releases(submission_id, node_type)
+        try:
+            #2 retrieve data for nodeType and save data to release collection
+            for node_type in list(node_types)[::-1]:
+                self.save_releases(submission_id, node_type)
+            return True
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f'{submission_id}: Failed to release data: {get_exception_msg()}.')
+            return False
 
     def save_releases(self, submission_id, node_type):
         start_index = 0
@@ -351,7 +366,8 @@ class ExportMetadata:
         return
         
     def get_submission_info(self):
-        return [self.submission.get(ID), self.submission.get(EXPORT_ROOT_PATH), self.submission.get(BATCH_BUCKET)]
+        return [self.submission.get(ID), self.submission.get(EXPORT_ROOT_PATH), self.submission.get(BATCH_BUCKET), 
+                self.submission.get(DATA_COMMON_NAME), self.submission.get(STUDY_ID)]
     
     def sort_columns(self, cols, node_type):
         columns = list(cols)
@@ -362,6 +378,75 @@ class ExportMetadata:
         old_index = columns.index(CRDC_ID.lower())
         columns.insert(2, columns.pop(old_index))
         return columns
+    
+    def transfer_release_metadata(self):
+        """
+        transfer released data to cds cbiit metadata bucket by aws datasync
+        """
+        id, root_path, bucket_name, dataCommon, _ = self.get_submission_info()
+        dest_bucket_name = self.mongo_dao.get_bucket_name("Metadata Bucket", dataCommon)
+        dest_file_folder =  f'{get_date_time("%Y-%m-%dT%H:%M:%S")}-{id}'
+        data_file_folder = os.path.join(root_path, "metadata/release/")
+        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder)
+    
+    def transfer_released_files(self):
+        """
+        transfer released files includes data files and metadata files to data manage bucket by aws datasync
+        """
+        _, root_path, bucket_name, dataCommon, study_id = self.get_submission_info()
+        dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
+        dest_file_folder =  os.path.join(dataCommon, study_id)
+        data_file_folder = os.path.join(root_path, "file/")
+        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder )
+
+    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder):
+        """
+        transfer s3 object with AWS DataSync
+        """
+        datasync_role = self.configs.get(DATASYNC_ROLE_ARN_CONFIG)
+        datasync = boto3.client('datasync')
+        try:
+            # Create source S3 location
+            source_location = datasync.create_location_s3(
+                S3BucketArn=f'arn:aws:s3:::{bucket_name}',
+                S3Config={'BucketAccessRoleArn': datasync_role},
+                Subdirectory= f'{data_file_folder}'
+            )
+
+            # Create destination S3 location
+            destination_location = datasync.create_location_s3(
+                S3BucketArn=f'arn:aws:s3:::{dest_bucket_name}',
+                S3Config={'BucketAccessRoleArn': datasync_role},
+                Subdirectory=f'{dest_file_folder}'
+            )
+
+            # Create DataSync task
+            task = datasync.create_task(
+                SourceLocationArn=source_location['LocationArn'],
+                DestinationLocationArn=destination_location['LocationArn'],
+                Name='Data_Hub_SyncTask',
+                Options={
+                    'VerifyMode': 'ONLY_FILES_TRANSFERRED'
+                }
+            )
+            self.log.info(f"DataSync task {task['TaskArn']} created to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}.")
+
+            # Start DataSync task
+            task_execution = datasync.start_task_execution(
+                TaskArn=task['TaskArn']
+            )
+            self.log.info(f"Started DataSync task execution: {task_execution['TaskExecutionArn']}")
+
+        except ClientError as ce:
+            self.log.exception(ce)
+            self.log.exception(f"Failed to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {ce.response['Error']['Message']}")
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {get_exception_msg()}")
+        finally:
+            datasync.close()
+            datasync = None
+
 
 # Private class
 class ValidationDirectory:

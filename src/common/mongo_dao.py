@@ -6,7 +6,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, FAILED, DATA_COMMON_NAME, KEY, \
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
-    CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED
+    CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, BATCH_BUCKET
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -877,7 +877,24 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
             return False
-        
+    """
+    get bucket name based on dataCommons and type
+    """   
+    def get_bucket_name(self, type, dataCommon):
+        db = self.client[self.db_name]
+        data_collection = db[CONFIG_COLLECTION]
+        try:
+            result = data_collection.find_one({TYPE: type, DATA_COMMON_NAME: dataCommon})
+            if result:
+                return result.get(BATCH_BUCKET)
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
+            return None 
 """
 remove _id from records for update
 """   

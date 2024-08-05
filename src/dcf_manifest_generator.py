@@ -4,7 +4,7 @@ import os, io
 from bento.common.utils import get_logger
 from common.constants import S3_FILE_INFO, ID, EXPORT_METADATA, DATA_COMMON_NAME,\
     S3_FILE_INFO, ID, SIZE, MD5, FILE_NAME, ROOT_PATH, BATCH_BUCKET, NODE_ID, PROD_BUCKET_CONFIG_NAME,\
-    DCF_PREFIX
+    DCF_PREFIX, STUDY_ID, DBGA_PID, CONTROL_ACCESS
 
 from common.utils import get_date_time, get_exception_msg, get_uuid_str
 
@@ -38,10 +38,11 @@ class GenerateDCF:
         """            
         rows = []
         columns = ["guid", "md5", "size", "acl", "authz", "urls"]
-        acl ="['*']" if not self.submission.get("controlledAccess", False) else f"['{self.submission.get('dbGaPID')}']"
-        authz = "['/open']" if not self.submission.get("controlledAccess", False) else f"['/programs/{self.submission.get('dbGaPID')}']"
-        url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission[DATA_COMMON_NAME]}/{self.submission.get("studyID")}/'
-        
+        control_access = self.submission.get(CONTROL_ACCESS, False)
+        dbGaPID = self.submission.get(DBGA_PID)
+        acl ="['*']" if not control_access else f"['{dbGaPID}']"
+        authz = "['/open']" if not control_access else f"['/programs/{dbGaPID}']"
+        url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission[DATA_COMMON_NAME]}/{self.submission.get(STUDY_ID)}/'
         for r in file_nodes:
             node_id = r[NODE_ID] if r[NODE_ID].startswith(DCF_PREFIX) else DCF_PREFIX + r[NODE_ID]
             row = {

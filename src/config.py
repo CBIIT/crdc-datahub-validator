@@ -3,10 +3,11 @@ import os
 import yaml
 from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, \
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
-    SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE
+    SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE,\
+    DM_BUCKET_CONFIG_NAME, PROD_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG , DATASYNC_ROLE_ARN_ENV
 from bento.common.utils import get_logger
 from common.utils import clean_up_key_value
-
+DM_BUCKET_NAME_ENV = "DM_BUCKET_NAME"
 class Config():
     def __init__(self):
         self.log = get_logger('Upload Config')
@@ -96,12 +97,26 @@ class Config():
         else:
             self.data[TIER_CONFIG] = tier
 
-        production_bucket_name = os.environ.get("DM_BUCKET_NAME", self.data.get("production_bucket_name"))
+        dm_bucket = os.environ.get(DM_BUCKET_NAME_ENV, self.data.get(DM_BUCKET_CONFIG_NAME))
+        if not dm_bucket and self.data[SERVICE_TYPE] in [SERVICE_TYPE_EXPORT]:
+            self.log.critical(f'No data management bucket is configured in both env and args!')
+            return False
+        else:
+            self.data[DM_BUCKET_CONFIG_NAME] = dm_bucket
+
+        production_bucket_name = os.environ.get(DM_BUCKET_NAME_ENV, self.data.get(PROD_BUCKET_CONFIG_NAME))
         if not production_bucket_name and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
             self.log.critical(f'No production bucket name is configured in both env and args!')
             return False
         else:
-            self.data["production_bucket_name"] = production_bucket_name
+            self.data[PROD_BUCKET_CONFIG_NAME] = production_bucket_name
+
+        datasync_role = os.environ.get(DATASYNC_ROLE_ARN_ENV, self.data.get(DATASYNC_ROLE_ARN_CONFIG))
+        if not datasync_role and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
+            self.log.critical(f'No datasync role is configured in both env and args!')
+            return False
+        else:
+            self.data[DATASYNC_ROLE_ARN_CONFIG] = datasync_role
 
         return True
 
