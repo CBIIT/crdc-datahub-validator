@@ -17,12 +17,12 @@ DEF_FILE_NODES = "file-nodes"
 class ModelFactory:
     
     def __init__(self, model_def_loc, tier):
-        model_def_loc += "/cache"
         self.log = get_logger('Models')
         self.models = None
+        self.log.debug("model_def:" + model_def_loc)
         msg = None
         # get models definition file, content.json in models dir
-        self.model_def_dir = os.path.join(model_def_loc, tier)
+        self.model_def_dir = os.path.join(model_def_loc, tier + "/cache")
         models_def_file_path = os.path.join(self.model_def_dir, MODELS_DEFINITION_FILE)
         self.models_def = download_file_to_dict(models_def_file_path)
         # to do check if  self.models_def is a dict
