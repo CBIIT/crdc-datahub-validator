@@ -19,7 +19,6 @@ class ModelFactory:
     def __init__(self, model_def_loc, tier):
         self.log = get_logger('Models')
         self.models = None
-        self.log.debug("model_def:" + model_def_loc)
         msg = None
         # get models definition file, content.json in models dir
         self.model_def_dir = os.path.join(model_def_loc, tier + "/cache")
