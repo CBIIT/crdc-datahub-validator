@@ -17,6 +17,7 @@ DEF_FILE_NODES = "file-nodes"
 class ModelFactory:
     
     def __init__(self, model_def_loc, tier):
+        model_def_loc += "/cache"
         self.log = get_logger('Models')
         self.models = None
         msg = None
