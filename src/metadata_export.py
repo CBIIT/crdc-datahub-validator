@@ -386,7 +386,7 @@ class ExportMetadata:
         id, root_path, bucket_name, dataCommon, _ = self.get_submission_info()
         dest_bucket_name = self.mongo_dao.get_bucket_name("Metadata Bucket", dataCommon)
         dest_file_folder =  f'{get_date_time("%Y-%m-%dT%H:%M:%S")}-{id}'
-        data_file_folder = os.path.join(root_path, "metadata/release/")
+        data_file_folder = os.path.join(root_path, "metadata/release")
         self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder)
     
     def transfer_released_files(self):
@@ -396,7 +396,7 @@ class ExportMetadata:
         _, root_path, bucket_name, dataCommon, study_id = self.get_submission_info()
         dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
         dest_file_folder =  os.path.join(dataCommon, study_id)
-        data_file_folder = os.path.join(root_path, "file/")
+        data_file_folder = os.path.join(root_path, "file")
         self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder )
 
     def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder):
