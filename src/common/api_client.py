@@ -10,7 +10,7 @@ class APIInvoker:
     def __init__(self, configs):
         self.log = get_logger('GraphQL API')
         self.configs = configs
-        
+
     #1) get sts temp credential for file/metadata uploading to S3 bucket
     def get_temp_credential(self):
         self.cred = None
@@ -56,7 +56,7 @@ class APIInvoker:
         try:
             response = requests.get(url, headers=headers)
             status = response.status_code
-            self.log.info(f"get_data_element_by_cde_code response status code: {status}.")
+            # self.log.info(f"get_data_element_by_cde_code response status code: {status}.")
             if status == 200:
                 results = response.json()
                 if results.get("errors"):

@@ -17,17 +17,19 @@ CADSR_PERMISSIVE_VALUES = "PermissibleValues"
 
 def pull_pv_lists(configs, mongo_dao):
 
-    puller = PVPuller(configs, mongo_dao)
+   
     # cron job to pull pv list from caDSR
-    def job():
-        print("PV puller task is running...")
-        puller.pull_pv()
-        print("PV puller is completed...")
+    # def job():
+    #     print("PV puller task is running...")
+    #     puller.pull_pv()
+    #     print("PV puller is completed...")
     try:
-        schedule.every().day.at("00:01").do(job)
-        while True:
-            schedule.run_pending()
-            time.sleep(1)
+        # schedule.every().day.at("00:01").do(job)
+        puller = PVPuller(configs, mongo_dao)
+        puller.pull_pv()
+        # while True:
+        #     schedule.run_pending()
+        #     time.sleep(1)
     except (KeyboardInterrupt, SystemExit):
         print("Task is stopped...")
 
@@ -40,8 +42,8 @@ class PVPuller:
         self.log = get_logger('Permissive values puller')
         self.mongo_dao = mongo_dao
         self.configs = configs
-        # pull permissive values for testing
-        self.pull_pv()
+        # pull permissive values when initializing
+        # self.pull_pv()
 
     def pull_pv(self):
         # set env variables
@@ -77,36 +79,9 @@ class PVPuller:
                         self.log.error(f"No CDE version found for {data_common}:{prop_name}: {cde_id}")
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE version."})
                         continue
-                    # check if cde exists in db
-                    # count = self.mongo_dao.count_docs(CDE_COLLECTION,{CDE_CODE: cde_id, CDE_VERSION: cde_version})
-                    # if count > 0:
-                    #     continue
-
-                    # # 3) pull new cde permissive values and save to db
-                    # api_client = APIInvoker(self.configs)
-                    # result = api_client.get_data_element_by_cde_code(cde_id, self.configs[CDE_API_URL], cde_version)
-                    # if not result or not result.get(CADSR_DATA_ELEMENT) or not result[CADSR_DATA_ELEMENT].get(CADSR_VALUE_DOMAIN):
-                    #     self.log.error(f"No data element found for {data_common}/{prop_name}:{cde_id}:{cde_version}")
-                    #     no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "No CDE element found."})
-                    #     continue
-                    # pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CADSR_PERMISSIVE_VALUES)
-                    # if not pv_list or len(pv_list) == 0:
-                    #     self.log.error(f"No permissive values found for {data_common}/{prop_name}:{cde_id}:{cde_version}")
-                    #     no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "No CDE permissive values defined for the CDE code."})
-                    #     pv_list = []
-                    # else:
-                    #     pv_list = [ item["value"] for item in pv_list]
-
-                    # new_cde = {
-                    #     ID: get_uuid_str(),
-                    #     CDE_CODE: cde_id,
-                    #     CDE_VERSION: cde_version,
-                    #     CADSR_PERMISSIVE_VALUES: pv_list,
-                    #     CREATED_AT: current_datetime(),
-                    #     UPDATED_AT: current_datetime(),
-                    # }
-                    new_cde, msg = self.get_pv_by_code_version(data_common, prop_name, cde_id, cde_version)
-                    if new_cde:
+                    # check if cde exists in db, if not pull from CDE
+                    new_cde, msg = get_pv_by_code_version(self.mongo_dao, self.configs, self.log, data_common, prop_name, cde_id, cde_version)
+                    if not new_cde is None:
                         new_cde_list.append(new_cde)
 
                     if msg:
@@ -129,36 +104,38 @@ class PVPuller:
             self.log.exception(msg)
             return False
         
-    def get_pv_by_code_version(self, data_common, prop_name, cde_code, cde_version):
-        """
-        get permissive values by cde code and version
-        :param cde_code: cde code
-        :param cde_version: cde version
-        """
-        # check if cde exists in db
-        count = self.mongo_dao.count_docs(CDE_COLLECTION,{CDE_CODE: cde_code, CDE_VERSION: cde_version})
-        if count > 0:
-            return None, None
+def get_pv_by_code_version(mongo_dao, configs, log, data_common, prop_name, cde_code, cde_version):
+    """
+    get permissive values by cde code and version
+    :param cde_code: cde code
+    :param cde_version: cde version
+    """
+    msg = None
+    # check if cde exists in db
+    count = mongo_dao.count_docs(CDE_COLLECTION,{CDE_CODE: cde_code, CDE_VERSION: cde_version})
+    if count > 0:
+        return None, None
 
-        # 3) pull new cde permissive values and save to db
-        api_client = APIInvoker(self.configs)
-        result = api_client.get_data_element_by_cde_code(cde_code, self.configs[CDE_API_URL], cde_version)
-        if not result or not result.get(CADSR_DATA_ELEMENT) or not result[CADSR_DATA_ELEMENT].get(CADSR_VALUE_DOMAIN):
-            self.log.error(f"No data element found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
-            return None, "No CDE element found."
-        pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CADSR_PERMISSIVE_VALUES)
-        if not pv_list or len(pv_list) == 0:
-            self.log.error(f"No permissive values found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
-            return [],  "No CDE permissive values defined for the CDE code."
-        else:
-            pv_list = [ item["value"] for item in pv_list]
+    # 3) pull new cde permissive values and save to db
+    api_client = APIInvoker(configs)
+    result = api_client.get_data_element_by_cde_code(cde_code, configs[CDE_API_URL], cde_version)
+    if not result or not result.get(CADSR_DATA_ELEMENT) or not result[CADSR_DATA_ELEMENT].get(CADSR_VALUE_DOMAIN):
+        log.error(f"No data element found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
+        return None, "No CDE element found."
+    pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CADSR_PERMISSIVE_VALUES)
+    if not pv_list or len(pv_list) == 0:
+        log.error(f"No permissive values found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
+        msg = "No CDE permissive values defined for the CDE code."
+        pv_list = []
+    else:
+        pv_list = [ item["value"] for item in pv_list]
 
-        return {
-            ID: get_uuid_str(),
-            CDE_CODE: cde_code,
-            CDE_VERSION: cde_version,
-            CADSR_PERMISSIVE_VALUES: pv_list,
-            CREATED_AT: current_datetime(),
-            UPDATED_AT: current_datetime(),
-        }, None
+    return {
+        ID: get_uuid_str(),
+        CDE_CODE: cde_code,
+        CDE_VERSION: cde_version,
+        CADSR_PERMISSIVE_VALUES: pv_list,
+        CREATED_AT: current_datetime(),
+        UPDATED_AT: current_datetime(),
+    }, msg
 
