@@ -2,6 +2,8 @@
 import pandas as pd
 import json
 import boto3
+import time
+import threading
 from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
@@ -149,6 +151,7 @@ class ExportMetadata:
         self.submission = submission
         self.s3_service = s3_service
         self.intention = submission.get(SUBMISSION_INTENTION)
+
     def close(self):
         if self.s3_service:
             self.s3_service.close(self.log)
@@ -435,7 +438,10 @@ class ExportMetadata:
             task_execution = datasync.start_task_execution(
                 TaskArn=task['TaskArn']
             )
-            self.log.info(f"Started DataSync task execution: {task_execution['TaskExecutionArn']}")
+            task_execution_arn = task_execution['TaskExecutionArn']
+            self.log.info(f"Started DataSync task execution: {task_execution_arn}")
+
+            start_monitoring_task(task_execution_arn, datasync, source_location, destination_location, self.log)
 
         except ClientError as ce:
             self.log.exception(ce)
@@ -443,10 +449,37 @@ class ExportMetadata:
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f"Failed to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {get_exception_msg()}")
+
+
+def start_monitoring_task(task_arn, dataSync, source, dest, log):
+            monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_arn, dataSync, source, dest, log))
+            monitor_thread.start()
+    
+def monitor_datasync_task(task_arn, datasync, source, dest, log, wait_interval=30):
+        # Initialize the DataSync client
+        try:
+            # Poll the task status
+            while True:
+                response = datasync.describe_task_execution(TaskExecutionArn=task_arn)
+                status = response['Status']
+                
+                if status in ['SUCCESS', 'ERROR']:
+                    print(f"Task completed with status: {status}")
+                    break
+                else:
+                    print(f"Current status: {status}. Waiting for {wait_interval} seconds before next check...")
+                    time.sleep(wait_interval)
+        except ClientError as ce:
+            log.exception(ce)
+            log.exception(f"Failed to monitor DataSync task: {ce.response['Error']['Message']}")
+        except Exception as e:
+            log.exception(e)
+            log.exception(f"Failed to monitor DataSync task: {get_exception_msg()}")
         finally:
+            source = None
+            dest = None
             datasync.close()
             datasync = None
-
 
 # Private class
 class ValidationDirectory:
