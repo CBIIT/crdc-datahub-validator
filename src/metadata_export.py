@@ -464,17 +464,17 @@ def monitor_datasync_task(task_arn, datasync, source, dest, log, wait_interval=3
                 status = response['Status']
                 
                 if status in ['SUCCESS', 'ERROR']:
-                    print(f"Task completed with status: {status}")
+                    print(f"Task: {task_arn} completed with status: {status}")
                     break
                 else:
-                    print(f"Current status: {status}. Waiting for {wait_interval} seconds before next check...")
+                    print(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
                     time.sleep(wait_interval)
         except ClientError as ce:
             log.exception(ce)
-            log.exception(f"Failed to monitor DataSync task: {ce.response['Error']['Message']}")
+            log.exception(f"Failed to monitor DataSync task {task_arn}: {ce.response['Error']['Message']}")
         except Exception as e:
             log.exception(e)
-            log.exception(f"Failed to monitor DataSync task: {get_exception_msg()}")
+            log.exception(f"Failed to monitor DataSync task {task_arn}: {get_exception_msg()}")
         finally:
             source = None
             dest = None
