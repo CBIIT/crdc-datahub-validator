@@ -1,9 +1,4 @@
 #!/usr/bin/env python3
-
-import json
-import os
-import schedule
-import time
 from bento.common.utils import get_logger
 from common.constants import MODEL_FILE_DIR, TIER_CONFIG, CDE_COLLECTION, CDE_API_URL, CDE_CODE, CDE_VERSION, ID, CREATED_AT, UPDATED_AT
 from common.utils import get_exception_msg, current_datetime, get_uuid_str, dump_dict_to_json, dump_dict_to_tsv, get_date_time
@@ -16,22 +11,16 @@ CADSR_VALUE_DOMAIN = "ValueDomain"
 CADSR_PERMISSIVE_VALUES = "PermissibleValues"
 
 def pull_pv_lists(configs, mongo_dao):
-
-   
-    # cron job to pull pv list from caDSR
-    # def job():
-    #     print("PV puller task is running...")
-    #     puller.pull_pv()
-    #     print("PV puller is completed...")
+    log = get_logger('Permissive values puller')
+    puller = PVPuller(configs, mongo_dao)
     try:
-        # schedule.every().day.at("00:01").do(job)
-        puller = PVPuller(configs, mongo_dao)
         puller.pull_pv()
-        # while True:
-        #     schedule.run_pending()
-        #     time.sleep(1)
     except (KeyboardInterrupt, SystemExit):
         print("Task is stopped...")
+    except Exception as e:
+        log.critical(e)
+        log.critical(
+            f'Something wrong happened while pulling permissive values! Check debug log for details.')
 
 """
 pull permissive values from CDE and save to db
@@ -42,8 +31,6 @@ class PVPuller:
         self.log = get_logger('Permissive values puller')
         self.mongo_dao = mongo_dao
         self.configs = configs
-        # pull permissive values when initializing
-        # self.pull_pv()
 
     def pull_pv(self):
         # set env variables
