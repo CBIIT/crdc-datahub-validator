@@ -9,12 +9,13 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, ORIN_FILE_NAME, \
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
     SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, \
-    SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED
+    SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, CDE_CODE, CDE_VERSION, CDE_PERMISSIVE_VALUES
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
 from x_submission_validator import CrossSubmissionValidator
+from pv_puller import get_pv_by_code_version
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
@@ -432,7 +433,7 @@ class MetaDataValidator:
             errors.append(create_error("Invalid property definition", f'{msg_prefix} Property "{prop_name}": “{type}” type is not an allowed property type for this model.'))
         else:
             val = None
-            permissive_vals = prop_def.get("permissible_values")
+            permissive_vals = get_permissive_value(prop_def)
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
             if type == "string":
@@ -501,6 +502,33 @@ class MetaDataValidator:
                 errors.append(create_error("Invalid property definition", f'{msg_prefix} Property "{prop_name}": “{type}” type is not an allowed property type for this model.'))
 
         return errors
+    
+"""
+get permissible values of a property
+"""
+def get_permissive_value(self, prop_def):
+    permissive_vals = prop_def.get("permissible_values") 
+    if prop_def.get(CDE_TERM):
+        # retrieve permissible values from DB
+        cde_term = prop_def[CDE_TERM] 
+        cde_code = cde_term.get(CDE_CODE) 
+        cde_version = cde_term.get(CDE_VERSION)
+        if not cde_code or not cde_version:
+            return permissive_vals
+        
+        cde = self.mongo_dao.get_cde_permissible_values(cde_code, cde_version)
+        if cde and cde.get(CDE_PERMISSIVE_VALUES) and len(cde.get(CDE_PERMISSIVE_VALUES)):
+            permissive_vals = cde[CDE_PERMISSIVE_VALUES]
+
+        else:
+            # call pv_puller to get permissible values
+            cde = get_pv_by_code_version(self.mongo_dao, self.config, cde_code, cde_version)
+            if cde:
+                self.mongo_dao.insert_cde(cde)
+                if cde.get(CDE_PERMISSIVE_VALUES) and len(cde[CDE_PERMISSIVE_VALUES]) > 0:
+                    permissive_vals = cde[CDE_PERMISSIVE_VALUES]
+                    
+    return permissive_vals
     
 """util functions"""
 def check_permissive(value, permissive_vals, msg_prefix, prop_name):

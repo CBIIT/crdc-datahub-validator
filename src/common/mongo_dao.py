@@ -937,6 +937,22 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to set search index in CDE collection: {get_exception_msg()}")
             return False
+    """
+    get CDE permissible values
+    """    
+    def get_cde_permissible_values(self, cde_code, cde_version):
+        db = self.client[self.db_name]
+        data_collection = db[CDE_COLLECTION]
+        try:
+            return data_collection.find_one({CDE_CODE: cde_code, CDE_VERSION: cde_version})
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get permissible values for {cde_code}/{cde_version}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get permissible values for {cde_code}/{cde_version}: {get_exception_msg()}")
+            return None
     
 """
 remove _id from records for update

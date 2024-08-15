@@ -66,6 +66,10 @@ class PVPuller:
                         self.log.error(f"No CDE version found for {data_common}:{prop_name}: {cde_id}")
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE version."})
                         continue
+                    # check if cde exists in db
+                    count = self.mongo_dao.count_docs(CDE_COLLECTION,{CDE_CODE: cde_id, CDE_VERSION: cde_version})
+                    if count > 0:
+                        continue
                     # check if cde exists in db, if not pull from CDE
                     new_cde, msg = get_pv_by_code_version(self.mongo_dao, self.configs, self.log, data_common, prop_name, cde_id, cde_version)
                     if not new_cde is None:
@@ -98,10 +102,6 @@ def get_pv_by_code_version(mongo_dao, configs, log, data_common, prop_name, cde_
     :param cde_version: cde version
     """
     msg = None
-    # check if cde exists in db
-    count = mongo_dao.count_docs(CDE_COLLECTION,{CDE_CODE: cde_code, CDE_VERSION: cde_version})
-    if count > 0:
-        return None, None
 
     # 3) pull new cde permissive values and save to db
     api_client = APIInvoker(configs)
