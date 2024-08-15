@@ -92,6 +92,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while exporting data! Check debug log for details.')
                 finally:
+                    msg.delete()
                     # De-allocation memory
                     if export_validator:
                         export_validator.close()
@@ -441,7 +442,7 @@ class ExportMetadata:
             task_execution_arn = task_execution['TaskExecutionArn']
             self.log.info(f"Started DataSync task execution: {task_execution_arn}")
 
-            start_monitoring_task(task_execution_arn, datasync, source_location, destination_location, self.log)
+            start_monitoring_task(task_execution_arn, task['TaskArn'], datasync, source_location, destination_location, self.log)
 
         except ClientError as ce:
             self.log.exception(ce)
@@ -451,20 +452,27 @@ class ExportMetadata:
             self.log.exception(f"Failed to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {get_exception_msg()}")
 
 
-def start_monitoring_task(task_arn, dataSync, source, dest, log):
-            monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_arn, dataSync, source, dest, log))
+def start_monitoring_task(task_execution_arn, task_arn, dataSync, source, dest, log):
+            monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_execution_arn, task_arn, dataSync, source, dest, log))
             monitor_thread.start()
     
-def monitor_datasync_task(task_arn, datasync, source, dest, log, wait_interval=30):
+def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, log, wait_interval=30):
         # Initialize the DataSync client
         try:
             # Poll the task status
             while True:
-                response = datasync.describe_task_execution(TaskExecutionArn=task_arn)
+                response = datasync.describe_task_execution(TaskExecutionArn=task_execution_arn)
                 status = response['Status']
                 
                 if status in ['SUCCESS', 'ERROR']:
                     print(f"Task: {task_arn} completed with status: {status}")
+                    datasync.delete_task(TaskArn=task_arn)
+                    print(f"Task: {task_arn} deleted.")
+                    datasync.delete_location(LocationArn=source['LocationArn'])
+                    print(f"Source location: {source['LocationArn']} is deleted.")
+                    datasync.delete_location(LocationArn=dest['LocationArn'])
+                    print(f"Destination location: {dest['LocationArn']} is deleted.")
+                    
                     break
                 else:
                     print(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
