@@ -397,9 +397,9 @@ class ExportMetadata:
         """
         transfer released files includes data files and metadata files to data manage bucket by aws datasync
         """
-        _, root_path, bucket_name, dataCommon, study_id = self.get_submission_info()
+        _, root_path, bucket_name, _, study_id = self.get_submission_info()
         dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
-        dest_file_folder =  os.path.join(dataCommon, study_id)
+        dest_file_folder =  study_id
         data_file_folder = os.path.join(root_path, "file")
         self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder )
 

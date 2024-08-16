@@ -42,7 +42,7 @@ class GenerateDCF:
         dbGaPID = self.submission.get(DBGA_PID).split('.')[0]
         acl ="['*']" if not control_access else f"['{dbGaPID}']"
         authz = "['/open']" if not control_access else f"['/programs/{dbGaPID}']"
-        url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission[DATA_COMMON_NAME]}/{self.submission.get(STUDY_ID)}/'
+        url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission.get(STUDY_ID)}/'
         for r in file_nodes:
             node_id = r[NODE_ID] if r[NODE_ID].startswith(DCF_PREFIX) else DCF_PREFIX + r[NODE_ID]
             row = {
