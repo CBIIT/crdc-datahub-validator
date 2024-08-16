@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
-from common.constants import MODEL_FILE_DIR, TIER_CONFIG, CDE_COLLECTION, CDE_API_URL, CDE_CODE, CDE_VERSION, ID, CREATED_AT, UPDATED_AT
+from common.constants import MODEL_FILE_DIR, TIER_CONFIG, CDE_COLLECTION, CDE_API_URL, CDE_CODE, CDE_VERSION, ID, CREATED_AT, UPDATED_AT,\
+        TERM_CODE, TERM_VERSION
 from common.utils import get_exception_msg, current_datetime, get_uuid_str, dump_dict_to_json, dump_dict_to_tsv, get_date_time
 from common.pv_term_reader import TermReader
 from common.api_client import APIInvoker
@@ -52,7 +53,7 @@ class PVPuller:
         #  2)loop though all terms and check if the code and version existing db, pull new cde permissive values if not existing
             for data_common, props in model_cde_terms.items():
                 for prop_name, term in props.items():
-                    cde_id = term.get("Code")
+                    cde_id = term.get(TERM_CODE)
                     if not cde_id:
                         self.log.error(f"No CDE id found for {data_common}:{prop_name}")
                         continue
@@ -61,7 +62,7 @@ class PVPuller:
                         self.log.error(f"CDE id is invalid for {data_common}:{prop_name}: {cde_id}")
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE code."})
                         continue
-                    cde_version = term.get("Version")
+                    cde_version = term.get(TERM_VERSION)
                     if not cde_version:
                         self.log.error(f"No CDE version found for {data_common}:{prop_name}: {cde_id}")
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE version."})

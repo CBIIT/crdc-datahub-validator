@@ -171,3 +171,6 @@ CDE_VERSION = "CDEVersion"
 CDE_API_URL = "cde-data-element-api"
 CDE_TERM = "Term"
 CDE_PERMISSIVE_VALUES = "PermissibleValues"
+
+TERM_CODE = "Code"
+TERM_VERSION = "Version"
