@@ -72,7 +72,7 @@ class PVPuller:
                     if count > 0:
                         continue
                     # check if cde exists in db, if not pull from CDE
-                    new_cde, msg = get_pv_by_code_version(self.mongo_dao, self.configs, self.log, data_common, prop_name, cde_id, cde_version)
+                    new_cde, msg = get_pv_by_code_version(self.configs, self.log, data_common, prop_name, cde_id, cde_version)
                     if not new_cde is None:
                         new_cde_list.append(new_cde)
 
@@ -96,7 +96,7 @@ class PVPuller:
             self.log.exception(msg)
             return False
         
-def get_pv_by_code_version(mongo_dao, configs, log, data_common, prop_name, cde_code, cde_version):
+def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_version):
     """
     get permissive values by cde code and version
     :param cde_code: cde code
