@@ -13,6 +13,7 @@ DEF_VERSION = "current-version"
 MODE_ID_FIELDS = "id_fields"
 DEF_SEMANTICS = "semantics"
 DEF_FILE_NODES = "file-nodes"
+DEF_MAIN_NODES = "main-nodes"
 
 class ModelFactory:
     
@@ -69,7 +70,15 @@ class ModelFactory:
         version = v[DEF_VERSION]
         model = self.models.get(model_key(dc, version))
         return DataModel(model)
-    
+
+    """
+    Retrieve valid CRDC ID nodes using data common; only these nodes can generate a CRDC ID.
+    """
+    def valid_crdc_id_nodes(self, data_common):
+        dc = data_common.upper()
+        v = self.models_def[dc]
+        return list(v.get(DEF_SEMANTICS, {}).get(DEF_MAIN_NODES, {}).keys())
+
     """
     get model by data common and version
     """       

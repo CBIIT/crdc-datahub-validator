@@ -16,7 +16,7 @@ BATCH_IDS = "batchIDs"
 # This script load matadata files to database
 # input: file info list
 class DataLoader:
-    def __init__(self, model, batch, mongo_dao, bucket, root_path, data_common, submission_intention):
+    def __init__(self, model, batch, mongo_dao, bucket, root_path, data_common, submission_intention, model_store):
         self.log = get_logger('Matedata loader')
         self.model = model
         self.mongo_dao =mongo_dao
@@ -26,7 +26,7 @@ class DataLoader:
         self.data_common = data_common
         self.file_nodes = self.model.get_file_nodes()
         self.errors = None
-
+        self.model_store = model_store
     """
     param: file_path_list downloaded from s3 bucket
     """
@@ -60,10 +60,11 @@ class DataLoader:
                     del rawData['index'] #remove index column
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
-                    batchIds = [self.batch[ID]] if not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
+                    batchIds = [self.batch[ID]] if not exist_node else exist_node[BATCH_IDS] + [self.batch[ID]]
                     current_date_time = current_datetime()
                     id = self.get_record_id(exist_node)
-                    crdc_id = self.get_crdc_id(exist_node, type, node_id)
+                    valid_crdc_id_nodes = self.model_store.valid_crdc_id_nodes(self.data_common)
+                    crdc_id = self.get_crdc_id(exist_node, type, node_id) if type in valid_crdc_id_nodes else None
                     if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
                             ID: id,
