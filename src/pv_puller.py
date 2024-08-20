@@ -10,6 +10,7 @@ MODEL_DEFS = "models"
 CADSR_DATA_ELEMENT = "DataElement"
 CADSR_VALUE_DOMAIN = "ValueDomain"
 CADSR_PERMISSIVE_VALUES = "PermissibleValues"
+CADSR_DATA_ELEMENT_LONG_NAME = "longName"
 
 def pull_pv_lists(configs, mongo_dao):
     log = get_logger('Permissive values puller')
@@ -96,7 +97,7 @@ class PVPuller:
             self.log.exception(msg)
             return False
         
-def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_version):
+def get_pv_by_code_version(configs, log, data_common, prop_name,cde_code, cde_version):
     """
     get permissive values by cde code and version
     :param cde_code: cde code
@@ -111,6 +112,7 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
         log.error(f"No data element found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
         return None, "No CDE element found."
     pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CADSR_PERMISSIVE_VALUES)
+    cde_long_name = result[CADSR_DATA_ELEMENT].get(CADSR_DATA_ELEMENT_LONG_NAME)
     if not pv_list or len(pv_list) == 0:
         log.error(f"No permissive values found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
         msg = "No CDE permissive values defined for the CDE code."
@@ -120,6 +122,7 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
 
     return {
         ID: get_uuid_str(),
+        "CDEFullName": cde_long_name,
         CDE_CODE: cde_code,
         CDE_VERSION: cde_version,
         CADSR_PERMISSIVE_VALUES: pv_list,
