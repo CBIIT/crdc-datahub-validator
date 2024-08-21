@@ -4,14 +4,16 @@ import pandas as pd
 import numpy as np
 from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime, removeTailingEmptyColumnsAndRows
-from common.constants import  TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_ID, \
-    ERRORS, WARNINGS, CREATED_AT , UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
-    MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME,\
+from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_ID, \
+    ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
+    MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA
+    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX
+
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
+FILE = "file"
 
 # This script load matadata files to database
 # input: file info list
@@ -50,7 +52,8 @@ class DataLoader:
                 df = df.replace({np.nan: None})  # replace Nan in dataframe with None
                 df = df.reset_index()  # make sure indexes pair with number of rows
                 col_names =list(df.columns)
-                
+
+                data_file_id = next((batch_file["fileID"] for batch_file in self.batch["files"] if batch_file['fileName'] == file_name), None)
                 for index, row in df.iterrows():
                     type = row[TYPE]
                     node_id = self.get_node_id(type, row)
@@ -64,6 +67,10 @@ class DataLoader:
                     current_date_time = current_datetime()
                     id = self.get_record_id(exist_node)
                     crdc_id = self.get_crdc_id(exist_node, type, node_id)
+                    # generating CRDC ID for a file node
+                    if type == FILE and data_file_id:
+                        crdc_id = data_file_id if data_file_id.startswith(DCF_PREFIX) else DCF_PREFIX + data_file_id
+
                     if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
                             ID: id,
