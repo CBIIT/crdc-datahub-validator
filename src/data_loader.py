@@ -8,7 +8,7 @@ from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_I
     ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
     MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX
+    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD
 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -69,6 +69,13 @@ class DataLoader:
                     id = self.get_record_id(exist_node)
                     # onlu generating CRDC ID for valid nodes
                     crdc_id = self.get_crdc_id(exist_node, type, node_id) if type in main_node_types else None
+                    # if valid and a file node
+                    if crdc_id and type in file_types:
+                        id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
+                        file_id_val = row.get(id_field)
+                        if file_id_val:
+                            crdc_id = file_id_val if file_id_val.startswith(DCF_PREFIX) else DCF_PREFIX + file_id_val
+
                     if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
                             ID: id,
