@@ -68,7 +68,7 @@ class DataLoader:
                     current_date_time = current_datetime()
                     id = self.get_record_id(exist_node)
                     # onlu generating CRDC ID for valid nodes
-                    crdc_id = self.get_crdc_id(exist_node, type, node_id) if type in main_node_types and main_node_types[type] == FILE else None
+                    crdc_id = self.get_crdc_id(exist_node, type, node_id) if type in main_node_types else None
                     if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
                             ID: id,
