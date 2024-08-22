@@ -27,6 +27,7 @@ class DataLoader:
         self.root_path = root_path
         self.data_common = data_common
         self.file_nodes = self.model.get_file_nodes()
+        self.main_nodes = self.model.get_main_nodes()
         self.errors = None
 
     """
@@ -36,7 +37,8 @@ class DataLoader:
         returnVal = True
         self.errors = []
         file_types = [k for (k,v) in self.file_nodes.items()]
-       
+        main_node_types = [k for (k,v) in self.main_nodes.items()]
+
         for file in file_path_list:
             records = []
             failed_at = 1
@@ -53,7 +55,6 @@ class DataLoader:
                 df = df.reset_index()  # make sure indexes pair with number of rows
                 col_names =list(df.columns)
 
-                data_file_id = next((batch_file["fileID"] for batch_file in self.batch["files"] if batch_file['fileName'] == file_name), None)
                 for index, row in df.iterrows():
                     type = row[TYPE]
                     node_id = self.get_node_id(type, row)
@@ -66,11 +67,8 @@ class DataLoader:
                     batchIds = [self.batch[ID]] if not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
                     current_date_time = current_datetime()
                     id = self.get_record_id(exist_node)
-                    crdc_id = self.get_crdc_id(exist_node, type, node_id)
-                    # generating CRDC ID for a file node
-                    if type == FILE and data_file_id:
-                        crdc_id = data_file_id if data_file_id.startswith(DCF_PREFIX) else DCF_PREFIX + data_file_id
-
+                    # onlu generating CRDC ID for valid nodes
+                    crdc_id = self.get_crdc_id(exist_node, type, node_id) if type in main_node_types else None
                     if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
                             ID: id,
