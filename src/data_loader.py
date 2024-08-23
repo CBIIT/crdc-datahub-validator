@@ -70,7 +70,7 @@ class DataLoader:
                     id = self.get_record_id(exist_node)
                     # onlu generating CRDC ID for valid nodes
                     valid_crdc_id_nodes = type in main_node_types
-                    crdc_id = self.get_crdc_id(exist_node, type, node_id) if type in valid_crdc_id_nodes else None
+                    crdc_id = self.get_crdc_id(exist_node, type, node_id) if valid_crdc_id_nodes else None
                     # file nodes
                     if valid_crdc_id_nodes and type in file_types:
                         id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
