@@ -115,6 +115,7 @@ CROSS_SUBMISSION_VALIDATION_STATUS = "crossSubmissionStatus"
 MODEL_VERSION = "modelVersion"
 KEY = "key"
 LIST_DELIMITER_PROP = "list-delimiter"
+DEF_MAIN_NODES = "main-nodes"
 #s3 download directory
 S3_DOWNLOAD_DIR = "s3_download"
 ROOT_PATH = "rootPath"
