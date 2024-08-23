@@ -78,7 +78,7 @@ class DataLoader:
                         if file_id_val:
                             crdc_id = file_id_val if file_id_val.startswith(DCF_PREFIX) else DCF_PREFIX + file_id_val
                     # principal investigator node
-                    if PI in main_node_types:
+                    if type == PI and PI in main_node_types:
                         submission = self.mongo_dao.get_submission(self.batch[SUBMISSION_ID])
                         crdc_id = submission.get(ORCHID) if submission and submission.get(ORCHID) else None
 
