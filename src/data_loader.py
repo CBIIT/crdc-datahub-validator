@@ -13,7 +13,7 @@ from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_I
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 BATCH_IDS = "batchIDs"
-PI = "PI"
+PRINCIPAL_INVESTIGATOR = "principal_investigator"
 
 
 # This script load matadata files to database
@@ -78,7 +78,7 @@ class DataLoader:
                         if file_id_val:
                             crdc_id = file_id_val if file_id_val.startswith(DCF_PREFIX) else DCF_PREFIX + file_id_val
                     # principal investigator node
-                    if type == PI and PI in main_node_types:
+                    if type == PRINCIPAL_INVESTIGATOR and PRINCIPAL_INVESTIGATOR in main_node_types:
                         submission = self.mongo_dao.get_submission(self.batch[SUBMISSION_ID])
                         crdc_id = submission.get(ORCHID) if submission and submission.get(ORCHID) else None
 
