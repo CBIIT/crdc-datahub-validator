@@ -8,7 +8,7 @@ from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_I
     ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
     MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCHID
+    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID
 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -80,7 +80,7 @@ class DataLoader:
                     # principal investigator node
                     if type == PRINCIPAL_INVESTIGATOR and PRINCIPAL_INVESTIGATOR in main_node_types:
                         submission = self.mongo_dao.get_submission(self.batch[SUBMISSION_ID])
-                        crdc_id = submission.get(ORCHID) if submission and submission.get(ORCHID) else None
+                        crdc_id = submission.get(ORCID) if submission and submission.get(ORCID) else None
 
                     if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
