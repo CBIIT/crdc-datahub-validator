@@ -689,6 +689,25 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to find release record for {crdc_id}: {get_exception_msg()}")
             return False
+        
+    """
+    get release by dataCommon, nodeType and nodeId
+    """
+    def search_release(self, dataCommon, node_type, node_id):
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            result = data_collection.find_one({DATA_COMMON_NAME: dataCommon, NODE_TYPE: node_type, NODE_ID: node_id})
+            return result
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to find release record for {dataCommon}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to find release record for {dataCommon}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+    
     
     """
     insert release 
