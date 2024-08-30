@@ -13,7 +13,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG
-from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time
+from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
 import threading
@@ -341,8 +341,9 @@ class ExportMetadata:
             else: 
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
                 existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
-                existed_crdc_record[PARENTS] = data_record.get(PARENTS)
+                existed_crdc_record[PARENTS] = self.combine_parents(existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED
+
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
@@ -352,6 +353,17 @@ class ExportMetadata:
                 result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[ID])
                 if result and children and len(children) > 0: 
                     self.delete_release_children(children)
+    
+    def combine_parents(self, release_parents, node_parents):
+        if not release_parents or len(release_parents) == 0:
+            return node_parents
+        if not node_parents or len(node_parents) == 0:
+            return release_parents
+        if node_parents and len(node_parents):
+            for parent in node_parents:
+                if not dict_exists_in_list(release_parents, parent, keys=["parentType", "parentIDPropName", "parentIDValue"]):
+                    release_parents.append(parent)
+        return release_parents
     
     def delete_release_children(self, released_children):
         if released_children and len(released_children) > 0:
