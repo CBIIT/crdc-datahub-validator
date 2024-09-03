@@ -341,7 +341,7 @@ class ExportMetadata:
             else: 
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
                 existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
-                existed_crdc_record[PARENTS] = self.combine_parents(existed_crdc_record[PARENTS], data_record.get(PARENTS))
+                existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED
 
             result = self.mongo_dao.update_release(existed_crdc_record)
@@ -354,15 +354,24 @@ class ExportMetadata:
                 if result and children and len(children) > 0: 
                     self.delete_release_children(children)
     
-    def combine_parents(self, release_parents, node_parents):
+    def combine_parents(self, node_type, release_parents, node_parents):
         if not release_parents or len(release_parents) == 0:
             return node_parents
         if not node_parents or len(node_parents) == 0:
             return release_parents
+        relationships = self.model.get_node_relationships(node_type)
         if node_parents and len(node_parents):
             for parent in node_parents:
+                relationship = next([p.get("type") for p in relationships if p["dest_node"] == parent["parentType"]])
                 if not dict_exists_in_list(release_parents, parent, keys=["parentType", "parentIDPropName", "parentIDValue"]):
-                    release_parents.append(parent)
+                    if relationship == "many_to_many":
+                        release_parents.append(parent)
+                    else:
+                        rel_parent = next([rp for rp in release_parents if rp["parentType"]== relationship["type"]])
+                        if not rel_parent:
+                            release_parents.append(parent)
+                        else:
+                            rel_parent["parentIDValue"] = parent["parentIDValue"]
         return release_parents
     
     def delete_release_children(self, released_children):
