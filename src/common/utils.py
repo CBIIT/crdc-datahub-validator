@@ -199,5 +199,24 @@ def removeTailingEmptyColumnsAndRows(df):
         df = df.iloc[:-1]
     return df
 
+def dict_exists_in_list(dict_list, target_dict, keys=None):
+    """
+    Check if a dictionary exists in a list of dictionaries
+    :param dict_list: List of dictionaries
+    :param target_dict: Dictionary to search for
+    :param keys: List of keys to compare (optional)
+    :return: Boolean indicating if the dictionary exists in the list
+    """
+    for d in dict_list:
+        if keys:
+            # Only compare specific keys
+            if all(d.get(key) == target_dict.get(key) for key in keys):
+                return True
+        else:
+            # Compare the whole dictionary
+            if d == target_dict:
+                return True
+    return False
+
 
 
