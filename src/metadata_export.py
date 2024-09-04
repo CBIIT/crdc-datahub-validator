@@ -362,12 +362,12 @@ class ExportMetadata:
         relationships = self.model.get_node_relationships(node_type)
         if node_parents and len(node_parents):
             for parent in node_parents:
-                relationship = relationships[parent["parentType"]]["dest_node"]
+                relationship = relationships[parent["parentType"]]
                 if not dict_exists_in_list(release_parents, parent, keys=["parentType", "parentIDPropName", "parentIDValue"]):
-                    if relationship == "many_to_many":
+                    if relationship["type"] == "many_to_many":
                         release_parents.append(parent)
                     else:
-                        rel_parent_list = [p for p in release_parents if p["parentType"] == relationship]
+                        rel_parent_list = [p for p in release_parents if p["parentType"] == relationship["dest_node"]]
                         if not rel_parent_list or len(rel_parent_list) == 0:
                             release_parents.append(parent)
                         else:
