@@ -2,6 +2,8 @@
 import pandas as pd
 import json
 import boto3
+import time
+import threading
 from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
@@ -90,6 +92,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while exporting data! Check debug log for details.')
                 finally:
+                    msg.delete()
                     # De-allocation memory
                     if export_validator:
                         export_validator.close()
@@ -149,6 +152,7 @@ class ExportMetadata:
         self.submission = submission
         self.s3_service = s3_service
         self.intention = submission.get(SUBMISSION_INTENTION)
+
     def close(self):
         if self.s3_service:
             self.s3_service.close(self.log)
@@ -393,9 +397,9 @@ class ExportMetadata:
         """
         transfer released files includes data files and metadata files to data manage bucket by aws datasync
         """
-        _, root_path, bucket_name, dataCommon, study_id = self.get_submission_info()
+        _, root_path, bucket_name, _, study_id = self.get_submission_info()
         dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
-        dest_file_folder =  os.path.join(dataCommon, study_id)
+        dest_file_folder =  study_id
         data_file_folder = os.path.join(root_path, "file")
         self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder )
 
@@ -435,7 +439,10 @@ class ExportMetadata:
             task_execution = datasync.start_task_execution(
                 TaskArn=task['TaskArn']
             )
-            self.log.info(f"Started DataSync task execution: {task_execution['TaskExecutionArn']}")
+            task_execution_arn = task_execution['TaskExecutionArn']
+            self.log.info(f"Started DataSync task execution: {task_execution_arn}")
+
+            start_monitoring_task(task_execution_arn, task['TaskArn'], datasync, source_location, destination_location, self.log)
 
         except ClientError as ce:
             self.log.exception(ce)
@@ -443,10 +450,44 @@ class ExportMetadata:
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f"Failed to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {get_exception_msg()}")
+
+
+def start_monitoring_task(task_execution_arn, task_arn, dataSync, source, dest, log):
+            monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_execution_arn, task_arn, dataSync, source, dest, log))
+            monitor_thread.start()
+    
+def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, log, wait_interval=30):
+        # Initialize the DataSync client
+        try:
+            # Poll the task status
+            while True:
+                response = datasync.describe_task_execution(TaskExecutionArn=task_execution_arn)
+                status = response['Status']
+                
+                if status in ['SUCCESS', 'ERROR']:
+                    print(f"Task: {task_arn} completed with status: {status}")
+                    datasync.delete_task(TaskArn=task_arn)
+                    print(f"Task: {task_arn} deleted.")
+                    datasync.delete_location(LocationArn=source['LocationArn'])
+                    print(f"Source location: {source['LocationArn']} is deleted.")
+                    datasync.delete_location(LocationArn=dest['LocationArn'])
+                    print(f"Destination location: {dest['LocationArn']} is deleted.")
+                    
+                    break
+                else:
+                    print(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
+                    time.sleep(wait_interval)
+        except ClientError as ce:
+            log.exception(ce)
+            log.exception(f"Failed to monitor DataSync task {task_arn}: {ce.response['Error']['Message']}")
+        except Exception as e:
+            log.exception(e)
+            log.exception(f"Failed to monitor DataSync task {task_arn}: {get_exception_msg()}")
         finally:
+            source = None
+            dest = None
             datasync.close()
             datasync = None
-
 
 # Private class
 class ValidationDirectory:

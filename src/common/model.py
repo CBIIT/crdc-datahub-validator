@@ -1,4 +1,4 @@
-from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS, LIST_DELIMITER_PROP
+from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS, LIST_DELIMITER_PROP, DEF_MAIN_NODES
 
 class DataModel:
     def __init__(self, model):
@@ -59,6 +59,14 @@ class DataModel:
         return self.model.get("file-nodes", {})
     
     """
+    
+    get main nodes in the model
+    """
+    def get_main_nodes(self):
+        return self.model.get(DEF_MAIN_NODES, {})
+    
+    """
+    
     get file name property
     """
     def get_file_name(self):
