@@ -252,6 +252,11 @@ class EssentialValidator:
         # todo set download file 
         download_file = os.path.join(S3_DOWNLOAD_DIR, file_info[FILE_NAME])
         try:
+            if not self.bucket.file_exists_on_s3(key):
+                self.log.exception(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - file not found.')
+                file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - file not found.']
+                self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - file not found.')
+                return False
             self.bucket.download_file(key, download_file)
             if os.path.isfile(download_file):
                 df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE)
@@ -263,7 +268,7 @@ class EssentialValidator:
             self.log.exception(ce)
             self.log.exception(f"Failed to download file, {file_info[FILE_NAME]}. {get_exception_msg()}.")
             file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.']
-            self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - file not found.')
+            self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.')
             return False
         except pd.errors.ParserError as pe:
             self.df = None
