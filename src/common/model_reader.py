@@ -3,7 +3,7 @@ import re
 from bento.common.utils import get_logger, MULTIPLIER, DEFAULT_MULTIPLIER
 from common.constants import DATA_COMMON, VERSION, MODEL_SOURCE, NAME_PROP, DESC_PROP, ID_PROPERTY, VALUE_PROP, \
     VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, TYPE, NODE_LABEL, NODE_PROPERTIES, PROP_REQUIRED, MD5, \
-    FILE_SIZE, LIST_DELIMITER_PROP
+    FILE_SIZE, LIST_DELIMITER_PROP, CDE_TERM
 from common.utils import download_file_to_dict, case_insensitive_get
 
 NODES = 'Nodes'
@@ -281,6 +281,9 @@ class YamlModelParser:
                 if EX_MAX in prop:
                     result[MAX] = {VALUE_PROP: float(prop[EX_MAX]), VALUE_EXCLUSIVE: True}
 
+                # add term section if enum is used
+                if ALLOWED_VALUES in result and CDE_TERM in prop:
+                    result[CDE_TERM] = prop[CDE_TERM]
         return result
 
     def _get_item_type(self, item_type):

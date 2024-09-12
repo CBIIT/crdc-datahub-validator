@@ -1,7 +1,7 @@
 import argparse
 import os
 import yaml
-from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, \
+from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, SERVICE_TYPE_PV_PULLER,\
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
     SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE,\
     DM_BUCKET_CONFIG_NAME, PROD_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG , DATASYNC_ROLE_ARN_ENV
@@ -84,7 +84,7 @@ class Config():
             sqs = None
         
         # if no env set got sqs, check config/arg
-        if not sqs:
+        if not sqs and self.data[SERVICE_TYPE] not in [SERVICE_TYPE_PV_PULLER]:
             self.log.critical(f'AWS sqs name is required!')
             return False
         else:
