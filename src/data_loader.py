@@ -8,7 +8,7 @@ from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_I
     ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
     MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID
+    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, STUDY_ID
 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -71,7 +71,7 @@ class DataLoader:
                     id = self.get_record_id(exist_node)
                     # onlu generating CRDC ID for valid nodes
                     valid_crdc_id_nodes = type in main_node_types
-                    crdc_id = self.get_crdc_id(exist_node, type, node_id, submission.get("studyID")) if valid_crdc_id_nodes else None
+                    crdc_id = self.get_crdc_id(exist_node, type, node_id, self.submission.get(STUDY_ID)) if valid_crdc_id_nodes else None
                     # file nodes
                     if valid_crdc_id_nodes and type in file_types:
                         id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
@@ -175,7 +175,8 @@ class DataLoader:
             if not crdc_id:
                 entity_type = self.model.get_entity_type(node_type)
                 if studyID and node_id and entity_type:
-                    crdc_id = self.mongo_dao.search_node_by_study(studyID, entity_type, node_id)
+                    result = self.mongo_dao.search_node_by_study(studyID, entity_type, node_id)
+                    crdc_id = result.get(CRDC_ID) if result else None
         else:
             crdc_id = exist_node.get(CRDC_ID)
         return crdc_id

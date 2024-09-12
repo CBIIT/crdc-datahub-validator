@@ -5,7 +5,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, FAILED, DATA_COMMON_NAME, KEY, \
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
-    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
+    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, BATCH_BUCKET
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
@@ -137,6 +137,10 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to search node for crdc_id {get_exception_msg()}")
             return None
+
+    """
+    check node exists by dataCommons, nodeType and nodeID
+    """
         
     """
     get file in dataRecord collection by fileId
@@ -755,6 +759,41 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
+        
+    def search_node_by_study(self, studyID, entity_type, node_id):
+        """
+        Search release collection for given node, if not found, search it in dataRecord collection
+        :param studyID:
+        :param node_type:
+        :param node_id:
+        :return:
+        """
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            submissions = self.find_submissions({STUDY_ID: studyID})
+            if len(submissions) < 2:  #if there is only one submission that's own submission, skip.
+                return None
+            submission_id_list = [item[ID] for item in submissions]
+            results = data_collection.find({NODE_TYPE: entity_type, NODE_ID: node_id, SUBMISSION_ID: {"$in": submission_id_list}})
+            released_nodes = [node for node in results if node.get(SUBMISSION_REL_STATUS) != SUBMISSION_REL_STATUS_DELETED ]
+            if len(released_nodes) == 0:
+                deleted_submission_ids = [rel[SUBMISSION_ID] for rel in results if rel.get(SUBMISSION_REL_STATUS) == SUBMISSION_REL_STATUS_DELETED ]
+                submission_id_list = [item for item in submission_id_list if item not in deleted_submission_ids]
+                # search dataRecords
+                data_collection = db[DATA_COLlECTION]
+                rtn_val = data_collection.find_one({NODE_TYPE: entity_type, NODE_ID: node_id, SUBMISSION_ID: {"$in": submission_id_list}})
+            else:
+                rtn_val = released_nodes[0]
+            return rtn_val
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to search node for study: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to search node for study {get_exception_msg()}")
+            return None
 
     def search_released_node(self, data_commons, node_type, node_id):
         """
