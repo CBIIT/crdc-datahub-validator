@@ -82,7 +82,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             result = validator.validate(batch)
                             if result and validator.download_file_list and len(validator.download_file_list) > 0:
                                 #3. call mongo_dao to load data
-                                data_loader = DataLoader(validator.model, batch, mongo_dao, validator.bucket, validator.root_path, validator.datacommon, validator.submission.get(SUBMISSION_INTENTION))
+                                data_loader = DataLoader(validator.model, batch, mongo_dao, validator.bucket, validator.root_path, validator.datacommon, validator.submission)
                                 result, errors = data_loader.load_data(validator.download_file_list)
                                 if result:
                                     batch[STATUS] = BATCH_STATUS_UPLOADED
@@ -252,6 +252,11 @@ class EssentialValidator:
         # todo set download file 
         download_file = os.path.join(S3_DOWNLOAD_DIR, file_info[FILE_NAME])
         try:
+            if not self.bucket.file_exists_on_s3(key):
+                self.log.exception(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - file not found.')
+                file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - file not found.']
+                self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - file not found.')
+                return False
             self.bucket.download_file(key, download_file)
             if os.path.isfile(download_file):
                 df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE)
