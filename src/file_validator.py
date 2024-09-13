@@ -79,9 +79,9 @@ def fileValidate(configs, job_queue, mongo_dao):
                         validation_id = data[VALIDATION_ID]
                         validation_end_at = current_datetime()
                         mongo_dao.update_validation_status(validation_id, status, validation_end_at)
-                        validator.submission[VALIDATION_ENDED] = validation_end_at   
+                        validator.submission[VALIDATION_ENDED] = validation_end_at
                         #update submission
-                        mongo_dao.set_submission_validation_status(validator.submission, status, None, None, msgs)
+                        mongo_dao.set_submission_validation_status(validator.submission, status if status else "None", None, None, msgs)
                     else:
                         log.error(f'Invalid message: {data}!')
                     
@@ -316,6 +316,10 @@ class FileValidator:
             submission_intention = self.submission.get(SUBMISSION_INTENTION)
             # get manifest info for the submission
             manifest_info_list = self.mongo_dao.get_files_by_submission(submission_id) if submission_intention != SUBMISSION_INTENTION_DELETE else []
+            if not manifest_info_list or len(manifest_info_list) == 0:
+                msg = f"No data file records found for the submission."
+                self.log.error(msg)
+                return None, None
             # 1: check if Extra files, validate if there are files in files folder of the submission that are not specified 
             # in any manifests of the submission. This may happen if submitter uploaded files (via CLI) but forgot to upload 
             # the manifest. (error) included in total count.
