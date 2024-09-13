@@ -268,7 +268,7 @@ class MongoDao:
         overall_metadata_status = None
         try:
             if file_status:
-                updated_submission[FILE_VALIDATION_STATUS] = file_status
+                updated_submission[FILE_VALIDATION_STATUS] = file_status if file_status != "None" else None
                 if fileErrors and len(fileErrors) > 0:
                     updated_submission[FILE_ERRORS] = fileErrors
                 else:
