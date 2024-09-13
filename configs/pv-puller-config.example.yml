@@ -1,0 +1,16 @@
+Config:
+    # service type value in essential, file and metadata
+    service-type: pv_puller
+     # db server
+    server: localhost
+    # db port
+    port: 27017
+    # db user id
+    user: 
+    # db user password
+    pwd: 
+    # db name
+    db: crdc-datahub
+    models-loc: https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/
+    cde-data-element-api: https://cadsrapi.cancer.gov/rad/NCIAPI/1.0/api/DataElement/
+    tier: dev2

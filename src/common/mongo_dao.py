@@ -7,6 +7,9 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, BATCH_BUCKET
+    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
+    CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
+    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -936,6 +939,64 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
             return None 
+
+    def insert_cde(self, cde_list):
+        db = self.client[self.db_name]
+        data_collection = db[CDE_COLLECTION]
+        try:
+            result = data_collection.bulk_write([
+                ReplaceOne( {ID: m[ID]}, remove_id(m),  upsert=True)
+                    for m in list(cde_list)
+                ])
+            self.log.info(f'Total {result.upserted_count} CDE PV are upserted!')
+            return True, None
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            msg = f"Failed to upsert CDE PV ."
+            self.log.exception(msg)
+            return False, msg
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to upsert mCDE PV, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg 
+    """
+    set CDE search index, 'CDECode_1_CDEVersion_1'
+    """
+    def set_search_cde_index(self, cde_search_index):
+        db = self.client[self.db_name]
+        data_collection = db[CDE_COLLECTION]
+        try:
+            index_dict = data_collection.index_information()
+            if not index_dict or not index_dict.get(cde_search_index):
+                result = data_collection.create_index([(CDE_CODE), (CDE_VERSION)], \
+                            name=cde_search_index)
+            return True
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to set search index in CDE collection: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to set search index in CDE collection: {get_exception_msg()}")
+            return False
+    """
+    get CDE permissible values
+    """    
+    def get_cde_permissible_values(self, cde_code, cde_version):
+        db = self.client[self.db_name]
+        data_collection = db[CDE_COLLECTION]
+        try:
+            return data_collection.find_one({CDE_CODE: cde_code, CDE_VERSION: cde_version})
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get permissible values for {cde_code}/{cde_version}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get permissible values for {cde_code}/{cde_version}: {get_exception_msg()}")
+            return None
+    
 """
 remove _id from records for update
 """   
