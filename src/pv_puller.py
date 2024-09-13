@@ -58,6 +58,9 @@ class PVPuller:
                     if not cde_id:
                         self.log.error(f"No CDE id found for {data_common}:{prop_name}")
                         continue
+                    cde_origin = term.get("Origin")
+                    if not cde_origin or not "caDSR" in cde_origin:
+                        continue
                     cde_id = str(cde_id)
                     if not cde_id.isdigit(): # skip non-numeric cde codes
                         self.log.error(f"CDE id is invalid for {data_common}:{prop_name}: {cde_id}")
@@ -68,6 +71,7 @@ class PVPuller:
                         self.log.error(f"No CDE version found for {data_common}:{prop_name}: {cde_id}")
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE version."})
                         continue
+                    
                     # check if cde exists in db
                     count = self.mongo_dao.count_docs(CDE_COLLECTION,{CDE_CODE: cde_id, CDE_VERSION: cde_version})
                     if count > 0:
