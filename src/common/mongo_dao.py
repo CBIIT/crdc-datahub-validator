@@ -780,6 +780,8 @@ class MongoDao:
             if len(released_nodes) == 0:
                 deleted_submission_ids = [rel[SUBMISSION_ID] for rel in results if rel.get(SUBMISSION_REL_STATUS) == SUBMISSION_REL_STATUS_DELETED ]
                 submission_id_list = [item for item in submission_id_list if item not in deleted_submission_ids]
+                if len(submission_id_list) < 2:
+                    return None
                 # search dataRecords
                 data_collection = db[DATA_COLlECTION]
                 rtn_val = data_collection.find_one({NODE_TYPE: entity_type, NODE_ID: node_id, SUBMISSION_ID: {"$in": submission_id_list}})
