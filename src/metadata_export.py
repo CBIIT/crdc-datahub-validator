@@ -92,7 +92,6 @@ def metadata_export(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while exporting data! Check debug log for details.')
                 finally:
-                    msg.delete()
                     # De-allocation memory
                     if export_validator:
                         export_validator.close()
@@ -411,7 +410,8 @@ class ExportMetadata:
         dest_bucket_name = self.mongo_dao.get_bucket_name("Metadata Bucket", dataCommon)
         dest_file_folder =  f'{get_date_time("%Y-%m-%dT%H:%M:%S")}-{id}'
         data_file_folder = os.path.join(root_path, "metadata/release")
-        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder)
+        tags = [{"Key": "Tier", "Value": self.configs[TIER_CONFIG]}, {"Key": "Type", "Value" : "Metadata"}]
+        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags)
     
     def transfer_released_files(self):
         """
@@ -421,9 +421,10 @@ class ExportMetadata:
         dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
         dest_file_folder =  study_id
         data_file_folder = os.path.join(root_path, "file")
-        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder )
+        tags = [{"Key": "Tier", "Value": self.configs[TIER_CONFIG]}, {"Key": "Type", "Value" : "Data File"}]
+        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags)
 
-    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder):
+    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags):
         """
         transfer s3 object with AWS DataSync
         """
@@ -451,7 +452,8 @@ class ExportMetadata:
                 Name='Data_Hub_SyncTask',
                 Options={
                     'VerifyMode': 'ONLY_FILES_TRANSFERRED'
-                }
+                },
+                Tags = tags
             )
             self.log.info(f"DataSync task {task['TaskArn']} created to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}.")
 
