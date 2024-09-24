@@ -90,6 +90,7 @@ class DataLoader:
                             DATA_COMMON_NAME: self.data_common,
                             BATCH_IDS: batchIds,
                             "latestBatchID": self.batch[ID],
+                            "latestBatchDisplayID": self.batch.get("displayID"),
                             "uploadedDate": current_date_time, 
                             STATUS: STATUS_NEW,
                             ERRORS: [],
