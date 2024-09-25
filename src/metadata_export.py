@@ -516,7 +516,6 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
             dest = None
             datasync.close()
             datasync = None
-
 # Private class
 class ValidationDirectory:
     @staticmethod
