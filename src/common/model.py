@@ -59,14 +59,18 @@ class DataModel:
         return self.model.get("file-nodes", {})
     
     """
-    
     get main nodes in the model
     """
     def get_main_nodes(self):
         return self.model.get(DEF_MAIN_NODES, {})
     
     """
+    get entity type of a given node in the model
+    """
+    def get_entity_type(self, node_type):
+        return self.model.get(DEF_MAIN_NODES, {}).get(node_type, None)
     
+    """
     get file name property
     """
     def get_file_name(self):
