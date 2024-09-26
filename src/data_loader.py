@@ -8,7 +8,7 @@ from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_I
     ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
     MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID
+    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, ENTITY_TYPE
 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -105,7 +105,8 @@ class DataLoader:
                             PROPERTIES: {k: v for (k, v) in rawData.items() if k in prop_names},
                             PARENTS: self.get_parents(relation_fields, row),
                             RAW_DATA:  rawData,
-                            ADDITION_ERRORS: []
+                            ADDITION_ERRORS: [],
+                            ENTITY_TYPE: self.model.get_entity_type(type)
                         }
                         if type in file_types:
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)

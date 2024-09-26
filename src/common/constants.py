@@ -177,3 +177,5 @@ CDE_PERMISSIVE_VALUES = "PermissibleValues"
 
 TERM_CODE = "Code"
 TERM_VERSION = "Version"
+
+ENTITY_TYPE = "entityType"
