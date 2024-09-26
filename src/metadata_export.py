@@ -13,7 +13,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG
-from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time
+from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
 import threading
@@ -92,7 +92,6 @@ def metadata_export(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while exporting data! Check debug log for details.')
                 finally:
-                    msg.delete()
                     # De-allocation memory
                     if export_validator:
                         export_validator.close()
@@ -298,7 +297,7 @@ class ExportMetadata:
             for r in data_records:
                 node_id = r.get(NODE_ID)
                 crdc_id = r.get(CRDC_ID)
-                self.save_release(r, node_type, node_id, crdc_id, )
+                self.save_release(r, node_type, node_id, crdc_id)
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
@@ -311,10 +310,9 @@ class ExportMetadata:
         if not node_type or not node_id or not crdc_id:
              self.log.error(f"{self.submission[ID]}: Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
              return
-        existed_crdc_record = self.mongo_dao.get_release(crdc_id)
+        existed_crdc_record = self.mongo_dao.search_release(self.submission.get(DATA_COMMON_NAME), node_type, node_id)
         current_date = current_datetime()
-        if not existed_crdc_record or existed_crdc_record.get(DATA_COMMON_NAME) != self.submission.get(DATA_COMMON_NAME) \
-            or existed_crdc_record.get(NODE_ID) != node_id or existed_crdc_record.get(NODE_TYPE) != node_type:
+        if not existed_crdc_record:
             if self.submission.get(SUBMISSION_INTENTION) == SUBMISSION_INTENTION_DELETE:
                 self.log.error(f"{self.submission[ID]}: No data found for delete: {self.submission.get(DATA_COMMON_NAME)}/{node_type}/{node_id}/{crdc_id}!")
                 return
@@ -342,8 +340,9 @@ class ExportMetadata:
             else: 
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
                 existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
-                existed_crdc_record[PARENTS] = data_record.get(PARENTS)
+                existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED
+
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
@@ -353,6 +352,26 @@ class ExportMetadata:
                 result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[ID])
                 if result and children and len(children) > 0: 
                     self.delete_release_children(children)
+    
+    def combine_parents(self, node_type, release_parents, node_parents):
+        if not release_parents or len(release_parents) == 0:
+            return node_parents
+        if not node_parents or len(node_parents) == 0:
+            return release_parents
+        relationships = self.model.get_node_relationships(node_type)
+        if node_parents and len(node_parents):
+            for parent in node_parents:
+                relationship = relationships[parent["parentType"]]
+                if not dict_exists_in_list(release_parents, parent, keys=["parentType", "parentIDPropName", "parentIDValue"]):
+                    if relationship["type"] == "many_to_many":
+                        release_parents.append(parent)
+                    else:
+                        rel_parent_list = [p for p in release_parents if p["parentType"] == relationship["dest_node"]]
+                        if not rel_parent_list or len(rel_parent_list) == 0:
+                            release_parents.append(parent)
+                        else:
+                            rel_parent_list[0]["parentIDValue"] = parent["parentIDValue"]
+        return release_parents
     
     def delete_release_children(self, released_children):
         if released_children and len(released_children) > 0:
@@ -391,7 +410,11 @@ class ExportMetadata:
         dest_bucket_name = self.mongo_dao.get_bucket_name("Metadata Bucket", dataCommon)
         dest_file_folder =  f'{get_date_time("%Y-%m-%dT%H:%M:%S")}-{id}'
         data_file_folder = os.path.join(root_path, "metadata/release")
-        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder)
+        tags = [
+            {"Key": "Tier", "Value": self.configs[TIER_CONFIG]},
+            {"Key": "Type", "Value" : "Metadata"}
+            ]
+        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags)
     
     def transfer_released_files(self):
         """
@@ -401,9 +424,13 @@ class ExportMetadata:
         dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
         dest_file_folder =  study_id
         data_file_folder = os.path.join(root_path, "file")
-        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder )
+        tags = [
+            {"Key": "Tier", "Value": self.configs[TIER_CONFIG]}, 
+            {"Key": "Type", "Value" : "Data File"}
+            ]
+        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags)
 
-    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder):
+    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags):
         """
         transfer s3 object with AWS DataSync
         """
@@ -431,7 +458,8 @@ class ExportMetadata:
                 Name='Data_Hub_SyncTask',
                 Options={
                     'VerifyMode': 'ONLY_FILES_TRANSFERRED'
-                }
+                },
+                Tags = tags
             )
             self.log.info(f"DataSync task {task['TaskArn']} created to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}.")
 
@@ -488,7 +516,6 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
             dest = None
             datasync.close()
             datasync = None
-
 # Private class
 class ValidationDirectory:
     @staticmethod

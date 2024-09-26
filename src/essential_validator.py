@@ -251,7 +251,14 @@ class EssentialValidator:
         key = os.path.join(self.batch[FILE_PREFIX], file_info[FILE_NAME])
         # todo set download file 
         download_file = os.path.join(S3_DOWNLOAD_DIR, file_info[FILE_NAME])
+        msg = None
         try:
+            if not self.bucket.file_exists_on_s3(key):
+                msg = f'Reading metadata file “{file_info[FILE_NAME]}.” failed - file not found.'
+                self.log.exception(msg)
+                file_info[ERRORS] = [msg]
+                self.batch[ERRORS].append(msg)
+                return False
             self.bucket.download_file(key, download_file)
             if os.path.isfile(download_file):
                 df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE)
@@ -262,8 +269,9 @@ class EssentialValidator:
             self.df = None
             self.log.exception(ce)
             self.log.exception(f"Failed to download file, {file_info[FILE_NAME]}. {get_exception_msg()}.")
-            file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.']
-            self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.')
+            msg = f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.'
+            file_info[ERRORS] = [msg]
+            self.batch[ERRORS].append(msg)
             return False
         except pd.errors.ParserError as pe:
             self.df = None
@@ -285,15 +293,17 @@ class EssentialValidator:
             self.df = None
             self.log.exception(ue)
             self.log.exception('Invalid metadata file! non UTF-8 character(s) found.')
-            file_info[ERRORS] = [f'“{file_info[FILE_NAME]}”: non UTF-8 character(s) found.']
-            self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}”: non UTF-8 character(s) found')
+            msg = f'“{file_info[FILE_NAME]}”: non UTF-8 character(s) found.'
+            file_info[ERRORS] = [msg]
+            self.batch[ERRORS].append(msg)
             return False
         except Exception as e:
             self.df = None
             self.log.exception(e)
             self.log.exception('Invalid metadata file! Check debug log for detailed information.')
-            file_info[ERRORS] = [f'“{file_info[FILE_NAME]}”: is not a valid TSV file.']
-            self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}”: is not a valid TSV file.')
+            msg = f'“{file_info[FILE_NAME]}”: is not a valid TSV file.'
+            file_info[ERRORS] = [msg]
+            self.batch[ERRORS].append(msg)
             return False
     
     def validate_data(self, file_info):
