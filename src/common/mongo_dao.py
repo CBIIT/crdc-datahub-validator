@@ -7,7 +7,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
-    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION
+    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE
 from common.utils import get_exception_msg, current_datetime
 
 MAX_SIZE = 10000
@@ -795,7 +795,7 @@ class MongoDao:
             if len(submissions) < 2:  #if there is only one submission that's own submission, skip.
                 return None
             submission_id_list = [item[ID] for item in submissions]
-            results = data_collection.find({NODE_TYPE: entity_type, NODE_ID: node_id, SUBMISSION_ID: {"$in": submission_id_list}})
+            results = data_collection.find({ENTITY_TYPE: entity_type, NODE_ID: node_id, SUBMISSION_ID: {"$in": submission_id_list}})
             released_nodes = [node for node in results if node.get(SUBMISSION_REL_STATUS) != SUBMISSION_REL_STATUS_DELETED ]
             if len(released_nodes) == 0:
                 deleted_submission_ids = [rel[SUBMISSION_ID] for rel in results if rel.get(SUBMISSION_REL_STATUS) == SUBMISSION_REL_STATUS_DELETED ]
@@ -804,7 +804,7 @@ class MongoDao:
                     return None
                 # search dataRecords
                 data_collection = db[DATA_COLlECTION]
-                rtn_val = data_collection.find_one({NODE_TYPE: entity_type, NODE_ID: node_id, SUBMISSION_ID: {"$in": submission_id_list}})
+                rtn_val = data_collection.find_one({ENTITY_TYPE: entity_type, NODE_ID: node_id, SUBMISSION_ID: {"$in": submission_id_list}})
             else:
                 rtn_val = released_nodes[0]
             return rtn_val
