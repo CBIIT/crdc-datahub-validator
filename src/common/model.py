@@ -64,6 +64,9 @@ class DataModel:
     def get_main_nodes(self):
         return self.model.get(DEF_MAIN_NODES, {})
     
+    def get_entity_type(self, node_type):
+        return self.model.get(DEF_MAIN_NODES, {}).get(node_type, None)
+    
     """
     get entity type of a given node in the model
     """
@@ -83,4 +86,6 @@ class DataModel:
     """
     def get_list_delimiter(self):
         return self.model.get(LIST_DELIMITER_PROP)
+    
+    
     

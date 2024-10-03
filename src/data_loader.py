@@ -8,7 +8,7 @@ from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_I
     ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
     MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, ENTITY_TYPE
+    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, ENTITY_TYPE, STUDY_ID
 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -19,7 +19,7 @@ PRINCIPAL_INVESTIGATOR = "principal_investigator"
 # This script load matadata files to database
 # input: file info list
 class DataLoader:
-    def __init__(self, model, batch, mongo_dao, bucket, root_path, data_common, submission_intention):
+    def __init__(self, model, batch, mongo_dao, bucket, root_path, data_common, submission):
         self.log = get_logger('Matedata loader')
         self.model = model
         self.mongo_dao =mongo_dao
@@ -30,6 +30,7 @@ class DataLoader:
         self.file_nodes = self.model.get_file_nodes()
         self.main_nodes = self.model.get_main_nodes()
         self.errors = None
+        self.submission = submission
 
     """
     param: file_path_list downloaded from s3 bucket
@@ -70,7 +71,7 @@ class DataLoader:
                     id = self.get_record_id(exist_node)
                     # onlu generating CRDC ID for valid nodes
                     valid_crdc_id_nodes = type in main_node_types
-                    crdc_id = self.get_crdc_id(exist_node, type, node_id) if valid_crdc_id_nodes else None
+                    crdc_id = self.get_crdc_id(exist_node, type, node_id, self.submission.get(STUDY_ID)) if valid_crdc_id_nodes else None
                     # file nodes
                     if valid_crdc_id_nodes and type in file_types:
                         id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
@@ -165,15 +166,22 @@ class DataLoader:
     """
     get node crdc id
     """
-    def get_crdc_id(self, exist_node, node_type, node_id):
-        if not exist_node:
-            if not self.data_common or not node_type or not node_id:
-                return None
-            else:
+    def get_crdc_id(self, exist_node, node_type, node_id, studyID):
+        crdc_id = None
+        if not exist_node: 
+            # find existing crdc_id by datacommon, nodeType and nodeID
+            if self.data_common and node_type and node_id:
                 result = self.mongo_dao.search_node(self.data_common, node_type, node_id)
-                return None if not result else result[CRDC_ID]
+                crdc_id = result.get(CRDC_ID) if result else None
+            if not crdc_id:
+                entity_type = self.model.get_entity_type(node_type)
+                if studyID and node_id and entity_type:
+                    result = self.mongo_dao.search_node_by_study(studyID, entity_type, node_id)
+                    crdc_id = result.get(CRDC_ID) if result else None
         else:
-            return exist_node.get(CRDC_ID)
+            crdc_id = exist_node.get(CRDC_ID)
+        return crdc_id
+        
     
     """
     get node id defined in model dict
