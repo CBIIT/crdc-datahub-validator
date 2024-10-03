@@ -1,10 +1,12 @@
 from pymongo import MongoClient, errors, ReplaceOne, UpdateOne, DeleteOne, TEXT, DESCENDING
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
-    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, NODE_ID, NODE_TYPE, \
+    SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, UPDATED_AT, FAILED, DATA_COMMON_NAME, KEY, \
-    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, FAILED, DATA_COMMON_NAME, KEY, \
+    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
+    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
+    CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, BATCH_BUCKET
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -48,11 +50,11 @@ class MongoDao:
             return results[0] if results and len(results) > 0 else None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to find batch by file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find batch by data file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to find batch by file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find batch by data file name, {submissionID}/{batch_type}/{file_name}: {get_exception_msg()}")
             return None
     """
     get submission by id
@@ -79,7 +81,7 @@ class MongoDao:
         data_collection = db[DATA_COLlECTION]
         node_set, query = set(), []
         for node in nodes:
-            node_type, node_key, node_value = node.get("type"), node.get("key"), node.get("value")
+            node_type, node_key, node_value = node.get(TYPE), node.get(KEY), node.get(VALUE_PROP)
             if node_type and node_key and node_value is not None \
                     and (node_type, node_key, node_value) not in node_set:
                 node_set.add(tuple([node_type, node_key, node_value]))
@@ -120,11 +122,12 @@ class MongoDao:
     """
     check node exists by dataCommons, nodeType and nodeID
     """
-    def search_node_by_index_crdc(self, data_commons, node_type, node_id):
+    def search_node_by_index_crdc(self, data_commons, node_type, node_id, excluded_submission_ids):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
-            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
+            
+            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_ID: {"$nin": excluded_submission_ids}}) 
             return result
         except errors.PyMongoError as pe:
             self.log.exception(pe)
@@ -145,11 +148,11 @@ class MongoDao:
             return file_collection.find_one({ID: fileId})
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to find file, {fileId}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file, {fileId}: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to find file, {fileId}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file, {fileId}: {get_exception_msg()}")
             return None
     """
     get file in dataRecord collection by fileName
@@ -161,11 +164,11 @@ class MongoDao:
             return file_collection.find_one({"S3FileInfo.fileName": fileName})
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to find file, {fileName}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file, {fileName}: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to find file, {fileName}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file, {fileName}: {get_exception_msg()}")
             return None    
     """
     get file records in dataRecords collection by submissionID
@@ -177,11 +180,11 @@ class MongoDao:
             return list(file_collection.find({SUBMISSION_ID: submission_id, S3_FILE_INFO: {"$nin": [None, ""]}}))
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to find file for the submission, {submission_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file for the submission, {submission_id}: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to find file for the submission, {submission_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to find data file for the submission, {submission_id}: {get_exception_msg()}")
             return None
     
     def update_batch(self, batch):
@@ -207,13 +210,13 @@ class MongoDao:
     def check_metadata_ids(self, nodeType, ids, submission_id):
         #1. check if collection exist
         db = self.client[self.db_name]
+        collection = db[DATA_COLlECTION]
         try:
-            collection = db[DATA_COLlECTION]
             #2 check if keys existing in the collection
-            result = list(collection.find({NODE_ID: {'$in': ids}, SUBMISSION_ID: submission_id, NODE_TYPE: nodeType}, {ID: 0, NODE_ID: 1}))
+            result = list(collection.find({NODE_ID: {'$in': ids}, SUBMISSION_ID: submission_id, NODE_TYPE: nodeType}))
             return result 
         except errors.OperationFailure as oe: 
-            self.log.debug(oe)
+            self.log.exception(oe)
             self.log.exception(f"{submission_id}: Failed to query DB, {nodeType}: {get_exception_msg()}!")
         except Exception as e:
             self.log.exception(e)
@@ -231,11 +234,11 @@ class MongoDao:
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update data file, {file_record[ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update data file, {file_record[ID]}: {get_exception_msg()}")
             return False  
         
     """
@@ -249,29 +252,30 @@ class MongoDao:
             return result.modified_count > 0 
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update data file, {file_record[ID]}: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to update file, {file_record[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update data file, {file_record[ID]}: {get_exception_msg()}")
             return False  
     """
     update errors in submissions collection
     """   
-    def set_submission_validation_status(self, submission, file_status, metadata_status, fileErrors, is_delete = False):
-        updated_submission = {ID: submission[ID]}
+    def set_submission_validation_status(self, submission, file_status, metadata_status, cross_submission_status, fileErrors, is_delete = False):
+        updated_submission = {UPDATED_AT: current_datetime()}
         db = self.client[self.db_name]
         file_collection = db[SUBMISSION_COLLECTION]
         overall_metadata_status = None
         try:
             if file_status:
-                updated_submission[FILE_VALIDATION_STATUS] = file_status
+                updated_submission[FILE_VALIDATION_STATUS] = file_status if file_status != "None" else None
                 if fileErrors and len(fileErrors) > 0:
                     updated_submission[FILE_ERRORS] = fileErrors
                 else:
                     updated_submission[FILE_ERRORS] = []
+                updated_submission[VALIDATION_ENDED] = submission[VALIDATION_ENDED]
             if metadata_status:
-                if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0) or metadata_status == FAILED):
+                if not ((is_delete and self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID]}) == 0)):
                     if metadata_status == STATUS_ERROR or metadata_status == STATUS_NEW: 
                         overall_metadata_status = metadata_status
                     else:
@@ -284,9 +288,16 @@ class MongoDao:
                                 overall_metadata_status = STATUS_WARNING
                             else:
                                 overall_metadata_status = metadata_status
-
+                # check if all file nodes are deleted
+                if is_delete and (self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], S3_FILE_INFO: {"$exists": True}}) == 0):
+                    updated_submission[FILE_VALIDATION_STATUS] = None
+                if is_delete:
+                    updated_submission["deletingData"] = False
                 updated_submission[METADATA_VALIDATION_STATUS] = overall_metadata_status
-            updated_submission[UPDATED_AT] = current_datetime()
+                updated_submission[VALIDATION_ENDED] = submission.get(VALIDATION_ENDED)
+                
+            if cross_submission_status:
+                updated_submission[CROSS_SUBMISSION_VALIDATION_STATUS] = cross_submission_status
             result = file_collection.update_one({ID : submission[ID]}, {"$set": updated_submission}, False)
             return result.matched_count > 0 
         except errors.PyMongoError as pe:
@@ -295,7 +306,7 @@ class MongoDao:
             return False
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to update file, {submission[ID]}: {get_exception_msg()}")
+            self.log.exception(f"Failed to update submission, {submission[ID]}: {get_exception_msg()}")
             return False
         
     """
@@ -309,7 +320,7 @@ class MongoDao:
                 ReplaceOne( {ID: m[ID]}, remove_id(m),  upsert=True)
                     for m in list(data_records)
                 ])
-            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
+            self.log.info(f'Total {result.upserted_count} dataRecords are upserted!')
             return True, None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
@@ -318,7 +329,7 @@ class MongoDao:
             return False, msg
         except Exception as e:
             self.log.exception(e)
-            msg = f"Failed to update file records, {get_exception_msg()}"
+            msg = f"Failed to update metadata, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
         
@@ -337,16 +348,39 @@ class MongoDao:
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')
             return True, None
         except errors.PyMongoError as pe:
+            self.log.debug(pe)
+            msg = f"Failed to update metadata."
+            self.log.exception(msg)
+            return False, msg
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to update metadata, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg 
+    """
+    update record's status, errors by additional error
+    """
+    def update_data_records_addition_error(self, data_records):
+        db = self.client[self.db_name]
+        file_collection = db[DATA_COLlECTION]
+        try:
+            result = file_collection.bulk_write([
+                UpdateOne( {ID: m[ID]}, 
+                    {"$set": {UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], ADDITION_ERRORS: m.get(ADDITION_ERRORS, [])}})
+                    for m in list(data_records)
+                ])
+            self.log.info(f'Total {result.modified_count} dataRecords are updated!')
+            return True, None
+        except errors.PyMongoError as pe:
             self.log.exception(pe)
             msg = f"Failed to update metadata."
             self.log.exception(msg)
             return False, msg
         except Exception as e:
             self.log.exception(e)
-            msg = f"Failed to update file records, {get_exception_msg()}"
+            msg = f"Failed to update metadata, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
-   
     """
     delete dataRecords by nodeIDs
     """  
@@ -362,12 +396,12 @@ class MongoDao:
             return True, None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            msg = f"Failed to delete file records, {get_exception_msg()}"
+            msg = f"Failed to delete metadata, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg
         except Exception as e:
             self.log.exception(e)
-            msg = f"Failed to delete file records, {get_exception_msg()}"
+            msg = f"Failed to delete metadata, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg
     """
@@ -515,6 +549,46 @@ class MongoDao:
             return None
         
     """
+    find node in other submission with the same study
+    """   
+    def find_node_in_other_submissions_in_status(self, submission_id, study, data_common, node_type, nodeId, status_list):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            submissions = None
+            other_submissions = self.find_submissions({STUDY_ABBREVIATION: study, SUBMISSION_STATUS: {"$in": status_list}, ID: {"$ne": submission_id}})
+            if len(other_submissions) > 0:
+                other_submission_ids = [item[ID] for item in other_submissions]
+                duplicate_nodes = list(data_collection.find({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}}))
+                if len(duplicate_nodes) > 0:
+                    other_submission_ids = [item[SUBMISSION_ID] for item in duplicate_nodes]
+                    submissions = [item for item in other_submissions if item[ID] in other_submission_ids]
+            return True, submissions
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve child nodes: {get_exception_msg()}")
+            return False, None
+    """
+    find submission by query
+    """
+    def find_submissions(self, query):
+        db = self.client[self.db_name]
+        data_collection = db[SUBMISSION_COLLECTION]
+        try:
+            return list(data_collection.find(query))
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to retrieve submissions: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to retrieve submissions:: {get_exception_msg()}")
+            return False, None  
+    """
     set dataRecords search index, 'submissionID_nodeType_nodeID'
     """
     def set_search_index_dataRecords(self, submission_index, crdc_index):
@@ -573,11 +647,11 @@ class MongoDao:
             return md5_info
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"{submission_id}: Failed to retrieve file md5: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data file md5: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"{submission_id}: Failed to retrieve file md5: {get_exception_msg()}")
+            self.log.exception(f"{submission_id}: Failed to retrieve data file md5: {get_exception_msg()}")
             return None
         
     """
@@ -591,11 +665,11 @@ class MongoDao:
             return (result and result.upserted_id)
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save file md5: {get_exception_msg()}")
+            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save data file md5: {get_exception_msg()}")
             return False
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save file md5: {get_exception_msg()}")
+            self.log.exception(f"{md5_info[SUBMISSION_ID]}: Failed to save data file md5: {get_exception_msg()}")
             return False
         
     """
@@ -615,6 +689,25 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to find release record for {crdc_id}: {get_exception_msg()}")
             return False
+        
+    """
+    get release by dataCommon, nodeType and nodeId
+    """
+    def search_release(self, dataCommon, node_type, node_id):
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            result = data_collection.find_one({DATA_COMMON_NAME: dataCommon, NODE_TYPE: node_type, NODE_ID: node_id})
+            return result
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to find release record for {dataCommon}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to find release record for {dataCommon}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+    
     
     """
     insert release 
@@ -661,12 +754,18 @@ class MongoDao:
         """
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
+        rtn_val = None
         try:
-            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
-            if not result:
+            
+            results = list(data_collection.find({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id}))
+            released_nodes = [node for node in results if node.get(SUBMISSION_REL_STATUS) != SUBMISSION_REL_STATUS_DELETED ]
+            if len(released_nodes) == 0:
                 # search dataRecords
-                result = self.search_node_by_index_crdc(data_commons, node_type, node_id)
-            return result
+                deleted_submission_ids = [rel[SUBMISSION_ID] for rel in results if rel.get(SUBMISSION_REL_STATUS) == SUBMISSION_REL_STATUS_DELETED ]
+                rtn_val = self.search_node_by_index_crdc(data_commons, node_type, node_id, deleted_submission_ids)
+            else:
+                rtn_val = released_nodes[0]
+            return rtn_val
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
@@ -697,6 +796,49 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
+   
+    def search_released_node_with_status(self, data_commons, node_type, node_id, status):
+        """
+        Search release collection for given node with status
+        :param data_commons:
+        :param node_type:
+        :param node_id:
+        :return:
+        """
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_REL_STATUS: {"$in": status}})
+            return list(result) if result else None
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
+            return False
+    
+    """
+    find child node by type and id
+    """
+    def get_released_nodes_by_parent_with_status(self, datacommon, parent, status, submission_id):
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        query = []
+        node_type, node_id = parent.get(NODE_TYPE), parent.get(NODE_ID)
+        query.append({DATA_COMMON_NAME: datacommon, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}, SUBMISSION_REL_STATUS : {"$in": status}})
+        try:
+            results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
+            return True, results
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
+            return False, None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"{submission_id}: Failed to retrieve child releases: {get_exception_msg()}")
+            return False, None
     
     def find_released_nodes_by_parent(self, node_type, data_commons, parent_node):
         """
@@ -720,6 +862,7 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{parent_node[PARENT_TYPE]}/{parent_node[PARENT_ID_VAL]}: {get_exception_msg()}")
             return None
+        
     """
     count documents in a given collection and conditions 
     """  
@@ -736,7 +879,41 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to count documents for collection, {collection} at conditions {query}")
             return False
-        
+    """
+    update validation status
+    """   
+    def update_validation_status(self, validation_id, status, validation_end_at):
+        db = self.client[self.db_name]
+        data_collection = db[VALIDATION_COLLECTION]
+        try:
+            result = data_collection.update_one({ID: validation_id}, {"$set": {STATUS: status, "ended": validation_end_at}})
+            return True if result.modified_count > 0 else False
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
+            return False
+    """
+    get bucket name based on dataCommons and type
+    """   
+    def get_bucket_name(self, type, dataCommon):
+        db = self.client[self.db_name]
+        data_collection = db[CONFIG_COLLECTION]
+        try:
+            result = data_collection.find_one({TYPE: type, DATA_COMMON_NAME: dataCommon})
+            if result:
+                return result.get(BATCH_BUCKET)
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
+            return None 
 """
 remove _id from records for update
 """   

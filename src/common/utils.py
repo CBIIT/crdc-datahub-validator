@@ -114,7 +114,7 @@ def download_file_to_dict(url):
             raise Exception(f"Can't find model file at {url}, {r.content}!")
         if file_ext == "json":
             return r.json()
-        elif file_ext == "yml": 
+        elif file_ext in ["yml", "yaml"]: 
             return yaml.safe_load(r.content)
         else:
             raise Exception(f'File type is not supported: {file_ext}!')
@@ -124,6 +124,11 @@ get current datetime string in iso format
 def current_datetime_str():
     return datetime.now(tz = datetime.now().astimezone().tzinfo).isoformat(timespec='milliseconds')
 
+def get_date_time(format = "%Y-%m-%dT%H%M%S"):
+    """
+    get current time in format
+    """  
+    return datetime.strftime(datetime.now(), format)
 """
 get current datetime
 """
@@ -193,6 +198,25 @@ def removeTailingEmptyColumnsAndRows(df):
     while  df.iloc[[-1]].isnull().all(1).values[0]:
         df = df.iloc[:-1]
     return df
+
+def dict_exists_in_list(dict_list, target_dict, keys=None):
+    """
+    Check if a dictionary exists in a list of dictionaries
+    :param dict_list: List of dictionaries
+    :param target_dict: Dictionary to search for
+    :param keys: List of keys to compare (optional)
+    :return: Boolean indicating if the dictionary exists in the list
+    """
+    for d in dict_list:
+        if keys:
+            # Only compare specific keys
+            if all(d.get(key) == target_dict.get(key) for key in keys):
+                return True
+        else:
+            # Compare the whole dictionary
+            if d == target_dict:
+                return True
+    return False
 
 
 

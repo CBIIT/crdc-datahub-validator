@@ -9,11 +9,13 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT_PATH, NODE_ID, \
-    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, INTENTION_NEW, SQS_TYPE, TYPE_LOAD, \
-    BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, BATCH_INTENTION, MODEL_VERSION, MODEL_FILE_DIR, \
-    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, INTENTION_DELETE, NODE_TYPE
+    ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, SQS_TYPE, TYPE_LOAD, STATUS_PASSED,\
+    BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, MODEL_VERSION, MODEL_FILE_DIR, \
+    TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
+    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows
 from common.model_store import ModelFactory
+from metadata_remover import MetadataRemover
 from data_loader import DataLoader
 from service.ecs_agent import set_scale_in_protection
 
@@ -80,7 +82,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             result = validator.validate(batch)
                             if result and validator.download_file_list and len(validator.download_file_list) > 0:
                                 #3. call mongo_dao to load data
-                                data_loader = DataLoader(validator.model, batch, mongo_dao, validator.bucket, validator.root_path, validator.datacommon)
+                                data_loader = DataLoader(validator.model, batch, mongo_dao, validator.bucket, validator.root_path, validator.datacommon, validator.submission.get(SUBMISSION_INTENTION))
                                 result, errors = data_loader.load_data(validator.download_file_list)
                                 if result:
                                     batch[STATUS] = BATCH_STATUS_UPLOADED
@@ -103,7 +105,23 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             #5. update submission's metadataValidationStatus
                             mongo_dao.update_batch(batch)
                             if validator.submission and submission_meta_status == STATUS_NEW:
-                                mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, batch[BATCH_INTENTION] == INTENTION_DELETE )
+                                mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, None)
+                    
+                    elif data.get(SQS_TYPE) == TYPE_DELETE and data.get(SUBMISSION_ID) and data.get(NODE_TYPE) and data.get("nodeIDs"):
+                        extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
+                        submission_id = data.get(SUBMISSION_ID)
+                        node_type = data.get(NODE_TYPE)
+                        node_ids = data.get("nodeIDs")
+                        validator = MetadataRemover(mongo_dao, model_store)
+                        try:
+                            result = validator.remove_metadata(submission_id, node_type, node_ids)
+                        except Exception as e:  # catch any unhandled errors
+                            error = f'{submission_id}: Failed to delete metadata, {get_exception_msg()}!'
+                            log.error(error)
+                        finally:
+                            #5. update submission's metadataValidationStatus
+                            if validator.submission:
+                                mongo_dao.set_submission_validation_status(validator.submission, None, STATUS_PASSED, None, None, True)
                     else:
                         log.error(f'Invalid message: {data}!')
 
@@ -153,11 +171,15 @@ class EssentialValidator:
         self.download_file_list = None
         self.bucket = None
         self.batch = None
+        self.def_file_nodes = None
+        self.def_file_name = None
 
     def validate(self,batch):
-        self.bucket = S3Bucket(batch.get("bucketName"))
+        self.bucket = S3Bucket(batch.get(BATCH_BUCKET))
         if not self.validate_batch(batch):
             return False
+        self.def_file_nodes = self.model.get_file_nodes()
+        self.def_file_name = self.model.get_file_name()
         try:
             for file_info in self.file_info_list: 
                 #1. download the file in s3 and load tsv file into dataframe
@@ -213,6 +235,7 @@ class EssentialValidator:
             self.submission = submission
             self.datacommon = submission.get(DATA_COMMON_NAME)
             self.submission_id  = submission[ID]
+            self.submission_intention = submission.get(SUBMISSION_INTENTION)
             self.root_path = submission.get(ROOT_PATH)
             self.download_file_list = []
             model_version = submission.get(MODEL_VERSION) 
@@ -228,20 +251,27 @@ class EssentialValidator:
         key = os.path.join(self.batch[FILE_PREFIX], file_info[FILE_NAME])
         # todo set download file 
         download_file = os.path.join(S3_DOWNLOAD_DIR, file_info[FILE_NAME])
+        msg = None
         try:
-            if self.bucket.file_exists_on_s3(key):
-                self.bucket.download_file(key, download_file)
-                if os.path.isfile(download_file):
-                    df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE)
-                    self.df = (df.rename(columns=lambda x: x.strip())).apply(lambda x: x.str.strip() if x.dtype == 'object' else x) # stripe white space.
-                    self.download_file_list.append(download_file)
-                return True # if no exception
+            if not self.bucket.file_exists_on_s3(key):
+                msg = f'Reading metadata file “{file_info[FILE_NAME]}.” failed - file not found.'
+                self.log.exception(msg)
+                file_info[ERRORS] = [msg]
+                self.batch[ERRORS].append(msg)
+                return False
+            self.bucket.download_file(key, download_file)
+            if os.path.isfile(download_file):
+                df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE)
+                self.df = (df.rename(columns=lambda x: x.strip())).apply(lambda x: x.str.strip() if x.dtype == 'object' else x) # stripe white space.
+                self.download_file_list.append(download_file)
+            return True # if no exception
         except ClientError as ce:
             self.df = None
             self.log.exception(ce)
             self.log.exception(f"Failed to download file, {file_info[FILE_NAME]}. {get_exception_msg()}.")
-            file_info[ERRORS] = [f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.']
-            self.batch[ERRORS].append(f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.')
+            msg = f'Reading metadata file “{file_info[FILE_NAME]}.” failed - network error. Please try again and contact the helpdesk if this error persists.'
+            file_info[ERRORS] = [msg]
+            self.batch[ERRORS].append(msg)
             return False
         except pd.errors.ParserError as pe:
             self.df = None
@@ -263,15 +293,17 @@ class EssentialValidator:
             self.df = None
             self.log.exception(ue)
             self.log.exception('Invalid metadata file! non UTF-8 character(s) found.')
-            file_info[ERRORS] = [f'“{file_info[FILE_NAME]}”: non UTF-8 character(s) found.']
-            self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}”: non UTF-8 character(s) found')
+            msg = f'“{file_info[FILE_NAME]}”: non UTF-8 character(s) found.'
+            file_info[ERRORS] = [msg]
+            self.batch[ERRORS].append(msg)
             return False
         except Exception as e:
             self.df = None
             self.log.exception(e)
             self.log.exception('Invalid metadata file! Check debug log for detailed information.')
-            file_info[ERRORS] = [f'“{file_info[FILE_NAME]}”: is not a valid TSV file.']
-            self.batch[ERRORS].append(f'“{file_info[FILE_NAME]}”: is not a valid TSV file.')
+            msg = f'“{file_info[FILE_NAME]}”: is not a valid TSV file.'
+            file_info[ERRORS] = [msg]
+            self.batch[ERRORS].append(msg)
             return False
     
     def validate_data(self, file_info):
@@ -348,10 +380,11 @@ class EssentialValidator:
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
+            file_info[NODE_TYPE] = ""
             return False
         else: 
             type = self.df[TYPE].iloc[0]
-            file_info[NODE_TYPE] = type
+            file_info[NODE_TYPE] = type if not pd.isnull(type) else ""
             nan_count = self.df.isnull().sum()[TYPE] #check if any rows with empty node type
             if nan_count > 0: 
                 msg = f'“{file_info[FILE_NAME]}”: “type” value is required'
@@ -381,77 +414,78 @@ class EssentialValidator:
                             return False
                         line_num += 1
 
-        # check missing required proper 
-        required_props = self.model.get_node_req_props(type)
         id_field = self.model.get_node_id(type)
-        missed_props = [ prop for prop in required_props if prop not in columns and prop != id_field]
-        if len(missed_props) > 0:
-            msg = f'“{file_info[FILE_NAME]}”: '
-            msg += f'Properties {json.dumps(missed_props)} are required.' if len(missed_props) > 1 else f'Property "{missed_props[0]}" is required.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
-
-        # check relationship
-        rel_props = [rel for rel in columns if "." in rel and not re.search('\.\d*$',rel)]
-        rel_result, msgs = self.check_relationship(file_info, type, rel_props)
-        if not rel_result:
-            self.log.error(msgs)
-            file_info[ERRORS].extend(msgs)
-            self.batch[ERRORS].extend(msgs)
-
-        # extract ids from df.
+        # check if missing id property
         if id_field and not id_field in columns: 
             msg = f'“{file_info[FILE_NAME]}”: Key property “{id_field}” is required.'
             self.log.error(msg)
             file_info[ERRORS].append(msg)
             self.batch[ERRORS].append(msg)
             return False
-        # new requirement to check if id property value is empty
+        #check if id property value is empty
         nan_count = self.df.isnull().sum()[id_field]
         if nan_count > 0: 
-            msg = f'“{file_info[FILE_NAME]}”:  Key property “{id_field}” value is required.'
-            self.log.error(msg)
-            file_info[ERRORS].append(msg)
-            self.batch[ERRORS].append(msg)
+            nan_rows = self.df[self.df[id_field].isnull()].to_dict("index")
+            for key in nan_rows.keys():
+                msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  Key property “{id_field}” value is required.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
             return False
-        
-        # check duplicate rows with the same nodeID
-        duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
-        if len(duplicate_ids) > 0:
-            if len(rel_props) == 0 or not rel_result:
-                msg = f'“{file_info[FILE_NAME]}: duplicated data detected: “{id_field}”: {json.dumps(duplicate_ids)}.'
+        if self.submission_intention != SUBMISSION_INTENTION_DELETE: 
+            # check missing required proper 
+            required_props = self.model.get_node_req_props(type)
+            missed_props = [ prop for prop in required_props if prop not in columns and prop != id_field]
+            if len(missed_props) > 0:
+                msg = f'“{file_info[FILE_NAME]}”: '
+                msg += f'Properties {json.dumps(missed_props)} are required.' if len(missed_props) > 1 else f'Property "{missed_props[0]}" is required.'
                 self.log.error(msg)
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
-                return False  
-            # check many-to-many relationship
-            result = self.check_m2m_relationship(columns, duplicate_ids, id_field, rel_props, file_info)
-            if not result:
-                  return False 
-                  
-        if self.batch[BATCH_INTENTION] in [INTENTION_NEW, INTENTION_DELETE]:
-            ids = self.df[id_field].tolist() 
-            # query db to find existed nodes in current submission.  
-            existed_nodes = self.mongo_dao.check_metadata_ids(type, ids, self.submission_id)  
-            existed_ids = [item[NODE_ID] for item in existed_nodes]  
-            # When metadata intention is "New", all IDs must not exist in the database 
-            if len(existed_ids) > 0 and self.batch[BATCH_INTENTION] == INTENTION_NEW:
-                msg = f'“{file_info[FILE_NAME]}”: duplicated data detected: “{id_field}”: {json.dumps(existed_ids)}'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
-                return False
-            # When metadata intention is "Delete", all IDs must exist in the database 
-            elif self.batch[BATCH_INTENTION] == INTENTION_DELETE:
-                not_existed_ids = list(set(ids) - set(existed_ids))
-                if len(not_existed_ids) > 0:
-                    msg = f'“{file_info[FILE_NAME]}”: metadata not found: “{type}”: {json.dumps(not_existed_ids)}'
+            # check relationship
+            rel_props = [rel for rel in columns if "." in rel and not re.search('\.\d*$',rel)]
+            rel_result, msgs = self.check_relationship(file_info, type, rel_props)
+            if not rel_result:
+                self.log.error(msgs)
+                file_info[ERRORS].extend(msgs)
+                self.batch[ERRORS].extend(msgs)
+            
+            # check duplicate rows with the same nodeID
+            duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
+            if len(duplicate_ids) > 0:
+                if len(rel_props) == 0 or not rel_result:
+                    duplicated_rows = self.df[self.df[id_field].isin(duplicate_ids)].to_dict("index")
+                    for key, val in duplicated_rows.items():
+                        msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}”: "{val[id_field]}".'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                    return False  
+                # check many-to-many relationship
+                result = self.check_m2m_relationship(columns, duplicate_ids, id_field, rel_props, file_info)
+                if not result:
+                    return False 
+        else:
+            if type in self.def_file_nodes:
+                # check is file name property is empty
+                if self.def_file_name not in columns:
+                    msg = f'“{file_info[FILE_NAME]}”: '
+                    msg += f'Property "{self.def_file_name}" is required.'
                     self.log.error(msg)
                     file_info[ERRORS].append(msg)
                     self.batch[ERRORS].append(msg)
                     return False
-   
+                #check if file name property value is empty
+                nan_count = self.df.isnull().sum()[self.def_file_name]
+                if nan_count > 0: 
+                    nan_rows = self.df[self.df[self.def_file_name].isnull()].to_dict("index")
+                    for key in nan_rows.keys():
+                        msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  file name property “{self.def_file_name}” value is required.'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                    return False
+                
         return True if len(self.batch[ERRORS]) == 0 else False
     """
     validate many to many relationship
@@ -538,7 +572,5 @@ class EssentialValidator:
     def close(self):
         if self.bucket:
             del self.bucket
-
-    
 
 

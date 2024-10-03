@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-
 import pandas as pd
 import json
 from datetime import datetime
@@ -7,12 +6,15 @@ from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
-    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, \
-    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL
+    NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, ORIN_FILE_NAME, \
+    VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
+    SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, \
+    SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
+from x_submission_validator import CrossSubmissionValidator
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
@@ -53,24 +55,31 @@ def metadataValidate(configs, job_queue, mongo_dao):
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
-                    # Make sure job is in correct format
-                    if data.get(SQS_TYPE) == "Validate Metadata" and data.get(SUBMISSION_ID) and data.get(SCOPE):
-                        extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
+                    extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
+                    submission_id = data.get(SUBMISSION_ID)
+                    if data.get(SQS_TYPE) == TYPE_METADATA_VALIDATE and submission_id and data.get(SCOPE) and data.get(VALIDATION_ID):
                         scope = data[SCOPE]
-                        submission_id = data[SUBMISSION_ID]
                         validator = MetaDataValidator(mongo_dao, model_store)
                         status = validator.validate(submission_id, scope)
-                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None)
+                        validation_id = data[VALIDATION_ID]
+                        validation_end_at = current_datetime()
+                        mongo_dao.update_validation_status(validation_id, status, validation_end_at)
+                        validator.submission[VALIDATION_ENDED] = validation_end_at
+                        mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None)
+                    elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and submission_id:
+                        validator = CrossSubmissionValidator(mongo_dao)
+                        status = validator.validate(submission_id)
+                        if validator.submission:
+                            mongo_dao.set_submission_validation_status(validator.submission, None, None, status, None)
                     else:
                         log.error(f'Invalid message: {data}!')
-
                     log.info(f'Processed {SERVICE_TYPE_METADATA} validation for the submission: {data[SUBMISSION_ID]}!')
                     batches_processed += 1
                     msg.delete()
                 except Exception as e:
                     log.exception(e)
                     log.critical(
-                        f'Something wrong happened while processing file! Check debug log for details.')
+                        f'Something wrong happened while processing metadata! Check debug log for details.')
                 finally:
                     if validator:
                         del validator
@@ -83,11 +92,9 @@ def metadataValidate(configs, job_queue, mongo_dao):
 
 
 """ Requirement for the ticket crdcdh-343
-For files: read manifest file and validate local files’ sizes and md5s
 For metadata: validate data folder contains TSV or TXT files
 Compose a list of files to be updated and their sizes (metadata or files)
 """
-
 class MetaDataValidator:
     
     def __init__(self, mongo_dao, model_store):
@@ -100,7 +107,6 @@ class MetaDataValidator:
         self.submission = None
         self.isError = None
         self.isWarning = None
-
 
     def validate(self, submission_id, scope):
         #1. # get data common from submission
@@ -148,15 +154,15 @@ class MetaDataValidator:
         try:
             for record in data_records:
                 status, errors, warnings = self.validate_node(record)
-                # todo set record with status, errors and warnings
+                
                 if errors and len(errors) > 0:
-                    record[ERRORS] = errors
                     self.isError = True
+                    record[ERRORS] = errors
                 else:
                     record[ERRORS] = []
                 if warnings and len(warnings)> 0: 
-                    record[WARNINGS] = warnings
                     self.isWarning = True
+                    record[WARNINGS] = warnings
                 else:
                     record[WARNINGS] = []
 
@@ -183,23 +189,34 @@ class MetaDataValidator:
         # set default return values
         errors = []
         warnings = []
-        msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
-        node_keys = self.model.get_node_keys()
-        node_type = data_record.get("nodeType")
-        if not node_type or node_type not in node_keys:
-            return STATUS_ERROR,[create_error("Invalid node type", f'{msg_prefix} Node type “{node_type}” is not defined')], None
+        msg_prefix = f'[{data_record.get(ORIN_FILE_NAME)}: line {data_record.get("lineNumber")}]'
+        node_type = data_record.get(NODE_TYPE)
+        def_file_nodes = self.model.get_file_nodes()
+        # submission-level validation
+        sub_intention = self.submission.get(SUBMISSION_INTENTION)
         try:
             # call validate_required_props
-            result_required= self.validate_required_props(data_record)
+            result_required= self.validate_required_props(data_record, msg_prefix) if sub_intention != SUBMISSION_INTENTION_DELETE else self.validate_file_name(data_record, def_file_nodes, node_type, msg_prefix)
             # call validate_prop_value
-            result_prop_value = self.validate_props(data_record)
+            result_prop_value = self.validate_props(data_record, msg_prefix) if sub_intention != SUBMISSION_INTENTION_DELETE else {}
             # call validate_relationship
-            result_rel = self.validate_relationship(data_record)
+            result_rel = self.validate_relationship(data_record, msg_prefix) if sub_intention != SUBMISSION_INTENTION_DELETE else {}
 
             # concatenation of all errors
             errors = result_required.get(ERRORS, []) +  result_prop_value.get(ERRORS, []) + result_rel.get(ERRORS, [])
             # concatenation of all warnings
             warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
+            #check if existed nodes in release collection
+            if sub_intention and sub_intention in [SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE]:
+                exist_releases = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
+                if sub_intention == SUBMISSION_INTENTION_NEW_UPDATE and (exist_releases and len(exist_releases) > 0):
+                    # check if file node
+                    if not node_type in def_file_nodes:
+                        warnings.append(create_error("Updating existing data", f'{msg_prefix} “{node_type}”: {{“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}"}} already exists and will be updated.'))
+                    else:
+                        warnings.append(create_error("Updating existing data", f'{msg_prefix} “{node_type}”: {{“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}"}} already exists and will be updated. Its associated data file will also be replaced if uploaded.'))
+                elif sub_intention == SUBMISSION_INTENTION_DELETE and (not exist_releases or len(exist_releases) == 0):
+                    errors.append(create_error("Data not found", f'{msg_prefix} The node to be deleted {{“{node_type}”: “{data_record[NODE_ID]}"}} does not exist in the Data Commons repository.'))
             # if there are any errors set the result to "Error"
             if len(errors) > 0:
                 return STATUS_ERROR, errors, warnings
@@ -210,14 +227,13 @@ class MetaDataValidator:
             self.log.exception(e)
             msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
-            error = create_error("Internal error", "{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("Internal error", "Metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return STATUS_ERROR,[error], None
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors, warnings
     
-    def validate_required_props(self, data_record):
+    def validate_required_props(self, data_record, msg_prefix):
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
-        msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
         # check the correct format from the data_record
         if "nodeType" not in data_record.keys() or "props" not in data_record.keys() or len(data_record[PROPERTIES].items()) == 0:
             result[ERRORS].append(create_error("Invalid node", f'{msg_prefix} "nodeType" or "props" is empty.'))
@@ -241,7 +257,7 @@ class MetaDataValidator:
                 for item in results:
                     if item[ID] == data_record[ID]:
                         continue
-                    duplicates += f'"{item.get("orginalFileName")}" line {item.get("lineNumber")},'
+                    duplicates += f'"{item.get(ORIN_FILE_NAME)}" line {item.get("lineNumber")},'
                 duplicates = duplicates.strip(",")    
                 result[ERRORS].append(create_error("Duplicate IDs", f'{msg_prefix} same ID also appears in {duplicates}.'))
 
@@ -267,20 +283,31 @@ class MetaDataValidator:
             result["result"] = STATUS_PASSED
         return result
     
-    def validate_props(self, dataRecord):
+    def validate_file_name(self, data_record, def_file_nodes, node_type, msg_prefix):
+        result = {"result": STATUS_PASSED, ERRORS: [], WARNINGS: []}
+        if node_type not in def_file_nodes.keys():
+            return result
+        
+        # extract a file name property
+        def_file_name = self.model.get_file_name()
+        # check is file name property is empty
+        if def_file_name not in data_record[PROPERTIES].keys() or not data_record[PROPERTIES].get(def_file_name) or not str(data_record[PROPERTIES][def_file_name]).strip():
+            result[ERRORS].append(create_error("Missing required property", f'{msg_prefix} Required property "{def_file_name}" is empty.'))
+            result["result"] = STATUS_ERROR
+
+        return result
+    
+    def validate_props(self, dataRecord, msg_prefix):
         # set default return values
         errors = []
         props_def = self.model.get_node_props(dataRecord.get(NODE_TYPE))
         props = dataRecord.get(PROPERTIES)
-        file_name = dataRecord.get("orginalFileName")
-        line_num = dataRecord.get("lineNumber")
-        msg_prefix = f'[{file_name}: line {line_num}]'
         for k, v in props.items():
             prop_def = props_def.get(k)
             if not prop_def or v is None: 
                 continue
             
-            errs = self.validate_prop_value(k, v, prop_def, file_name, line_num)
+            errs = self.validate_prop_value(k, v, prop_def, msg_prefix)
             if len(errs) > 0:
                 errors.extend(errs)
 
@@ -302,10 +329,9 @@ class MetaDataValidator:
                     parent_node_cache.append(tuple([node.get("nodeType"), key, value]))
         return parent_node_cache
     
-    def validate_relationship(self, data_record):
+    def validate_relationship(self, data_record, msg_prefix):
         # set default return values
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
-        msg_prefix = f'[{data_record.get("orginalFileName")}: line {data_record.get("lineNumber")}]'
         node_type = data_record.get("nodeType")
         node_relationships = self.model.get_node_relationships(node_type)
         if not node_relationships or len(node_relationships) == 0: 
@@ -316,6 +342,7 @@ class MetaDataValidator:
             result["result"] = STATUS_WARNING
             result[ERRORS].append(create_error("Relationship not specified", f'{msg_prefix} All related node IDs are missing. Please ensure at least one related node ID is included.'))
             return result
+
         node_keys = self.model.get_node_keys()
         node_relationships = self.model.get_node_relationships(node_type)
         parent_nodes = self.get_parent_nodes(data_record_parent_nodes)
@@ -397,11 +424,10 @@ class MetaDataValidator:
                 child_id_list = list(set(child_id_list + [item[NODE_ID] for item in children]))
             return child_id_list
 
-    def validate_prop_value(self, prop_name, value, prop_def, file_name, line_num):
+    def validate_prop_value(self, prop_name, value, prop_def, msg_prefix):
         # set default return values
         errors = []
         type = prop_def.get(TYPE)
-        msg_prefix = f'[{file_name}: line {line_num}]'
         if not type or not type in valid_prop_types:
             errors.append(create_error("Invalid property definition", f'{msg_prefix} Property "{prop_name}": “{type}” type is not an allowed property type for this model.'))
         else:
@@ -441,13 +467,13 @@ class MetaDataValidator:
                 if len(errs) > 0:
                     errors.extend(errs)
 
-            elif type == "datetime":
-                try:
-                    val = datetime.strptime(value, DATETIME_FORMAT)
-                except ValueError as e:
-                    errors.append(create_error("Invalid datetime value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid datetime type.'))
+            # elif type == "datetime":
+            #     try:
+            #         val = datetime.strptime(value, DATETIME_FORMAT)
+            #     except ValueError as e:
+            #         errors.append(create_error("Invalid datetime value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid datetime type.'))
 
-            elif type == "date":
+            elif type == "date" or type == "datetime":
                 val = None
                 for date_format in DATE_FORMATS:
                     try:
@@ -500,4 +526,3 @@ def check_boundary(value, min, max, msg_prefix, prop_name):
             errors.append(create_error("Value out of range", f'{msg_prefix}  Property "{prop_name}": "{value}" is above upper bound.'))      
 
     return errors
-

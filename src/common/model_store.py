@@ -2,7 +2,7 @@ import os
 from bento.common.utils import get_logger
 from common.model_reader import YamlModelParser
 from common.model import DataModel
-from common.constants import MODELS_DEFINITION_FILE, LIST_DELIMITER_PROP
+from common.constants import MODELS_DEFINITION_FILE, LIST_DELIMITER_PROP, DEF_MAIN_NODES
 from common.utils import download_file_to_dict, get_exception_msg
 
 
@@ -13,6 +13,7 @@ DEF_VERSION = "current-version"
 MODE_ID_FIELDS = "id_fields"
 DEF_SEMANTICS = "semantics"
 DEF_FILE_NODES = "file-nodes"
+
 class ModelFactory:
     
     def __init__(self, model_def_loc, tier):
@@ -20,7 +21,7 @@ class ModelFactory:
         self.models = None
         msg = None
         # get models definition file, content.json in models dir
-        self.model_def_dir = os.path.join(model_def_loc, tier)
+        self.model_def_dir = os.path.join(model_def_loc, tier + "/cache")
         models_def_file_path = os.path.join(self.model_def_dir, MODELS_DEFINITION_FILE)
         self.models_def = download_file_to_dict(models_def_file_path)
         # to do check if  self.models_def is a dict
@@ -46,9 +47,18 @@ class ModelFactory:
         props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
         delimiter = v.get(LIST_DELIMITER_PROP)
         #process model files for the data common
-        model_reader = YamlModelParser([file_name, props_file_name], dc, delimiter, version)
-        model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES]})
-        self.models.update({model_key(dc, version): model_reader.model})
+        try:
+            model_reader = YamlModelParser([file_name, props_file_name], dc, delimiter, version)
+            model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES], DEF_MAIN_NODES: v[DEF_SEMANTICS][DEF_MAIN_NODES]})
+            self.models.update({model_key(dc, version): model_reader.model})
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to create data model: {data_common}/{version}!"
+            self.log.exception(f"{msg} {get_exception_msg()}")
+
+    """
+    get all models
+    """
 
     """
     get model by data common

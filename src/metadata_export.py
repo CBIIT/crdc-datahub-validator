@@ -1,18 +1,27 @@
 #!/usr/bin/env python3
 import pandas as pd
 import json
+import boto3
+import time
+import threading
+from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
 from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_METADATA, ID, NODE_TYPE, \
     RELEASE, ARCHIVE_RELEASE, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
-    PARENTS, PROPERTIES
-from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg
+    PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
+    SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
+    STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG
+from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
+from dcf_manifest_generator import GenerateDCF
 import threading
 import boto3
 import io
 from service.ecs_agent import set_scale_in_protection
+import os
+import os
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
@@ -20,8 +29,6 @@ BATCH_SIZE = 1000
 """
 Interface for validate files via SQS
 """
-
-
 def metadata_export(configs, job_queue, mongo_dao):
     export_processed = 0
     export_validator = None
@@ -55,21 +62,37 @@ def metadata_export(configs, job_queue, mongo_dao):
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
-                    if not data.get(SQS_TYPE) == TYPE_EXPORT_METADATA or not data.get(SUBMISSION_ID):
+                    if not data.get(SQS_TYPE) in [TYPE_EXPORT_METADATA, TYPE_COMPLETE_SUB, TYPE_GENERATE_DCF] or not data.get(SUBMISSION_ID):
                         pass
-
+                    
                     extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                     submission_id = data[SUBMISSION_ID]
                     submission = mongo_dao.get_submission(submission_id)
-                    export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store)
-                    export_validator.export_data_to_file()
+                    if not submission:
+                        log.error(f'Submission {submission_id} does not exist!')
+                        continue
+                    if data.get(SQS_TYPE) == TYPE_EXPORT_METADATA: 
+                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store, configs)
+                        export_validator.export_data_to_file()
+                        # transfer metadata to destination s3 bucket if error occurred.
+                        export_validator.transfer_release_metadata()
+                    elif data.get(SQS_TYPE) == TYPE_COMPLETE_SUB:
+                        export_validator = ExportMetadata(mongo_dao, submission, None, model_store, configs)
+                        if export_validator.release_data():
+                            export_validator.transfer_released_files()
+                    elif data.get(SQS_TYPE) == TYPE_GENERATE_DCF:
+                        export_validator = GenerateDCF(configs, mongo_dao, submission, S3Service())
+                        export_validator.generate_dcf()
+                    else:
+                        pass
                     export_processed += 1
                     msg.delete()
                 except Exception as e:
-                    log.exception(e)
+                    log.critical(e)
                     log.critical(
-                        f'Something wrong happened while exporting file! Check debug log for details.')
+                        f'Something wrong happened while exporting data! Check debug log for details.')
                 finally:
+                    msg.delete()
                     # De-allocation memory
                     if export_validator:
                         export_validator.close()
@@ -120,19 +143,22 @@ class S3Service:
 
 # Private class
 class ExportMetadata:
-    def __init__(self, mongo_dao, submission, s3_service, model_store):
+    def __init__(self, mongo_dao, submission, s3_service, model_store, configs):
         self.log = get_logger(TYPE_EXPORT_METADATA)
+        self.configs = configs
         self.model_store = model_store
         self.model = None
         self.mongo_dao = mongo_dao
         self.submission = submission
         self.s3_service = s3_service
+        self.intention = submission.get(SUBMISSION_INTENTION)
 
     def close(self):
-        self.s3_service.close(self.log)
+        if self.s3_service:
+            self.s3_service.close(self.log)
 
     def export_data_to_file(self):
-        submission_id, root_path, bucket_name = self.get_submission_info()
+        submission_id, root_path, bucket_name, _, _ = self.get_submission_info()
         if not root_path or not submission_id or not bucket_name:
             self.log(f"{submission_id}: The process of exporting metadata stopped due to incomplete data in the submission.")
 
@@ -149,7 +175,7 @@ class ExportMetadata:
             self.s3_service.archive_s3_if_exists(bucket_name, root_path)
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f'{submission_id}: Failed to archive existed release: {node_type} data: {get_exception_msg()}.')
+            self.log.exception(f'{submission_id}: Failed to archive existed release: {get_exception_msg()}.')
             return
 
         node_types = self.model.get_node_keys()
@@ -177,12 +203,11 @@ class ExportMetadata:
             for r in data_records:
                 node_id = r.get(NODE_ID)
                 crdc_id = r.get(CRDC_ID)
-                self.save_release(r, node_type, node_id, crdc_id)
                 row_list = self.convert_2_row(r, node_type, crdc_id)
                 rows.extend(row_list)
-                if r.get("orginalFileName") != file_name:
+                if r.get(ORIN_FILE_NAME) != file_name:
                     columns.update(row_list[0].keys())
-                    file_name = r.get("orginalFileName") 
+                    file_name = r.get(ORIN_FILE_NAME) 
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
@@ -236,23 +261,68 @@ class ExportMetadata:
         return rows
     
     def upload_file(self, buf, node_type):
-        id, root_path, bucket_name = self.get_submission_info()      
+        id, root_path, bucket_name,_,_ = self.get_submission_info()      
         full_name = f"{ValidationDirectory.get_release(root_path)}/{id}-{node_type}.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
+
+    def release_data(self):
+        submission_id = self.submission[ID]
+        datacommon = self.submission.get(DATA_COMMON_NAME)
+        model_version = self.submission.get(MODEL_VERSION)
+        #1 get data model based on datacommon and version
+        self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
+        if not self.model.model or not self.model.get_nodes():
+            msg = f'{submission_id}: {self.datacommon} model version "{model_version}" is not available.'
+            self.log.error(msg)
+            return False
+        
+        node_types = self.model.get_node_keys()
+        try:
+            #2 retrieve data for nodeType and save data to release collection
+            for node_type in list(node_types)[::-1]:
+                self.save_releases(submission_id, node_type)
+            return True
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f'{submission_id}: Failed to release data: {get_exception_msg()}.')
+            return False
+
+    def save_releases(self, submission_id, node_type):
+        start_index = 0
+        while True:
+            # get nodes by submissionID and nodeType
+            data_records = self.mongo_dao.get_dataRecords_chunk_by_nodeType(submission_id, node_type, start_index, BATCH_SIZE)
+            if start_index == 0 and (not data_records or len(data_records) == 0):
+                return
+            
+            for r in data_records:
+                node_id = r.get(NODE_ID)
+                crdc_id = r.get(CRDC_ID)
+                self.save_release(r, node_type, node_id, crdc_id)
+
+            count = len(data_records) 
+            if count < BATCH_SIZE: 
+                self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are {'released' if self.intention != SUBMISSION_INTENTION_DELETE else 'deleted'}.")
+                return
+
+            start_index += count 
 
     def save_release(self, data_record, node_type, node_id, crdc_id):
         if not node_type or not node_id or not crdc_id:
              self.log.error(f"{self.submission[ID]}: Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
              return
-        existed_crdc_record = self.mongo_dao.get_release(crdc_id)
+        existed_crdc_record = self.mongo_dao.search_release(self.submission.get(DATA_COMMON_NAME), node_type, node_id)
         current_date = current_datetime()
-        if not existed_crdc_record or existed_crdc_record.get(DATA_COMMON_NAME) != self.submission.get(DATA_COMMON_NAME) \
-            or existed_crdc_record.get(NODE_ID) != node_id or existed_crdc_record.get(NODE_TYPE) != node_type:
+        if not existed_crdc_record:
+            if self.submission.get(SUBMISSION_INTENTION) == SUBMISSION_INTENTION_DELETE:
+                self.log.error(f"{self.submission[ID]}: No data found for delete: {self.submission.get(DATA_COMMON_NAME)}/{node_type}/{node_id}/{crdc_id}!")
+                return
             # create new crdc_record
             crdc_record = {
                 ID: get_uuid_str(),
                 CRDC_ID: crdc_id,
                 SUBMISSION_ID: self.submission[ID],
+                SUBMISSION_REL_STATUS: SUBMISSION_REL_STATUS_RELEASED, 
                 DATA_COMMON_NAME: self.submission.get(DATA_COMMON_NAME),
                 NODE_TYPE: node_type,
                 NODE_ID: node_id,
@@ -265,16 +335,63 @@ class ExportMetadata:
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to insert release for {node_type}/{node_id}/{crdc_id}!")
         else: 
-            existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
-            existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
-            existed_crdc_record[PARENTS] = data_record.get(PARENTS)
             existed_crdc_record[UPDATED_AT] = current_date
+            if self.intention == SUBMISSION_INTENTION_DELETE:
+                existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
+            else: 
+                existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
+                existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
+                existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
+                existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED
+
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to update release for {node_type}/{node_id}/{crdc_id}!")
-
+                return
+            # process released children and set release status to "Deleted"
+            if self.intention == SUBMISSION_INTENTION_DELETE:
+                result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[ID])
+                if result and children and len(children) > 0: 
+                    self.delete_release_children(children)
+    
+    def combine_parents(self, node_type, release_parents, node_parents):
+        if not release_parents or len(release_parents) == 0:
+            return node_parents
+        if not node_parents or len(node_parents) == 0:
+            return release_parents
+        relationships = self.model.get_node_relationships(node_type)
+        if node_parents and len(node_parents):
+            for parent in node_parents:
+                relationship = relationships[parent["parentType"]]
+                if not dict_exists_in_list(release_parents, parent, keys=["parentType", "parentIDPropName", "parentIDValue"]):
+                    if relationship["type"] == "many_to_many":
+                        release_parents.append(parent)
+                    else:
+                        rel_parent_list = [p for p in release_parents if p["parentType"] == relationship["dest_node"]]
+                        if not rel_parent_list or len(rel_parent_list) == 0:
+                            release_parents.append(parent)
+                        else:
+                            rel_parent_list[0]["parentIDValue"] = parent["parentIDValue"]
+        return release_parents
+    
+    def delete_release_children(self, released_children):
+        if released_children and len(released_children) > 0:
+            for child in released_children:
+                child[UPDATED_AT] = current_datetime()
+                child[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
+                result = self.mongo_dao.update_release(child)
+                if not result:
+                    self.log.error(f"{self.submission[ID]}: Failed to update release for {child.get(NODE_TYPE)}/{child.get(NODE_ID)}/{child.get(CRDC_ID)}!")
+                    return
+                # process released children and set release status to "Deleted"
+                result, descendent = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], child, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[ID])
+                if result and descendent and len(descendent) > 0: 
+                    self.delete_release_children(descendent)
+        return
+        
     def get_submission_info(self):
-        return [self.submission.get(ID), self.submission.get(EXPORT_ROOT_PATH), self.submission.get(BATCH_BUCKET)]
+        return [self.submission.get(ID), self.submission.get(EXPORT_ROOT_PATH), self.submission.get(BATCH_BUCKET), 
+                self.submission.get(DATA_COMMON_NAME), self.submission.get(STUDY_ID)]
     
     def sort_columns(self, cols, node_type):
         columns = list(cols)
@@ -285,6 +402,112 @@ class ExportMetadata:
         old_index = columns.index(CRDC_ID.lower())
         columns.insert(2, columns.pop(old_index))
         return columns
+    
+    def transfer_release_metadata(self):
+        """
+        transfer released data to cds cbiit metadata bucket by aws datasync
+        """
+        id, root_path, bucket_name, dataCommon, _ = self.get_submission_info()
+        dest_bucket_name = self.mongo_dao.get_bucket_name("Metadata Bucket", dataCommon)
+        dest_file_folder =  f'{get_date_time("%Y-%m-%dT%H:%M:%S")}-{id}'
+        data_file_folder = os.path.join(root_path, "metadata/release")
+        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder)
+    
+    def transfer_released_files(self):
+        """
+        transfer released files includes data files and metadata files to data manage bucket by aws datasync
+        """
+        _, root_path, bucket_name, _, study_id = self.get_submission_info()
+        dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
+        dest_file_folder =  study_id
+        data_file_folder = os.path.join(root_path, "file")
+        self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder )
+
+    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder):
+        """
+        transfer s3 object with AWS DataSync
+        """
+        datasync_role = self.configs.get(DATASYNC_ROLE_ARN_CONFIG)
+        datasync = boto3.client('datasync')
+        try:
+            # Create source S3 location
+            source_location = datasync.create_location_s3(
+                S3BucketArn=f'arn:aws:s3:::{bucket_name}',
+                S3Config={'BucketAccessRoleArn': datasync_role},
+                Subdirectory= f'{data_file_folder}'
+            )
+
+            # Create destination S3 location
+            destination_location = datasync.create_location_s3(
+                S3BucketArn=f'arn:aws:s3:::{dest_bucket_name}',
+                S3Config={'BucketAccessRoleArn': datasync_role},
+                Subdirectory=f'{dest_file_folder}'
+            )
+
+            # Create DataSync task
+            task = datasync.create_task(
+                SourceLocationArn=source_location['LocationArn'],
+                DestinationLocationArn=destination_location['LocationArn'],
+                Name='Data_Hub_SyncTask',
+                Options={
+                    'VerifyMode': 'ONLY_FILES_TRANSFERRED'
+                }
+            )
+            self.log.info(f"DataSync task {task['TaskArn']} created to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}.")
+
+            # Start DataSync task
+            task_execution = datasync.start_task_execution(
+                TaskArn=task['TaskArn']
+            )
+            task_execution_arn = task_execution['TaskExecutionArn']
+            self.log.info(f"Started DataSync task execution: {task_execution_arn}")
+
+            start_monitoring_task(task_execution_arn, task['TaskArn'], datasync, source_location, destination_location, self.log)
+
+        except ClientError as ce:
+            self.log.exception(ce)
+            self.log.exception(f"Failed to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {ce.response['Error']['Message']}")
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {get_exception_msg()}")
+
+
+def start_monitoring_task(task_execution_arn, task_arn, dataSync, source, dest, log):
+            monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_execution_arn, task_arn, dataSync, source, dest, log))
+            monitor_thread.start()
+    
+def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, log, wait_interval=30):
+        # Initialize the DataSync client
+        try:
+            # Poll the task status
+            while True:
+                response = datasync.describe_task_execution(TaskExecutionArn=task_execution_arn)
+                status = response['Status']
+                
+                if status in ['SUCCESS', 'ERROR']:
+                    print(f"Task: {task_arn} completed with status: {status}")
+                    datasync.delete_task(TaskArn=task_arn)
+                    print(f"Task: {task_arn} deleted.")
+                    datasync.delete_location(LocationArn=source['LocationArn'])
+                    print(f"Source location: {source['LocationArn']} is deleted.")
+                    datasync.delete_location(LocationArn=dest['LocationArn'])
+                    print(f"Destination location: {dest['LocationArn']} is deleted.")
+                    
+                    break
+                else:
+                    print(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
+                    time.sleep(wait_interval)
+        except ClientError as ce:
+            log.exception(ce)
+            log.exception(f"Failed to monitor DataSync task {task_arn}: {ce.response['Error']['Message']}")
+        except Exception as e:
+            log.exception(e)
+            log.exception(f"Failed to monitor DataSync task {task_arn}: {get_exception_msg()}")
+        finally:
+            source = None
+            dest = None
+            datasync.close()
+            datasync = None
 
 # Private class
 class ValidationDirectory:
