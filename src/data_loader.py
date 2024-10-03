@@ -85,7 +85,6 @@ class DataLoader:
                     if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
                             ID: id,
-                            CRDC_ID: crdc_id if crdc_id else id,
                             SUBMISSION_ID: self.batch[SUBMISSION_ID],
                             DATA_COMMON_NAME: self.data_common,
                             BATCH_IDS: batchIds,
@@ -108,6 +107,8 @@ class DataLoader:
                             ADDITION_ERRORS: [],
                             ENTITY_TYPE: self.model.get_entity_type(type)
                         }
+                        if crdc_id:
+                            dataRecord["CRDC_ID"] = crdc_id
                         if type in file_types:
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
                         records.append(dataRecord)
