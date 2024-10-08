@@ -495,6 +495,9 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
                 
                 if status in ['SUCCESS', 'ERROR']:
                     print(f"Task: {task_arn} completed with status: {status}")
+                    # wait 5 min or 300 sec for SNS to send notification before delete the tasks.
+                    print(f"Wait 5min before deleting task and locations.")
+                    time.sleep(300)
                     datasync.delete_task(TaskArn=task_arn)
                     print(f"Task: {task_arn} deleted.")
                     datasync.delete_location(LocationArn=source['LocationArn'])
