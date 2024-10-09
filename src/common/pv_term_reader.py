@@ -89,20 +89,20 @@ class TermReader:
         
         # filter properties with enum and value list
         for prop_name, prop in properties.items():
-            if prop.get(PROP_ENUM): 
-                values = prop.get(CDE_TERM)
+            # if prop.get(PROP_ENUM): 
+            #     values = prop.get(CDE_TERM)
             
-            else: 
-                if (prop.get(PROP_TYPE) and isinstance(prop.get(PROP_TYPE), dict) and prop.get(PROP_TYPE).get(VALUE_TYPE) in prop_list_types) and prop.get(PROP_TYPE).get(PROP_ENUM):
-                    values = prop.get(CDE_TERM)
-                else: continue
-
+            # else: 
+            #     if (prop.get(PROP_TYPE) and isinstance(prop.get(PROP_TYPE), dict) and prop.get(PROP_TYPE).get(VALUE_TYPE) in prop_list_types) and prop.get(PROP_TYPE).get(PROP_ENUM):
+            #         values = prop.get(CDE_TERM)
+            #     else: continue
+            values = prop.get(CDE_TERM)
             if values and len(values) > 0:
-                permissive_value_dic[prop_name] = values[0]
-                
+                terms = [term for term in values if 'caDSR' in term.get('Origin', '')]
+                if terms and len(terms) > 0:
+                    permissive_value_dic[prop_name] = terms[0]
             else: 
                 msg = f'No term for the property: {prop_name}!'
-  
         return True, permissive_value_dic, msg
 
 
