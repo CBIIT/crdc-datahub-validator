@@ -193,6 +193,7 @@ class ExportMetadata:
         rows = []
         columns = set()
         file_name = ""
+        main_nodes = self.model.get_main_nodes()
         while True:
             # get nodes by submissionID and nodeType
             data_records = self.mongo_dao.get_dataRecords_chunk_by_nodeType(submission_id, node_type, start_index, BATCH_SIZE)
@@ -200,8 +201,8 @@ class ExportMetadata:
                 return
             
             for r in data_records:
-                node_id = r.get(NODE_ID)
-                crdc_id = r.get(CRDC_ID)
+                # node_id = r.get(NODE_ID)
+                crdc_id = r.get(CRDC_ID) if node_type in main_nodes.keys() else None
                 row_list = self.convert_2_row(r, node_type, crdc_id)
                 rows.extend(row_list)
                 if r.get(ORIN_FILE_NAME) != file_name:
@@ -236,7 +237,11 @@ class ExportMetadata:
         rows = []
         row = data_record.get(PROPERTIES)
         row[TYPE] = node_type
-        row[CRDC_ID.lower()] = crdc_id
+        if crdc_id is not None:
+            row[CRDC_ID.lower()] = crdc_id
+        else:
+            if CRDC_ID.lower() in row.keys():
+                del row[CRDC_ID.lower()]
         rows.append(row)
         parents = data_record.get("parents", None)
         if parents: 
