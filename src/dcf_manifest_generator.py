@@ -81,6 +81,6 @@ class GenerateDCF:
     
     def upload_file(self, buf):
         id, root_path, bucket_name = self.submission[ID], self.submission[ROOT_PATH], self.submission[BATCH_BUCKET]   
-        full_name = f"{root_path}/{EXPORT_METADATA}/dcf_manifest/{get_date_time()}-{id}-indexd.tsv"
+        full_name = f"{root_path}/{EXPORT_METADATA}/release/dcf_manifest/{get_date_time()}-{id}-indexd.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
         
