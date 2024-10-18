@@ -433,11 +433,11 @@ class MetaDataValidator:
             errors.append(create_error("Invalid property definition", f'{msg_prefix} Property "{prop_name}": “{type}” type is not an allowed property type for this model.'))
         else:
             val = None
-            permissive_vals = self.get_permissive_value(prop_def)
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
             if type == "string":
                 val = str(value)
+                permissive_vals = self.get_permissive_value(prop_def)
                 result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
                 if not result:
                     errors.append(error)
@@ -489,7 +489,10 @@ class MetaDataValidator:
                 if not isinstance(value, bool) and value not in ["yes", "true", "no", "false"]:
                     errors.append(create_error("Invalid boolean value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid boolean type.'))
             
-            elif type == "array" or type == "value-list":
+            elif (type == "array" or type == "value-list"):
+                permissive_vals = self.get_permissive_value(prop_def)
+                if not permissive_vals or len(permissive_vals) == 0:
+                    return errors #skip validation by crdcdh-1723
                 val = str(value)
                 list_delimiter = self.model.get_list_delimiter()
                 arr = val.split(list_delimiter) if list_delimiter in val else [value]
@@ -513,7 +516,7 @@ class MetaDataValidator:
             cde_term = prop_def[CDE_TERM][0]
             cde_code = cde_term.get(TERM_CODE) 
             cde_version = cde_term.get(TERM_VERSION)
-            if not cde_code or not cde_version:
+            if not cde_code:
                 return permissive_vals
             
             cde = self.mongo_dao.get_cde_permissible_values(cde_code, cde_version)
@@ -524,10 +527,12 @@ class MetaDataValidator:
                 # call pv_puller to get permissible values from caDSR
                 cde = get_pv_by_code_version(self.config, cde_code, cde_version)
                 if cde:
-                    self.mongo_dao.insert_cde([cde])
-                    if cde.get(CDE_PERMISSIVE_VALUES) and len(cde[CDE_PERMISSIVE_VALUES]) > 0:
-                        permissive_vals = cde[CDE_PERMISSIVE_VALUES]
-                        
+                    if cde.get(CDE_PERMISSIVE_VALUES):
+                        if len(cde[CDE_PERMISSIVE_VALUES]) > 0:                        
+                            permissive_vals = cde[CDE_PERMISSIVE_VALUES]
+                        else:
+                            permissive_vals =  None #escape validation
+                    self.mongo_dao.insert_cde([cde])  
         return permissive_vals
     
 """util functions"""
