@@ -1003,8 +1003,11 @@ class MongoDao:
     def get_cde_permissible_values(self, cde_code, cde_version):
         db = self.client[self.db_name]
         data_collection = db[CDE_COLLECTION]
+        query = {CDE_CODE: cde_code}
+        if cde_version:
+            query[CDE_VERSION] = cde_version
         try:
-            return data_collection.find_one({CDE_CODE: cde_code, CDE_VERSION: cde_version})
+            return data_collection.find_one(query, sort=[( 'CDE_VERSION', DESCENDING )])  #find latest version 
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to get permissible values for {cde_code}/{cde_version}: {get_exception_msg()}")
