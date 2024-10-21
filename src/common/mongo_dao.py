@@ -7,7 +7,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
-    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE
+    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION
 from common.utils import get_exception_msg, current_datetime
 
 MAX_SIZE = 10000
@@ -1016,6 +1016,67 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to get permissible values for {cde_code}/{cde_version}: {get_exception_msg()}")
             return None
+    """
+    get qc record by qc_id
+    :param qc_id:
+    """
+    def get_qcRecord(self, qc_id):
+        db = self.client[self.db_name]
+        data_collection = db[QC_COLLECTION]
+        try:
+            return data_collection.find_one({ID: qc_id})
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get qc record for {qc_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get qc record for {qc_id}: {get_exception_msg()}")
+            return None
+
+    """
+    delete qc record by qc_id
+    :param qc_id:
+    """   
+    def delete_qcRecord(self, qc_id):
+        db = self.client[self.db_name]
+        data_collection = db[QC_COLLECTION]
+        try:
+            result = data_collection.delete_one({ID: qc_id})
+            return True if result.deleted_count > 0 else False
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to delete qc record for {qc_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to delete qc record for {qc_id}: {get_exception_msg()}")
+            return False
+
+    """
+    save  rt qc records
+    :param qc_list:
+    """   
+    def save_qc_results(self, qc_list):
+        db = self.client[self.db_name]
+        data_collection = db[QC_COLLECTION]
+        try:
+            result = data_collection.bulk_write([
+                ReplaceOne({ID: m[ID]}, remove_id(m), upsert=True)
+                    for m in list(qc_list)
+                ])
+            self.log.info(f'Total {result.upserted_count} QC records are upserted!')
+            return True, None
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            msg = f"Failed to upsert QC records ."
+            self.log.exception(msg)
+            return False, msg
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to upsert QC records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg
     
 """
 remove _id from records for update

@@ -179,3 +179,6 @@ TERM_CODE = "Code"
 TERM_VERSION = "Version"
 
 ENTITY_TYPE = "entityType"
+
+QC_RESULT_ID = "qcResultID"
+QC_COLLECTION = "qcResults"
