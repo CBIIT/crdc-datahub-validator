@@ -182,3 +182,5 @@ ENTITY_TYPE = "entityType"
 
 QC_RESULT_ID = "qcResultID"
 QC_COLLECTION = "qcResults"
+VALIDATION_TYPE_METADATA = "metadata"
+VALIDATION_TYPE_FILE= "data file"
