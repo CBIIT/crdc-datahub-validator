@@ -157,6 +157,7 @@ class MetaDataValidator:
         try:
             for record in data_records:
                 qc_result = self.get_qc_result(record)
+                record[QC_RESULT_ID] = qc_result[ID]
                 status, errors, warnings = self.validate_node(record)
                 
                 if errors and len(errors) > 0:
