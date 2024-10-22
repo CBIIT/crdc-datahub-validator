@@ -39,7 +39,7 @@ class ModelFactory:
     create a data model dict by parsing yaml model files
     """
     def create_model(self, data_common, version):
-        dc = data_common.upper()
+        dc = data_common
         v = self.models_def[dc]
         model_dir = os.path.join(self.model_def_dir, os.path.join(dc, version))
         #process model files for the data common
@@ -64,7 +64,7 @@ class ModelFactory:
     get model by data common
     """       
     def get_model_by_data_common(self, data_common):
-        dc = data_common.upper()
+        dc = data_common
         v = self.models_def[dc]
         version = v[DEF_VERSION]
         model = self.models.get(model_key(dc, version))
@@ -89,7 +89,7 @@ class ModelFactory:
             return self.get_model_by_data_common(data_common)
         
 def model_key(data_common, version):
-    return f"{data_common.upper()}_{version}"
+    return f"{data_common}_{version}"
         
        
         

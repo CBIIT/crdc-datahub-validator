@@ -48,7 +48,7 @@ class TermReader:
     create a CDE term dict by parsing yaml model property file
     """
     def create_cde(self, data_common, version):
-        dc = data_common.upper()
+        dc = data_common
         v = self.models_def[dc]
         model_dir = os.path.join(self.model_def_dir, os.path.join(dc, version))
         #process model files for the data common
