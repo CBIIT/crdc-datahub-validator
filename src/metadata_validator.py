@@ -157,9 +157,7 @@ class MetaDataValidator:
         try:
             for record in data_records:
                 qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
-                record[QC_RESULT_ID] = qc_result[ID]
                 status, errors, warnings = self.validate_node(record)
-                
                 if errors and len(errors) > 0:
                     self.isError = True
                     # record[ERRORS] = errors
@@ -176,36 +174,35 @@ class MetaDataValidator:
                 else:
                     # record[WARNINGS] = []
                     qc_result[WARNINGS] = []
-                    qc_result = None #as Austin mentioned, only record rcResult with issues.
 
-                record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
-                if qc_result:
+                if not self.isError and not self.isWarning:
+                    qc_result = None #as Austin mentioned, only record rcResult with issues.
+                else:
                     qc_result["validatedDate"] = current_datetime()
                     qc_results.append(qc_result)
+                    record[QC_RESULT_ID] = qc_result[ID]
                 validated_count += 1
         except Exception as e:
             self.log.exception(e)
             msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
             self.isError = True 
+
         #3. update data records based on record's _id
+        if len(qc_results) > 0:
+            result = self.mongo_dao.save_qc_results(qc_results)
+            if not result:
+                msg = f'Failed to save qcResults for the submission, {self.submission_id} at scope, {self.scope}!'
+                self.log.error(msg)
+                
         result = self.mongo_dao.update_data_records_status(updated_records)
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.error(msg)
             self.isError = True
-
-        #4 save qcResults
-        if len(qc_results) > 0:
-            result = self.mongo_dao.save_qc_results(qc_results)
-            if not result:
-                msg = f'Failed to save qcResults for the submission, {self.submission_id} at scope, {self.scope}!'
-                self.log.error(msg)
-                self.isError = True
-
         return validated_count
 
     def validate_node(self, data_record):
@@ -457,9 +454,9 @@ class MetaDataValidator:
             val = None
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
+            permissive_vals = self.get_permissive_value(prop_def)
             if type == "string":
                 val = str(value)
-                permissive_vals = self.get_permissive_value(prop_def)
                 result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
                 if not result:
                     errors.append(error)
@@ -512,7 +509,6 @@ class MetaDataValidator:
                     errors.append(create_error("Invalid boolean value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid boolean type.'))
             
             elif (type == "array" or type == "value-list"):
-                permissive_vals = self.get_permissive_value(prop_def)
                 if not permissive_vals or len(permissive_vals) == 0:
                     return errors #skip validation by crdcdh-1723
                 val = str(value)

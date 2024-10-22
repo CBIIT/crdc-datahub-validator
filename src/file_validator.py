@@ -140,6 +140,7 @@ class FileValidator:
             qc_result = get_qc_result(fileRecord, self.submission, VALIDATION_TYPE_FILE, self.mongo_dao)
             self.set_status(fileRecord, qc_result, status, error)
             if qc_result: # save QC result
+                fileRecord[S3_FILE_INFO][QC_RESULT_ID] = qc_result[ID]
                 qc_result["validatedDate"] = current_datetime
                 self.mongo_dao.save_qc_results([qc_result])
             return status
