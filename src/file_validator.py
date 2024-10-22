@@ -137,11 +137,13 @@ class FileValidator:
                 return STATUS_PASSED
             # validate individual file
             status, error = self.validate_file(fileRecord)
-            qc_result = get_qc_result(fileRecord, self.submission, VALIDATION_TYPE_FILE, self.mongo_dao)
+            qc_result = None
+            if status == STATUS_ERROR or status == STATUS_WARNING:
+                qc_result = get_qc_result(fileRecord, self.submission, VALIDATION_TYPE_FILE, self.mongo_dao)
             self.set_status(fileRecord, qc_result, status, error)
             if qc_result: # save QC result
                 fileRecord[S3_FILE_INFO][QC_RESULT_ID] = qc_result[ID]
-                qc_result["validatedDate"] = current_datetime
+                qc_result["validatedDate"] = current_datetime()
                 self.mongo_dao.save_qc_results([qc_result])
             return status
         except Exception as e: #catch all unhandled exception
@@ -386,13 +388,11 @@ class FileValidator:
         record[S3_FILE_INFO][UPDATED_AT] = current_datetime()
         if status == STATUS_ERROR:
             record[S3_FILE_INFO][STATUS] = STATUS_ERROR
-            record[S3_FILE_INFO][QC_RESULT_ID] = qc_result[ID]
             qc_result[ERRORS] = [error]
             qc_result[WARNINGS] = []
             
         elif status == STATUS_WARNING: 
             record[S3_FILE_INFO][STATUS] = STATUS_WARNING
-            record[S3_FILE_INFO][QC_RESULT_ID] = qc_result[ID]
             qc_result[WARNINGS] = [error]
             qc_result[ERRORS] = []
             

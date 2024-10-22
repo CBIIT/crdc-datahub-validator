@@ -175,14 +175,14 @@ class MetaDataValidator:
                     # record[WARNINGS] = []
                     qc_result[WARNINGS] = []
 
-                record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
-                updated_records.append(record)
                 if not self.isError and not self.isWarning:
                     qc_result = None #as Austin mentioned, only record rcResult with issues.
                 else:
                     qc_result["validatedDate"] = current_datetime()
                     qc_results.append(qc_result)
                     record[QC_RESULT_ID] = qc_result[ID]
+                record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
+                updated_records.append(record)
                 validated_count += 1
         except Exception as e:
             self.log.exception(e)
@@ -583,12 +583,12 @@ def check_boundary(value, min, max, msg_prefix, prop_name):
 get qc result for the node record by qc_id
 """
 def get_qc_result(node, submission, validation_type, mongo_dao):
-    qc_id = node.get(QC_RESULT_ID) if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO][QC_RESULT_ID]
+    qc_id = node.get(QC_RESULT_ID) if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get(QC_RESULT_ID)
     rc_result = None
     if not qc_id:
         rc_result = create_new_qc_result(node, submission, validation_type)
     else: 
-        rc_result = mongo_dao.get_qc_result(qc_id)
+        rc_result = mongo_dao.get_qcRecord(qc_id)
         if not rc_result:
             rc_result = create_new_qc_result(node, submission, validation_type)
     return rc_result

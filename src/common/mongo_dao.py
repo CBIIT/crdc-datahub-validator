@@ -7,7 +7,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
-    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION
+    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID
 from common.utils import get_exception_msg, current_datetime
 
 MAX_SIZE = 10000
@@ -347,7 +347,7 @@ class MongoDao:
         try:
             result = file_collection.bulk_write([
                 UpdateOne( {ID: m[ID]}, 
-                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], ERRORS: m.get(ERRORS, []), WARNINGS: m.get(WARNINGS, [])}})
+                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], QC_RESULT_ID: m.get(QC_RESULT_ID)}})
                     for m in list(data_records)
                 ])
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')
