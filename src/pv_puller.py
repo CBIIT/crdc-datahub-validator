@@ -56,21 +56,21 @@ class PVPuller:
                 for prop_name, term in props.items():
                     cde_id = term.get(TERM_CODE)
                     if not cde_id:
-                        self.log.error(f"No CDE id found for {data_common}:{prop_name}")
+                        self.log.info(f"No CDE id found for {data_common}:{prop_name}")
                         continue
                     cde_origin = term.get("Origin")
                     if not cde_origin or not "caDSR" in cde_origin:
                         continue
                     cde_id = str(cde_id)
                     if not cde_id.isdigit(): # skip non-numeric cde codes
-                        self.log.error(f"CDE id is invalid for {data_common}:{prop_name}: {cde_id}")
+                        self.log.info(f"CDE id is invalid for {data_common}:{prop_name}: {cde_id}")
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE code."})
                         continue
                     cde_version = term.get(TERM_VERSION)
-                    if not cde_version:
-                        self.log.error(f"No CDE version found for {data_common}:{prop_name}: {cde_id}")
-                        no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE version."})
-                        continue
+                    # if not cde_version:
+                    #     self.log.error(f"No CDE version found for {data_common}:{prop_name}: {cde_id}")
+                    #     no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE version."})
+                    #     continue
                     
                     # check if cde exists in db
                     count = self.mongo_dao.count_docs(CDE_COLLECTION,{CDE_CODE: cde_id, CDE_VERSION: cde_version})
@@ -113,17 +113,20 @@ def get_pv_by_code_version(configs, log, data_common, prop_name,cde_code, cde_ve
     api_client = APIInvoker(configs)
     result = api_client.get_data_element_by_cde_code(cde_code, configs[CDE_API_URL], cde_version)
     if not result or not result.get(CADSR_DATA_ELEMENT) or not result[CADSR_DATA_ELEMENT].get(CADSR_VALUE_DOMAIN):
-        log.error(f"No data element found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
+        log.info(f"No data element found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
         return None, "No CDE element found."
     pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CADSR_PERMISSIVE_VALUES)
     cde_long_name = result[CADSR_DATA_ELEMENT].get(CADSR_DATA_ELEMENT_LONG_NAME)
     if not pv_list or len(pv_list) == 0:
-        log.error(f"No permissive values found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
+        log.info(f"No permissive values found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
         msg = "No CDE permissive values defined for the CDE code."
         pv_list = []
     else:
-        pv_list = [ item["value"] for item in pv_list]
-
+        contains_http = any(s for s in pv_list if "http://" in s or "https://" in s)
+        if not contains_http:
+            pv_list = [ item["value"] for item in pv_list]
+        else: 
+            pv_list = None #new requirement in CRDCDH-1723
     return {
         ID: get_uuid_str(),
         "CDEFullName": cde_long_name,
