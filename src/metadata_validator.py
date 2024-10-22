@@ -435,9 +435,9 @@ class MetaDataValidator:
             val = None
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
+            permissive_vals = self.get_permissive_value(prop_def)
             if type == "string":
                 val = str(value)
-                permissive_vals = self.get_permissive_value(prop_def)
                 result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
                 if not result:
                     errors.append(error)
@@ -490,7 +490,6 @@ class MetaDataValidator:
                     errors.append(create_error("Invalid boolean value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid boolean type.'))
             
             elif (type == "array" or type == "value-list"):
-                permissive_vals = self.get_permissive_value(prop_def)
                 if not permissive_vals or len(permissive_vals) == 0:
                     return errors #skip validation by crdcdh-1723
                 val = str(value)
