@@ -9,8 +9,9 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, ORIN_FILE_NAME, \
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
     SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, \
-    SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES
-from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
+    SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
+    QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO
+from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
@@ -151,23 +152,35 @@ class MetaDataValidator:
     def validate_nodes(self, data_records):
         #2. loop through all records and call validateNode
         updated_records = []
+        qc_results = []
         validated_count = 0
         try:
             for record in data_records:
+                qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
                 status, errors, warnings = self.validate_node(record)
-                
                 if errors and len(errors) > 0:
                     self.isError = True
-                    record[ERRORS] = errors
+                    # record[ERRORS] = errors
+                    qc_result[ERRORS] = errors
+                    qc_result["severity"] = "Error"
                 else:
-                    record[ERRORS] = []
+                    # record[ERRORS] = []
+                    qc_result[ERRORS] = []
                 if warnings and len(warnings)> 0: 
                     self.isWarning = True
-                    record[WARNINGS] = warnings
+                    # record[WARNINGS] = warnings
+                    qc_result[WARNINGS] = warnings
+                    qc_result["severity"] = "Warning"
                 else:
-                    record[WARNINGS] = []
+                    # record[WARNINGS] = []
+                    qc_result[WARNINGS] = []
 
-                record[STATUS] = status
+                if not self.isError and not self.isWarning:
+                    qc_result = None #as Austin mentioned, only record rcResult with issues.
+                else:
+                    qc_result["validatedDate"] = current_datetime()
+                    qc_results.append(qc_result)
+                    record[QC_RESULT_ID] = qc_result[ID]
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
                 validated_count += 1
@@ -176,14 +189,20 @@ class MetaDataValidator:
             msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
             self.isError = True 
+
         #3. update data records based on record's _id
+        if len(qc_results) > 0:
+            result = self.mongo_dao.save_qc_results(qc_results)
+            if not result:
+                msg = f'Failed to save qcResults for the submission, {self.submission_id} at scope, {self.scope}!'
+                self.log.error(msg)
+                
         result = self.mongo_dao.update_data_records_status(updated_records)
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.error(msg)
             self.isError = True
-
         return validated_count
 
     def validate_node(self, data_record):
@@ -533,6 +552,7 @@ class MetaDataValidator:
                             permissive_vals =  None #escape validation
                     self.mongo_dao.insert_cde([cde])  
         return permissive_vals
+   
     
 """util functions"""
 def check_permissive(value, permissive_vals, msg_prefix, prop_name):
@@ -558,3 +578,32 @@ def check_boundary(value, min, max, msg_prefix, prop_name):
             errors.append(create_error("Value out of range", f'{msg_prefix}  Property "{prop_name}": "{value}" is above upper bound.'))      
 
     return errors
+
+"""
+get qc result for the node record by qc_id
+"""
+def get_qc_result(node, submission, validation_type, mongo_dao):
+    qc_id = node.get(QC_RESULT_ID) if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get(QC_RESULT_ID)
+    rc_result = None
+    if not qc_id:
+        rc_result = create_new_qc_result(node, submission, validation_type)
+    else: 
+        rc_result = mongo_dao.get_qcRecord(qc_id)
+        if not rc_result:
+            rc_result = create_new_qc_result(node, submission, validation_type)
+    return rc_result
+
+def create_new_qc_result(node, submission, validation_type):
+    qc_result = {
+        ID: get_uuid_str(),
+        SUBMISSION_ID: node[SUBMISSION_ID],
+        "dataRecordID": node[ID],
+        "validationType": validation_type,
+        BATCH_IDS: node[BATCH_IDS],
+        "latestBatchID": node["latestBatchID"],
+        "displayID": node.get("latestBatchDisplayID"),
+        "type": node[NODE_TYPE],
+        "submittedID": submission.get("submitterID"),
+        "uploadedDate": node.get("uploadedDate")
+    }
+    return qc_result
