@@ -404,6 +404,8 @@ class ExportMetadata:
         columns.insert(0, columns.pop(old_index))
         old_index = columns.index(self.model.get_node_id(node_type))
         columns.insert(1, columns.pop(old_index))
+        old_index = columns.index(CRDC_ID.lower())
+        columns.insert(2, columns.pop(old_index))
         return columns
     
     def transfer_release_metadata(self):
