@@ -101,7 +101,7 @@ class PVPuller:
             self.log.exception(msg)
             return False
         
-def get_pv_by_code_version(configs, log, data_common, prop_name,cde_code, cde_version):
+def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_version):
     """
     get permissive values by cde code and version
     :param cde_code: cde code

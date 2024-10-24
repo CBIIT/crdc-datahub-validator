@@ -1,6 +1,0 @@
-type	program_acronym	program_name	program_short_description	program_full_description	program_external_url	program_sort_order	hello
-program	CDS-558232	scientia_et_labor	cacatum_non_est_pictum	scientiae_cedit_mare	labor_ipse_voluptas	184
-program	CDS-558232	scientia_et_labor	cacatum_non_est_pictum	scientiae_cedit_mare	labor_ipse_voluptas	185					invalid col
-program	CDS-558232	scientia_et_labor	cacatum_non_est_pictum	scientiae_cedit_mare	labor_ipse_voluptas	186
-
-program	CDS-558232	scientia_et_labor	cacatum_non_est_pictum	scientiae_cedit_mare	labor_ipse_voluptas	187
