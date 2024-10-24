@@ -73,14 +73,15 @@ class PVPuller:
                     #     continue
                     
                     # check if cde exists in db
-                    count = self.mongo_dao.count_docs(CDE_COLLECTION,{CDE_CODE: cde_id, CDE_VERSION: cde_version})
-                    if count > 0:
+                    result = self.mongo_dao.get_cde_permissible_values(cde_id, cde_version)
+                    if result:
                         continue
                     # check if cde exists in db, if not pull from CDE
                     new_cde, msg = get_pv_by_code_version(self.configs, self.log, data_common, prop_name, cde_id, cde_version)
                     if not new_cde is None:
-                        new_cde_list.append(new_cde)
-
+                        # check if existing in new_cde_list
+                        if not any(cde[CDE_CODE] == new_cde[CDE_CODE] and cde[CDE_VERSION] == new_cde[CDE_VERSION] for cde in new_cde_list):
+                            new_cde_list.append(new_cde)
                     if msg:
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": msg})
                     
