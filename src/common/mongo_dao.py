@@ -1007,7 +1007,7 @@ class MongoDao:
         if cde_version:
             query[CDE_VERSION] = cde_version
         try:
-            return data_collection.find_one(query, sort=[( 'CDE_VERSION', DESCENDING )])  #find latest version 
+            return data_collection.find_one(query, sort=[( CDE_VERSION, DESCENDING )])  #find latest version 
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to get permissible values for {cde_code}/{cde_version}: {get_exception_msg()}")
