@@ -123,7 +123,7 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
         msg = "No CDE permissive values defined for the CDE code."
         pv_list = []
     else:
-        contains_http = any(s for s in pv_list if "http://" in s or "https://" in s)
+        contains_http = any(s for s in pv_list if "http:" in s.get("value") or "https:" in s.get("value") or "http:" in s or "https:" in s )
         if not contains_http:
             pv_list = [ item["value"] for item in pv_list]
         else: 
