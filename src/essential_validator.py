@@ -120,8 +120,11 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             log.error(error)
                         finally:
                             #5. update submission's metadataValidationStatus
-                            if validator.submission and validator.submission.get(METADATA_VALIDATION_STATUS) in [STATUS_ERROR, STATUS_WARNING]:
-                                mongo_dao.set_submission_validation_status(validator.submission, None, STATUS_PASSED, None, None, True)
+                            if validator.submission:
+                                status = validator.submission.get(METADATA_VALIDATION_STATUS)
+                                # only need update the status if error or warning. In the dao function will check the count of error or warning to get real time status.
+                                status = STATUS_PASSED if status in [STATUS_ERROR, STATUS_WARNING] else status 
+                                mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None, True)
                     else:
                         log.error(f'Invalid message: {data}!')
 
