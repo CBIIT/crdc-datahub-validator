@@ -334,7 +334,7 @@ class ExportMetadata:
                 PARENTS: data_record.get(PARENTS, None),
                 CREATED_AT: current_date,
                 ENTITY_TYPE: data_record.get(ENTITY_TYPE),
-                STUDY_ID : self.submission.get(STUDY_ID)
+                STUDY_ID : data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
             }
             result = self.mongo_dao.insert_release(crdc_record)
             if not result:
@@ -349,7 +349,7 @@ class ExportMetadata:
                 existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED,
                 existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
-                existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID)
+                existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
 
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
