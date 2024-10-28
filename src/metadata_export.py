@@ -350,19 +350,32 @@ class ExportMetadata:
             if self.intention == SUBMISSION_INTENTION_DELETE:
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
             else: 
+                history = existed_crdc_record.get(SUBMISSION_HISTORY)
+                # if the existing release has no history, need add current one to the history list before updating
+                if not history or len(history) == 0:
+                    # make a copy before updating
+                    copy = existed_crdc_record.copy()
+                    history = [{
+                        SUBMISSION_ID: copy[SUBMISSION_ID],
+                        SUBMISSION_INTENTION: copy.get(SUBMISSION_INTENTION) or "New/Update",
+                        RELEASE_AT: copy.get(UPDATED_AT),
+                        PROPERTIES: copy.get(PROPERTIES),
+                        PARENTS: copy.get(PARENTS)
+                    }]
+                # updating existing release with new values
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
                 existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
                 existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED,
                 existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE)
-                new_history = {
+                history.append({
                     SUBMISSION_ID: self.submission[ID],
                     SUBMISSION_INTENTION: self.submission.get(SUBMISSION_INTENTION),
                     RELEASE_AT: current_date,
                     PROPERTIES: data_record.get(PROPERTIES),
                     PARENTS: self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
-                }
-                existed_crdc_record[SUBMISSION_HISTORY] = [new_history] if not existed_crdc_record.get(SUBMISSION_HISTORY) else list(existed_crdc_record[SUBMISSION_HISTORY]).append(new_history)
+                })
+                existed_crdc_record[SUBMISSION_HISTORY] = history
 
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
