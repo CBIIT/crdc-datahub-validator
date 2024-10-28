@@ -525,6 +525,8 @@ class MetaDataValidator:
             if cde:
                 if cde.get(CDE_PERMISSIVE_VALUES) and len(cde.get(CDE_PERMISSIVE_VALUES)) > 0:
                     permissive_vals = cde[CDE_PERMISSIVE_VALUES]
+                else:
+                    permissive_vals = None
             else:
                 # call pv_puller to get permissible values from caDSR
                 cde, msg = get_pv_by_code_version(self.config, self.log, self.datacommon, prop_def["name"], cde_code, cde_version)
