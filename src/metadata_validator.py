@@ -523,7 +523,7 @@ class MetaDataValidator:
             
             cde = self.mongo_dao.get_cde_permissible_values(cde_code, cde_version)
             if cde:
-                if cde.get(CDE_PERMISSIVE_VALUES): 
+                if cde.get(CDE_PERMISSIVE_VALUES) is not None: 
                     if len(cde.get(CDE_PERMISSIVE_VALUES)) > 0:
                         permissive_vals = cde[CDE_PERMISSIVE_VALUES]
                     else:
@@ -532,7 +532,7 @@ class MetaDataValidator:
                 # call pv_puller to get permissible values from caDSR
                 cde, msg = get_pv_by_code_version(self.config, self.log, self.datacommon, prop_def["name"], cde_code, cde_version)
                 if cde:
-                    if cde.get(CDE_PERMISSIVE_VALUES):
+                    if cde.get(CDE_PERMISSIVE_VALUES) is not None:
                         if len(cde[CDE_PERMISSIVE_VALUES]) > 0:                        
                             permissive_vals = cde[CDE_PERMISSIVE_VALUES]
                         else:
