@@ -312,7 +312,7 @@ class ExportMetadata:
             start_index += count 
 
     def save_release(self, data_record, node_type, node_id, crdc_id):
-        if not node_type or not node_id or not crdc_id:
+        if not node_type or not node_id: 
              self.log.error(f"{self.submission[ID]}: Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
              return
         existed_crdc_record = self.mongo_dao.search_release(self.submission.get(DATA_COMMON_NAME), node_type, node_id)
