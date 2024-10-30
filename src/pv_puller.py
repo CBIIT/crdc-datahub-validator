@@ -67,11 +67,6 @@ class PVPuller:
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE code."})
                         continue
                     cde_version = term.get(TERM_VERSION)
-                    # if not cde_version:
-                    #     self.log.error(f"No CDE version found for {data_common}:{prop_name}: {cde_id}")
-                    #     no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE version."})
-                    #     continue
-                    
                     # check if cde exists in db
                     result = self.mongo_dao.get_cde_permissible_values(cde_id, cde_version)
                     if result:
