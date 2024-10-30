@@ -179,3 +179,6 @@ TERM_CODE = "Code"
 TERM_VERSION = "Version"
 
 ENTITY_TYPE = "entityType"
+
+SUBMISSION_HISTORY = "history"
+RELEASE_AT = "releasedAt"

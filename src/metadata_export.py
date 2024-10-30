@@ -12,7 +12,8 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
-    STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE
+    STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
+    SUBMISSION_INTENTION_NEW_UPDATE
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
@@ -334,8 +335,15 @@ class ExportMetadata:
                 PARENTS: data_record.get(PARENTS, None),
                 CREATED_AT: current_date,
                 ENTITY_TYPE: data_record.get(ENTITY_TYPE),
+                SUBMISSION_HISTORY: [{SUBMISSION_ID: self.submission[ID],
+                             SUBMISSION_INTENTION: self.submission.get(SUBMISSION_INTENTION),
+                             RELEASE_AT: current_date,
+                             PROPERTIES: data_record.get(PROPERTIES),
+                             PARENTS: data_record.get(PARENTS, None)
+                             }], 
                 STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
             }
+
             result = self.mongo_dao.insert_release(crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to insert release for {node_type}/{node_id}/{crdc_id}!")
@@ -344,10 +352,31 @@ class ExportMetadata:
             if self.intention == SUBMISSION_INTENTION_DELETE:
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
             else: 
+                history = existed_crdc_record.get(SUBMISSION_HISTORY)
+                # if the existing release has no history, need add current one to the history list before updating
+                if not history or len(history) == 0:
+                    # make a copy before updating
+                    copy = existed_crdc_record.copy()
+                    history = [{
+                        SUBMISSION_ID: copy[SUBMISSION_ID],
+                        SUBMISSION_INTENTION: copy.get(SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE),
+                        RELEASE_AT: copy.get(UPDATED_AT),
+                        PROPERTIES: copy.get(PROPERTIES),
+                        PARENTS: copy.get(PARENTS)
+                    }]
+                # updating existing release with new values
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
                 existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
                 existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED,
+                history.append({
+                    SUBMISSION_ID: self.submission[ID],
+                    SUBMISSION_INTENTION: self.submission.get(SUBMISSION_INTENTION),
+                    RELEASE_AT: current_date,
+                    PROPERTIES: data_record.get(PROPERTIES),
+                    PARENTS: existed_crdc_record[PARENTS]
+                })
+                existed_crdc_record[SUBMISSION_HISTORY] = history
                 existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
                 existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
 
