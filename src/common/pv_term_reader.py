@@ -6,6 +6,7 @@ from common.utils import download_file_to_dict, get_exception_msg
 
 YML_FILE_EXT = ["yml", "yaml"]
 DEF_MODEL_FILE = "model-file"
+DEF_MODEL_FILES = "model-files"
 DEF_MODEL_PROP_FILE = "prop-file"
 DEF_VERSION = "versions"
 MODE_ID_FIELDS = "id_fields"
@@ -48,14 +49,14 @@ class TermReader:
     create a CDE term dict by parsing yaml model property file
     """
     def create_cde(self, data_common, version):
-        dc = data_common.upper()
+        dc = data_common
         v = self.models_def[dc]
         model_dir = os.path.join(self.model_def_dir, os.path.join(dc, version))
         #process model files for the data common
-        props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
+        props_file_names = [os.path.join(model_dir, file) for file in v[DEF_MODEL_FILES]]
         #process model files for the data common
         try:
-            result, properties_term, msg = self.parse_model_props(props_file_name)
+            result, properties_term, msg = self.parse_model_props(props_file_names)
             if not result:
                 self.log.error(msg)
                 return
@@ -68,24 +69,29 @@ class TermReader:
     """
     parse model property file
     """
-    def parse_model_props(self, model_props_file):
-        properties = None
+    def parse_model_props(self, model_props_files):
+        properties = {}
         permissive_value_dic = {}
         values = None
         msg = None
         try:
-            self.log.info('Reading propr file: {} ...'.format(model_props_file))
-            if model_props_file and '.' in model_props_file and model_props_file.split('.')[-1].lower() in YML_FILE_EXT:
-                properties = download_file_to_dict(model_props_file).get(PROP_DEFINITIONS)
-                if not properties:
-                    msg = f'Invalid model properties file: {model_props_file}!'
-                    self.log.error(msg)
-                    return False, None, msg
+            for model_props_file in model_props_files:
+                self.log.info('Reading propr file: {} ...'.format(model_props_file))
+                if model_props_file and '.' in model_props_file and model_props_file.split('.')[-1].lower() in YML_FILE_EXT:
+                    prop = download_file_to_dict(model_props_file).get(PROP_DEFINITIONS, None)
+                    if prop:
+                        properties.update(prop)
+                    
+            if not properties or len(properties.keys()) == 0:
+                msg = f'Invalid model properties file: {model_props_file}!'
+                self.log.error(msg)
+                return False, None, msg
+            
         except Exception as e:
-            self.log.exception(e)
-            msg = f'Failed to read yaml file to dict: {model_props_file}!'
-            self.log.exception(msg)
-            raise e
+                    self.log.exception(e)
+                    msg = f'Failed to read yaml file to dict: {model_props_file}!'
+                    self.log.exception(msg)
+                    raise e
         
         # filter properties with enum and value list
         for prop_name, prop in properties.items():
