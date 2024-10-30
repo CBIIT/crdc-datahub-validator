@@ -181,4 +181,4 @@ TERM_VERSION = "Version"
 ENTITY_TYPE = "entityType"
 
 SUBMISSION_HISTORY = "history"
-RELEASE_AT = "releaseAt"
+RELEASE_AT = "releasedAt"
