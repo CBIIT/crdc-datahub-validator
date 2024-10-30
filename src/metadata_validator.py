@@ -162,7 +162,7 @@ class MetaDataValidator:
                     self.isError = True
                     # record[ERRORS] = errors
                     qc_result[ERRORS] = errors
-                    qc_result["severity"] = "Error"
+                    qc_result["severity"] = STATUS_ERROR
                 else:
                     # record[ERRORS] = []
                     qc_result[ERRORS] = []
@@ -170,7 +170,7 @@ class MetaDataValidator:
                     self.isWarning = True
                     # record[WARNINGS] = warnings
                     qc_result[WARNINGS] = warnings
-                    qc_result["severity"] = "Warning"
+                    qc_result["severity"] = STATUS_WARNING
                 else:
                     # record[WARNINGS] = []
                     qc_result[WARNINGS] = []
