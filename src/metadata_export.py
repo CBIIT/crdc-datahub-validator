@@ -313,7 +313,7 @@ class ExportMetadata:
             start_index += count 
 
     def save_release(self, data_record, node_type, node_id, crdc_id):
-        if not node_type or not node_id or not crdc_id:
+        if not node_type or not node_id: 
              self.log.error(f"{self.submission[ID]}: Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
              return
         existed_crdc_record = self.mongo_dao.search_release(self.submission.get(DATA_COMMON_NAME), node_type, node_id)
@@ -341,6 +341,7 @@ class ExportMetadata:
                              PROPERTIES: data_record.get(PROPERTIES),
                              PARENTS: data_record.get(PARENTS, None)
                              }], 
+                STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
             }
 
             result = self.mongo_dao.insert_release(crdc_record)
@@ -368,7 +369,6 @@ class ExportMetadata:
                 existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
                 existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED,
-                existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE)
                 history.append({
                     SUBMISSION_ID: self.submission[ID],
                     SUBMISSION_INTENTION: self.submission.get(SUBMISSION_INTENTION),
@@ -377,6 +377,8 @@ class ExportMetadata:
                     PARENTS: existed_crdc_record[PARENTS]
                 })
                 existed_crdc_record[SUBMISSION_HISTORY] = history
+                existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
+                existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
 
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:

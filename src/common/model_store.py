@@ -7,8 +7,9 @@ from common.utils import download_file_to_dict, get_exception_msg
 
 
 YML_FILE_EXT = ".yml"
-DEF_MODEL_FILE = "model-file"
-DEF_MODEL_PROP_FILE = "prop-file"
+DEF_MODEL_FILES = "model-files"
+# DEF_MODEL_FILE = "model-file"
+# DEF_MODEL_PROP_FILE = "prop-file"
 DEF_VERSION = "current-version"
 MODE_ID_FIELDS = "id_fields"
 DEF_SEMANTICS = "semantics"
@@ -43,12 +44,12 @@ class ModelFactory:
         v = self.models_def[dc]
         model_dir = os.path.join(self.model_def_dir, os.path.join(dc, version))
         #process model files for the data common
-        file_name= os.path.join(model_dir, v[DEF_MODEL_FILE])
-        props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
+        file_names = [os.path.join(model_dir, file) for file in v[DEF_MODEL_FILES]]
+        # props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
         delimiter = v.get(LIST_DELIMITER_PROP)
         #process model files for the data common
         try:
-            model_reader = YamlModelParser([file_name, props_file_name], dc, delimiter, version)
+            model_reader = YamlModelParser(file_names, dc, delimiter, version)
             model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES], DEF_MAIN_NODES: v[DEF_SEMANTICS][DEF_MAIN_NODES]})
             self.models.update({model_key(dc, version): model_reader.model})
         except Exception as e:
