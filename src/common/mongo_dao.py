@@ -596,7 +596,7 @@ class MongoDao:
     """
     set dataRecords search index, 'submissionID_nodeType_nodeID'
     """
-    def set_search_index_dataRecords(self, submission_index, crdc_index):
+    def set_search_index_dataRecords(self, submission_index, crdc_index, study_entity_type_index):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
@@ -607,6 +607,9 @@ class MongoDao:
             if not index_dict.get(crdc_index):
                 result = data_collection.create_index([(DATA_COMMON_NAME), (NODE_TYPE),(NODE_ID)], \
                             name=crdc_index)
+            if not index_dict.get(study_entity_type_index):
+                result = data_collection.create_index([(STUDY_ID), (ENTITY_TYPE),(NODE_ID)], \
+                            name=study_entity_type_index)
             return True
         except errors.PyMongoError as pe:
             self.log.exception(pe)
@@ -789,25 +792,9 @@ class MongoDao:
         :return:
         """
         db = self.client[self.db_name]
-        data_collection = db[RELEASE_COLLECTION]
+        data_collection = db[DATA_COLlECTION]
         try:
-            submissions = self.find_submissions({STUDY_ID: studyID})
-            if len(submissions) < 2:  #if there is only one submission that's own submission, skip.
-                return None
-            submission_id_list = [item[ID] for item in submissions]
-            results = data_collection.find({ENTITY_TYPE: entity_type, NODE_ID: node_id, SUBMISSION_ID: {"$in": submission_id_list}})
-            released_nodes = [node for node in results if node.get(SUBMISSION_REL_STATUS) != SUBMISSION_REL_STATUS_DELETED ]
-            if len(released_nodes) == 0:
-                deleted_submission_ids = [rel[SUBMISSION_ID] for rel in results if rel.get(SUBMISSION_REL_STATUS) == SUBMISSION_REL_STATUS_DELETED ]
-                submission_id_list = [item for item in submission_id_list if item not in deleted_submission_ids]
-                if len(submission_id_list) < 2:
-                    return None
-                # search dataRecords
-                data_collection = db[DATA_COLlECTION]
-                rtn_val = data_collection.find_one({ENTITY_TYPE: entity_type, NODE_ID: node_id, SUBMISSION_ID: {"$in": submission_id_list}})
-            else:
-                rtn_val = released_nodes[0]
-            return rtn_val
+            return data_collection.find_one({STUDY_ID: studyID, ENTITY_TYPE: entity_type, NODE_ID: node_id})
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to search node for study: {get_exception_msg()}")

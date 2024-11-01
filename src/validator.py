@@ -20,9 +20,11 @@ from pv_puller import pull_pv_lists
 
 DATA_RECORDS_SEARCH_INDEX = "submissionID_nodeType_nodeID"
 DATA_RECORDS_CRDC_SEARCH_INDEX = "dataCommons_nodeType_nodeID"
+DATA_RECORDS_STUDY_ENTITY_INDEX = 'studyID_entityType_nodeID'
 RELEASE_SEARCH_INDEX = "dataCommons_nodeType_nodeID"
 CRDCID_SEARCH_INDEX = "CRDC_ID"
 CDE_SEARCH_INDEX = 'CDECode_1_CDEVersion_1'
+
 #Set log file prefix for bento logger
 if LOG_PREFIX not in os.environ:
     os.environ[LOG_PREFIX] = 'Validation Service'
@@ -47,11 +49,11 @@ def controller():
             job_queue = Queue(configs[SQS_NAME])
         mongo_dao = MongoDao(configs[MONGO_DB], configs[DB])
         # set dataRecord search index
-        if not mongo_dao.set_search_index_dataRecords(DATA_RECORDS_SEARCH_INDEX, DATA_RECORDS_CRDC_SEARCH_INDEX):
+        if not mongo_dao.set_search_index_dataRecords(DATA_RECORDS_SEARCH_INDEX, DATA_RECORDS_CRDC_SEARCH_INDEX, DATA_RECORDS_STUDY_ENTITY_INDEX):
             log.error("Failed to set dataRecords search index!")
             return 1
         # set release search index
-        if not mongo_dao.set_search_release_index(RELEASE_SEARCH_INDEX , CRDCID_SEARCH_INDEX):
+        if not mongo_dao.set_search_release_index(RELEASE_SEARCH_INDEX, CRDCID_SEARCH_INDEX):
             log.error("Failed to set release search index!")
             return 1
         
