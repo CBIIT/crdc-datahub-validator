@@ -31,6 +31,7 @@ class DataLoader:
         self.main_nodes = self.model.get_main_nodes()
         self.errors = None
         self.submission = submission
+        self.ORCID = submission.get(ORCID)
 
     """
     param: file_path_list downloaded from s3 bucket
@@ -60,6 +61,7 @@ class DataLoader:
                 for index, row in df.iterrows():
                     type = row[TYPE]
                     node_id = self.get_node_id(type, row)
+                    crdc_id = None
                     exist_node = self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
                     # 2. construct dataRecord
                     rawData = df.loc[index].to_dict()
@@ -71,17 +73,17 @@ class DataLoader:
                     id = self.get_record_id(exist_node)
                     # onlu generating CRDC ID for valid nodes
                     valid_crdc_id_nodes = type in main_node_types
-                    crdc_id = self.get_crdc_id(exist_node, type, node_id, self.submission.get(STUDY_ID)) if valid_crdc_id_nodes else None
+                    # principal investigator node
+                    if type == PRINCIPAL_INVESTIGATOR and PRINCIPAL_INVESTIGATOR in main_node_types:
+                        crdc_id = self.ORCID
+                    else:
+                        crdc_id = self.get_crdc_id(exist_node, type, node_id, self.submission.get(STUDY_ID)) if valid_crdc_id_nodes else None
                     # file nodes
                     if valid_crdc_id_nodes and type in file_types:
                         id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
                         file_id_val = row.get(id_field)
                         if file_id_val:
                             crdc_id = file_id_val if file_id_val.startswith(DCF_PREFIX) else DCF_PREFIX + file_id_val
-                    # principal investigator node
-                    if type == PRINCIPAL_INVESTIGATOR and PRINCIPAL_INVESTIGATOR in main_node_types:
-                        submission = self.mongo_dao.get_submission(self.batch[SUBMISSION_ID])
-                        crdc_id = submission.get(ORCID) if submission and submission.get(ORCID) else None
 
                     if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
                         dataRecord = {
@@ -110,7 +112,7 @@ class DataLoader:
                             STUDY_ID: self.submission.get(STUDY_ID)
                         }
                         if crdc_id:
-                            dataRecord["CRDC_ID"] = crdc_id
+                            dataRecord[CRDC_ID] = crdc_id
                         if type in file_types:
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
                         records.append(dataRecord)
