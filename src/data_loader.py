@@ -73,11 +73,8 @@ class DataLoader:
                     id = self.get_record_id(exist_node)
                     # onlu generating CRDC ID for valid nodes
                     valid_crdc_id_nodes = type in main_node_types
-                    # principal investigator node
-                    if type == PRINCIPAL_INVESTIGATOR and PRINCIPAL_INVESTIGATOR in main_node_types:
-                        crdc_id = self.ORCID
-                    else:
-                        crdc_id = self.get_crdc_id(exist_node, type, node_id, self.submission.get(STUDY_ID)) if valid_crdc_id_nodes else None
+                    if valid_crdc_id_nodes:
+                        crdc_id = self.get_crdc_id(exist_node, type, node_id, self.submission.get(STUDY_ID)) if type != PRINCIPAL_INVESTIGATOR else self.ORCID
                     # file nodes
                     if valid_crdc_id_nodes and type in file_types:
                         id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
