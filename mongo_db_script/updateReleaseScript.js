@@ -19,9 +19,9 @@ db.release.aggregate([
         }
     },
     {
-        // Merge the updates back into the dataRecords collection
+        // Merge the updates back into the release collection
         $merge: {
-            into: "dataRecords",
+            into: "release",
             whenMatched: "merge",
             whenNotMatched: "discard"
         }
