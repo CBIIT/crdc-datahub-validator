@@ -8,7 +8,7 @@ from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
     BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE, SUBMISSION_INTENTION, SUBMISSION_INTENTION_DELETE,\
-    VALIDATION_ID, VALIDATION_ENDED, QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_FILE
+    VALIDATION_ID, VALIDATION_ENDED, QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_FILE, QC_SEVERITY
 from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error, get_uuid_str
 from service.ecs_agent import set_scale_in_protection
 from metadata_validator import get_qc_result
@@ -390,11 +390,13 @@ class FileValidator:
             record[S3_FILE_INFO][STATUS] = STATUS_ERROR
             qc_result[ERRORS] = [error]
             qc_result[WARNINGS] = []
+            qc_result[QC_SEVERITY] = STATUS_ERROR
             
         elif status == STATUS_WARNING: 
             record[S3_FILE_INFO][STATUS] = STATUS_WARNING
             qc_result[WARNINGS] = [error]
             qc_result[ERRORS] = []
+            qc_result[QC_SEVERITY] = STATUS_WARNING
             
         else:
             record[S3_FILE_INFO][STATUS] = STATUS_PASSED

@@ -398,6 +398,10 @@ class MongoDao:
                     for m in list(nodes)
                 ])
             self.log.info(f'Total {result.deleted_count} dataRecords are deleted!')
+            # delete related qcResults
+            qc_ids = [node[QC_RESULT_ID] for node in nodes if node.get(QC_RESULT_ID)]
+            qc_ids.extend([node[S3_FILE_INFO][QC_RESULT_ID]for node in nodes if node.get(S3_FILE_INFO) and node[S3_FILE_INFO].get(QC_RESULT_ID)])
+            self.delete_qcRecords(qc_ids)
             return True, None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
@@ -1043,6 +1047,24 @@ class MongoDao:
         data_collection = db[QC_COLLECTION]
         try:
             result = data_collection.delete_one({ID: qc_id})
+            return True if result.deleted_count > 0 else False
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to delete qc record for {qc_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to delete qc record for {qc_id}: {get_exception_msg()}")
+            return False
+    """
+    delete qc records by qc_id list
+    :param qc_id:
+    """   
+    def delete_qcRecords(self, qc_ids):
+        db = self.client[self.db_name]
+        data_collection = db[QC_COLLECTION]
+        try:
+            result = data_collection.delete_many({ID: {"$in": qc_ids}})
             return True if result.deleted_count > 0 else False
         except errors.PyMongoError as pe:
             self.log.exception(pe)

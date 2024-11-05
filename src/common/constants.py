@@ -182,6 +182,7 @@ ENTITY_TYPE = "entityType"
 
 QC_RESULT_ID = "qcResultID"
 QC_COLLECTION = "qcResults"
+QC_SEVERITY = "severity"
 VALIDATION_TYPE_METADATA = "metadata"
 VALIDATION_TYPE_FILE= "data file"
 BATCH_IDS = "batchIDs"

@@ -10,7 +10,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
     SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, \
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
-    QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO
+    QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -162,7 +162,6 @@ class MetaDataValidator:
                     self.isError = True
                     # record[ERRORS] = errors
                     qc_result[ERRORS] = errors
-                    qc_result["severity"] = STATUS_ERROR
                 else:
                     # record[ERRORS] = []
                     qc_result[ERRORS] = []
@@ -170,7 +169,6 @@ class MetaDataValidator:
                     self.isWarning = True
                     # record[WARNINGS] = warnings
                     qc_result[WARNINGS] = warnings
-                    qc_result["severity"] = STATUS_WARNING
                 else:
                     # record[WARNINGS] = []
                     qc_result[WARNINGS] = []
@@ -178,6 +176,7 @@ class MetaDataValidator:
                 if not self.isError and not self.isWarning:
                     qc_result = None #as Austin mentioned, only record rcResult with issues.
                 else:
+                    qc_result[QC_SEVERITY] = STATUS_ERROR if self.isError else STATUS_WARNING
                     qc_result["validatedDate"] = current_datetime()
                     qc_results.append(qc_result)
                     record[QC_RESULT_ID] = qc_result[ID]
@@ -596,13 +595,13 @@ def get_qc_result(node, submission, validation_type, mongo_dao):
 def create_new_qc_result(node, submission, validation_type):
     qc_result = {
         ID: get_uuid_str(),
-        SUBMISSION_ID: node[SUBMISSION_ID],
+        SUBMISSION_ID: node[SUBMISSION_ID] if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get("fileName"),
         "dataRecordID": node[ID],
         "validationType": validation_type,
         BATCH_IDS: node[BATCH_IDS],
         "latestBatchID": node["latestBatchID"],
         "displayID": node.get("latestBatchDisplayID"),
-        "type": node[NODE_TYPE],
+        "type": node[NODE_TYPE] if validation_type == VALIDATION_TYPE_METADATA else VALIDATION_TYPE_FILE,
         "submittedID": submission.get("submitterID"),
         "uploadedDate": node.get("uploadedDate")
     }
