@@ -49,6 +49,9 @@ def fileValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         #1 call mongo_dao to get batch by batch_id
                         fileRecord = mongo_dao.get_file(data[FILE_ID])
+                        if fileRecord is None: 
+                            msg.delete()
+                            continue
                         #2. validate file.
                         validator = FileValidator(mongo_dao)
                         status = validator.validate(fileRecord)

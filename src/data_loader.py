@@ -113,7 +113,8 @@ class DataLoader:
                             PARENTS: self.get_parents(relation_fields, row),
                             RAW_DATA:  rawData,
                             ADDITION_ERRORS: [],
-                            ENTITY_TYPE: self.model.get_entity_type(type)
+                            ENTITY_TYPE: self.model.get_entity_type(type), 
+                            STUDY_ID: self.submission.get(STUDY_ID)
                         }
                         if crdc_id:
                             dataRecord["CRDC_ID"] = crdc_id

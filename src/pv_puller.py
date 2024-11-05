@@ -67,20 +67,16 @@ class PVPuller:
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE code."})
                         continue
                     cde_version = term.get(TERM_VERSION)
-                    # if not cde_version:
-                    #     self.log.error(f"No CDE version found for {data_common}:{prop_name}: {cde_id}")
-                    #     no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE version."})
-                    #     continue
-                    
                     # check if cde exists in db
-                    count = self.mongo_dao.count_docs(CDE_COLLECTION,{CDE_CODE: cde_id, CDE_VERSION: cde_version})
-                    if count > 0:
+                    result = self.mongo_dao.get_cde_permissible_values(cde_id, cde_version)
+                    if result:
                         continue
                     # check if cde exists in db, if not pull from CDE
                     new_cde, msg = get_pv_by_code_version(self.configs, self.log, data_common, prop_name, cde_id, cde_version)
                     if not new_cde is None:
-                        new_cde_list.append(new_cde)
-
+                        # check if existing in new_cde_list
+                        if not any(cde[CDE_CODE] == new_cde[CDE_CODE] and cde[CDE_VERSION] == new_cde[CDE_VERSION] for cde in new_cde_list):
+                            new_cde_list.append(new_cde)
                     if msg:
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": msg})
                     
@@ -101,7 +97,7 @@ class PVPuller:
             self.log.exception(msg)
             return False
         
-def get_pv_by_code_version(configs, log, data_common, prop_name,cde_code, cde_version):
+def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_version):
     """
     get permissive values by cde code and version
     :param cde_code: cde code
@@ -122,7 +118,7 @@ def get_pv_by_code_version(configs, log, data_common, prop_name,cde_code, cde_ve
         msg = "No CDE permissive values defined for the CDE code."
         pv_list = []
     else:
-        contains_http = any(s for s in pv_list if "http://" in s or "https://" in s)
+        contains_http = any(s for s in pv_list if "http:" in s.get("value") or "https:" in s.get("value") or "http:" in s or "https:" in s )
         if not contains_http:
             pv_list = [ item["value"] for item in pv_list]
         else: 

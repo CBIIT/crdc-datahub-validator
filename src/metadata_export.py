@@ -12,7 +12,8 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
-    STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE
+    STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
+    SUBMISSION_INTENTION_NEW_UPDATE
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
@@ -193,6 +194,7 @@ class ExportMetadata:
         rows = []
         columns = set()
         file_name = ""
+        main_nodes = self.model.get_main_nodes()
         while True:
             # get nodes by submissionID and nodeType
             data_records = self.mongo_dao.get_dataRecords_chunk_by_nodeType(submission_id, node_type, start_index, BATCH_SIZE)
@@ -200,8 +202,8 @@ class ExportMetadata:
                 return
             
             for r in data_records:
-                node_id = r.get(NODE_ID)
-                crdc_id = r.get(CRDC_ID)
+                # node_id = r.get(NODE_ID)
+                crdc_id = r.get(CRDC_ID) if node_type in main_nodes.keys() else None
                 row_list = self.convert_2_row(r, node_type, crdc_id)
                 rows.extend(row_list)
                 if r.get(ORIN_FILE_NAME) != file_name:
@@ -236,7 +238,11 @@ class ExportMetadata:
         rows = []
         row = data_record.get(PROPERTIES)
         row[TYPE] = node_type
-        row[CRDC_ID.lower()] = crdc_id
+        if crdc_id is not None:
+            row[CRDC_ID.lower()] = crdc_id
+        else:
+            if CRDC_ID.lower() in row.keys():
+                del row[CRDC_ID.lower()]
         rows.append(row)
         parents = data_record.get("parents", None)
         if parents: 
@@ -307,7 +313,7 @@ class ExportMetadata:
             start_index += count 
 
     def save_release(self, data_record, node_type, node_id, crdc_id):
-        if not node_type or not node_id or not crdc_id:
+        if not node_type or not node_id: 
              self.log.error(f"{self.submission[ID]}: Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
              return
         existed_crdc_record = self.mongo_dao.search_release(self.submission.get(DATA_COMMON_NAME), node_type, node_id)
@@ -328,8 +334,16 @@ class ExportMetadata:
                 PROPERTIES: data_record.get(PROPERTIES),
                 PARENTS: data_record.get(PARENTS, None),
                 CREATED_AT: current_date,
-                ENTITY_TYPE: data_record.get(ENTITY_TYPE)
+                ENTITY_TYPE: data_record.get(ENTITY_TYPE),
+                SUBMISSION_HISTORY: [{SUBMISSION_ID: self.submission[ID],
+                             SUBMISSION_INTENTION: self.submission.get(SUBMISSION_INTENTION),
+                             RELEASE_AT: current_date,
+                             PROPERTIES: data_record.get(PROPERTIES),
+                             PARENTS: data_record.get(PARENTS, None)
+                             }], 
+                STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
             }
+
             result = self.mongo_dao.insert_release(crdc_record)
             if not result:
                 self.log.error(f"{self.submission[ID]}: Failed to insert release for {node_type}/{node_id}/{crdc_id}!")
@@ -338,11 +352,33 @@ class ExportMetadata:
             if self.intention == SUBMISSION_INTENTION_DELETE:
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_DELETED
             else: 
+                history = existed_crdc_record.get(SUBMISSION_HISTORY)
+                # if the existing release has no history, need add current one to the history list before updating
+                if not history or len(history) == 0:
+                    # make a copy before updating
+                    copy = existed_crdc_record.copy()
+                    history = [{
+                        SUBMISSION_ID: copy[SUBMISSION_ID],
+                        SUBMISSION_INTENTION: copy.get(SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE),
+                        RELEASE_AT: copy.get(UPDATED_AT),
+                        PROPERTIES: copy.get(PROPERTIES),
+                        PARENTS: copy.get(PARENTS)
+                    }]
+                # updating existing release with new values
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
                 existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
                 existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED,
-                existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE)
+                history.append({
+                    SUBMISSION_ID: self.submission[ID],
+                    SUBMISSION_INTENTION: self.submission.get(SUBMISSION_INTENTION),
+                    RELEASE_AT: current_date,
+                    PROPERTIES: data_record.get(PROPERTIES),
+                    PARENTS: existed_crdc_record[PARENTS]
+                })
+                existed_crdc_record[SUBMISSION_HISTORY] = history
+                existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
+                existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
 
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
@@ -399,8 +435,6 @@ class ExportMetadata:
         columns.insert(0, columns.pop(old_index))
         old_index = columns.index(self.model.get_node_id(node_type))
         columns.insert(1, columns.pop(old_index))
-        old_index = columns.index(CRDC_ID.lower())
-        columns.insert(2, columns.pop(old_index))
         return columns
     
     def transfer_release_metadata(self):

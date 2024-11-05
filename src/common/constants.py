@@ -180,6 +180,9 @@ TERM_VERSION = "Version"
 
 ENTITY_TYPE = "entityType"
 
+SUBMISSION_HISTORY = "history"
+RELEASE_AT = "releasedAt"
+
 QC_RESULT_ID = "qcResultID"
 QC_COLLECTION = "qcResults"
 QC_SEVERITY = "severity"

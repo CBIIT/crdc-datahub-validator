@@ -7,8 +7,9 @@ from common.utils import download_file_to_dict, get_exception_msg
 
 
 YML_FILE_EXT = ".yml"
-DEF_MODEL_FILE = "model-file"
-DEF_MODEL_PROP_FILE = "prop-file"
+DEF_MODEL_FILES = "model-files"
+# DEF_MODEL_FILE = "model-file"
+# DEF_MODEL_PROP_FILE = "prop-file"
 DEF_VERSION = "current-version"
 MODE_ID_FIELDS = "id_fields"
 DEF_SEMANTICS = "semantics"
@@ -39,16 +40,16 @@ class ModelFactory:
     create a data model dict by parsing yaml model files
     """
     def create_model(self, data_common, version):
-        dc = data_common.upper()
+        dc = data_common
         v = self.models_def[dc]
         model_dir = os.path.join(self.model_def_dir, os.path.join(dc, version))
         #process model files for the data common
-        file_name= os.path.join(model_dir, v[DEF_MODEL_FILE])
-        props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
+        file_names = [os.path.join(model_dir, file) for file in v[DEF_MODEL_FILES]]
+        # props_file_name = os.path.join(model_dir, v[DEF_MODEL_PROP_FILE])
         delimiter = v.get(LIST_DELIMITER_PROP)
         #process model files for the data common
         try:
-            model_reader = YamlModelParser([file_name, props_file_name], dc, delimiter, version)
+            model_reader = YamlModelParser(file_names, dc, delimiter, version)
             model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES], DEF_MAIN_NODES: v[DEF_SEMANTICS][DEF_MAIN_NODES]})
             self.models.update({model_key(dc, version): model_reader.model})
         except Exception as e:
@@ -64,7 +65,7 @@ class ModelFactory:
     get model by data common
     """       
     def get_model_by_data_common(self, data_common):
-        dc = data_common.upper()
+        dc = data_common
         v = self.models_def[dc]
         version = v[DEF_VERSION]
         model = self.models.get(model_key(dc, version))
@@ -89,7 +90,7 @@ class ModelFactory:
             return self.get_model_by_data_common(data_common)
         
 def model_key(data_common, version):
-    return f"{data_common.upper()}_{version}"
+    return f"{data_common}_{version}"
         
        
         

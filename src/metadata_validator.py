@@ -61,7 +61,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     submission_id = data.get(SUBMISSION_ID)
                     if data.get(SQS_TYPE) == TYPE_METADATA_VALIDATE and submission_id and data.get(SCOPE) and data.get(VALIDATION_ID):
                         scope = data[SCOPE]
-                        validator = MetaDataValidator(mongo_dao, model_store)
+                        validator = MetaDataValidator(mongo_dao, model_store, configs)
                         status = validator.validate(submission_id, scope)
                         validation_id = data[VALIDATION_ID]
                         validation_end_at = current_datetime()
@@ -99,16 +99,18 @@ Compose a list of files to be updated and their sizes (metadata or files)
 """
 class MetaDataValidator:
     
-    def __init__(self, mongo_dao, model_store):
+    def __init__(self, mongo_dao, model_store, config):
         self.log = get_logger('MetaData Validator')
         self.mongo_dao = mongo_dao
         self.model_store = model_store
+        self.config = config
         self.model = None
         self.submission_id = None
         self.scope = None
         self.submission = None
         self.isError = None
         self.isWarning = None
+
 
     def validate(self, submission_id, scope):
         #1. # get data common from submission
@@ -125,6 +127,7 @@ class MetaDataValidator:
         self.scope = scope
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
+        self.datacommon = datacommon
         model_version = submission.get(MODEL_VERSION)
         #2 get data model based on datacommon and version
         self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
@@ -142,7 +145,7 @@ class MetaDataValidator:
                 self.log.error(msg)
                 return FAILED
             
-            count = len(data_records) 
+            count = len(data_records)             
             validated_count += self.validate_nodes(data_records)
             if count < BATCH_SIZE: 
                 self.log.info(f"{submission_id}: {validated_count} out of {count + start_index} nodes are validated.")
@@ -537,14 +540,17 @@ class MetaDataValidator:
                 return permissive_vals
             
             cde = self.mongo_dao.get_cde_permissible_values(cde_code, cde_version)
-            if cde and cde.get(CDE_PERMISSIVE_VALUES):
-                if len(cde.get(CDE_PERMISSIVE_VALUES)) > 0:
-                    permissive_vals = cde[CDE_PERMISSIVE_VALUES]
+            if cde:
+                if cde.get(CDE_PERMISSIVE_VALUES) is not None: 
+                    if len(cde.get(CDE_PERMISSIVE_VALUES)) > 0:
+                        permissive_vals = cde[CDE_PERMISSIVE_VALUES]
+                    else:
+                        permissive_vals = None
             else:
                 # call pv_puller to get permissible values from caDSR
-                cde = get_pv_by_code_version(self.config, cde_code, cde_version)
+                cde, msg = get_pv_by_code_version(self.config, self.log, self.datacommon, prop_def["name"], cde_code, cde_version)
                 if cde:
-                    if cde.get(CDE_PERMISSIVE_VALUES):
+                    if cde.get(CDE_PERMISSIVE_VALUES) is not None:
                         if len(cde[CDE_PERMISSIVE_VALUES]) > 0:                        
                             permissive_vals = cde[CDE_PERMISSIVE_VALUES]
                         else:
