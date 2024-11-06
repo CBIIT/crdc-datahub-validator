@@ -609,7 +609,7 @@ def create_new_qc_result(node, submission, validation_type):
         "latestBatchID": node["latestBatchID"],
         "displayID": node.get("latestBatchDisplayID"),
         "type": node[NODE_TYPE] if validation_type == VALIDATION_TYPE_METADATA else VALIDATION_TYPE_FILE,
-        "submittedID": submission.get("submitterID"),
+        "submitterID": submission.get("submitterID"),
         "uploadedDate": node.get("uploadedDate")
     }
     return qc_result
