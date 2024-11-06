@@ -183,6 +183,7 @@ class MetaDataValidator:
                     qc_result["validatedDate"] = current_datetime()
                     qc_results.append(qc_result)
                     record[QC_RESULT_ID] = qc_result[ID]
+                record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
                 validated_count += 1
