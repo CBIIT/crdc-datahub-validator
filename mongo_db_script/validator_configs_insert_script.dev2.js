@@ -30,31 +30,31 @@ db.configuration.insertMany(
     {
         _id: generateUUIDv4(),
         type: "LOADER_QUEUE",
-        keys: {"sqs": "crdc-hub-dev-loader-queue.fifo"}
+        keys: {"sqs": "crdc-hub-dev2-loader-queue.fifo"}
     },
     {
         _id: generateUUIDv4(),
         type: "FILE_QUEUE",
-        keys: {"sqs": "crdc-hub-dev-file-queue.fifo"}
+        keys: {"sqs": "crdc-hub-dev2-file-queue.fifo"}
     },
     {
         _id: generateUUIDv4(),
         type: "METADATA_QUEUE",
-        keys: {"sqs": "crdc-hub-dev-metadata-queue.fifo"}
+        keys: {"sqs": "crdc-hub-dev2-metadata-queue.fifo"}
     },
     {
         _id: generateUUIDv4(),
         type: "EXPORTER_QUEUE",
-        keys: {"sqs": "crdc-hub-dev-export-queue.fifo"}
+        keys: {"sqs": "crdc-hub-dev2-export-queue.fifo"}
     },
     {
         _id: generateUUIDv4(),
         type: "DM_BUCKET_NAME",
-        keys: {"dm_bucket": "nci-crdc-data-bucket-dev"}
+        keys: {"dm_bucket": "nci-crdc-data-bucket-dev2"}
     },
     {
         _id: generateUUIDv4(),
         type: "DATASYNC_ROLE_ARN",
-        keys: {"datasync_role": "arn:aws:iam::782317370611:role/power-user-dev-datasync-iam-role"}
+        keys: {"datasync_role": "arn:aws:iam::782317370611:role/power-user-dev2-datasync-iam-role"}
     }]
 );
