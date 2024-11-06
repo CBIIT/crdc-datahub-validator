@@ -602,14 +602,14 @@ def get_qc_result(node, submission, validation_type, mongo_dao):
 def create_new_qc_result(node, submission, validation_type):
     qc_result = {
         ID: get_uuid_str(),
-        SUBMISSION_ID: node[SUBMISSION_ID] if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get("fileName"),
+        SUBMISSION_ID: node[SUBMISSION_ID],
         "dataRecordID": node[ID],
         "validationType": validation_type,
         BATCH_IDS: node[BATCH_IDS],
         "latestBatchID": node["latestBatchID"],
         "displayID": node.get("latestBatchDisplayID"),
         "type": node[NODE_TYPE] if validation_type == VALIDATION_TYPE_METADATA else VALIDATION_TYPE_FILE,
-        "submitterID": submission.get("submitterID"),
+        "submittedID": node[NODE_ID] if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get("fileName"),
         "uploadedDate": node.get("uploadedDate")
     }
     return qc_result
