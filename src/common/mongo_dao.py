@@ -401,7 +401,8 @@ class MongoDao:
             # delete related qcResults
             qc_ids = [node[QC_RESULT_ID] for node in nodes if node.get(QC_RESULT_ID)]
             qc_ids.extend([node[S3_FILE_INFO][QC_RESULT_ID]for node in nodes if node.get(S3_FILE_INFO) and node[S3_FILE_INFO].get(QC_RESULT_ID)])
-            self.delete_qcRecords(qc_ids)
+            if qc_ids and len(qc_ids) > 0:
+                self.delete_qcRecords(qc_ids)
             return True, None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
