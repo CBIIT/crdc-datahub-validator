@@ -950,11 +950,11 @@ class MongoDao:
                 return result.get(BATCH_BUCKET)
         except errors.PyMongoError as pe:
             self.log.exception(pe)
-            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to get bucket name: {get_exception_msg()}")
             return None
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
+            self.log.exception(f"Failed to get bucket name: {get_exception_msg()}")
             return None 
 
     def insert_cde(self, cde_list):
