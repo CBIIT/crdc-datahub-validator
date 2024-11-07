@@ -159,25 +159,29 @@ class MetaDataValidator:
         validated_count = 0
         try:
             for record in data_records:
-                qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
                 status, errors, warnings = self.validate_node(record)
+                qc_result = None
+                if record.get(QC_RESULT_ID):
+                    qc_result = self.mongo_dao.get_qcRecord(record[QC_RESULT_ID])
+                status, errors, warnings = self.validate_node(record)
+                if errors and warnings and not qc_result:
+                    qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
                 if errors and len(errors) > 0:
                     self.isError = True
-                    # record[ERRORS] = errors
                     qc_result[ERRORS] = errors
                 else:
-                    # record[ERRORS] = []
                     qc_result[ERRORS] = []
                 if warnings and len(warnings)> 0: 
                     self.isWarning = True
-                    # record[WARNINGS] = warnings
                     qc_result[WARNINGS] = warnings
                 else:
-                    # record[WARNINGS] = []
                     qc_result[WARNINGS] = []
 
                 if not self.isError and not self.isWarning:
-                    qc_result = None #as Austin mentioned, only record rcResult with issues.
+                    if qc_result:
+                        self.mongo_dao.delete_qcRecord(qc_result[ID])
+                        qc_result = None 
+                    record[QC_RESULT_ID] = None
                 else:
                     qc_result[QC_SEVERITY] = STATUS_ERROR if self.isError else STATUS_WARNING
                     qc_result["validatedDate"] = current_datetime()
