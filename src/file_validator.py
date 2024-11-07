@@ -140,14 +140,7 @@ class FileValidator:
                 return STATUS_PASSED
             # validate individual file
             status, error = self.validate_file(fileRecord)
-            qc_result = None
-            if status == STATUS_ERROR or status == STATUS_WARNING:
-                qc_result = get_qc_result(fileRecord, self.submission, VALIDATION_TYPE_FILE, self.mongo_dao)
-            self.set_status(fileRecord, qc_result, status, error)
-            if qc_result: # save QC result
-                fileRecord[S3_FILE_INFO][QC_RESULT_ID] = qc_result[ID]
-                qc_result["validatedDate"] = current_datetime()
-                self.mongo_dao.save_qc_results([qc_result])
+            self.save_qc_result(fileRecord, status, error)
             return status
         except Exception as e: #catch all unhandled exception
             self.log.exception(e)
@@ -406,3 +399,20 @@ class FileValidator:
             record[S3_FILE_INFO][WARNINGS] = []
             record[S3_FILE_INFO][ERRORS] = []
             qc_result = None
+
+    def save_qc_result(self, fileRecord, status, error):
+        qc_result = None
+        if fileRecord[S3_FILE_INFO].get(QC_RESULT_ID):
+            qc_result = self.mongo_dao.get_qcRecord(fileRecord[S3_FILE_INFO][QC_RESULT_ID])
+        if status == STATUS_ERROR or status == STATUS_WARNING:
+            if not qc_result:
+                qc_result = get_qc_result(fileRecord, self.submission, VALIDATION_TYPE_FILE, self.mongo_dao)
+        self.set_status(fileRecord, qc_result, status, error)
+        if status == STATUS_PASSED and qc_result:
+            self.mongo_dao.delete_qcRecord(qc_result[ID])
+            qc_result = None
+            fileRecord[S3_FILE_INFO][QC_RESULT_ID] = None
+        if qc_result: # save QC result
+            fileRecord[S3_FILE_INFO][QC_RESULT_ID] = qc_result[ID]
+            qc_result["validatedDate"] = current_datetime()
+            self.mongo_dao.save_qc_results([qc_result])
