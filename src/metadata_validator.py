@@ -159,7 +159,6 @@ class MetaDataValidator:
         validated_count = 0
         try:
             for record in data_records:
-                status, errors, warnings = self.validate_node(record)
                 qc_result = None
                 if record.get(QC_RESULT_ID):
                     qc_result = self.mongo_dao.get_qcRecord(record[QC_RESULT_ID])
