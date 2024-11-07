@@ -180,7 +180,7 @@ class MetaDataValidator:
                     if qc_result:
                         qc_result[WARNINGS] = []
                         
-                if not self.isError and not self.isWarning:
+                if status == STATUS_PASSED:
                     if qc_result:
                         self.mongo_dao.delete_qcRecord(qc_result[ID])
                         qc_result = None 
