@@ -163,16 +163,18 @@ class MetaDataValidator:
                 if record.get(QC_RESULT_ID):
                     qc_result = self.mongo_dao.get_qcRecord(record[QC_RESULT_ID])
                 status, errors, warnings = self.validate_node(record)
-                if (errors or warnings) and not qc_result:
-                    qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
                 if errors and len(errors) > 0:
                     self.isError = True
+                    if not qc_result:
+                        qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
                     qc_result[ERRORS] = errors
                 else:
                     if qc_result:
                         qc_result[ERRORS] = []
                 if warnings and len(warnings)> 0: 
                     self.isWarning = True
+                    if not qc_result:
+                        qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
                     qc_result[WARNINGS] = warnings
                 else:
                     if qc_result:
