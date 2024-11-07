@@ -169,13 +169,15 @@ class MetaDataValidator:
                     self.isError = True
                     qc_result[ERRORS] = errors
                 else:
-                    qc_result[ERRORS] = []
+                    if qc_result:
+                        qc_result[ERRORS] = []
                 if warnings and len(warnings)> 0: 
                     self.isWarning = True
                     qc_result[WARNINGS] = warnings
                 else:
-                    qc_result[WARNINGS] = []
-
+                    if qc_result:
+                        qc_result[WARNINGS] = []
+                        
                 if not self.isError and not self.isWarning:
                     if qc_result:
                         self.mongo_dao.delete_qcRecord(qc_result[ID])
