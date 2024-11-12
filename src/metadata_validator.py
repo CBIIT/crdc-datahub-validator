@@ -163,33 +163,32 @@ class MetaDataValidator:
                 if record.get(QC_RESULT_ID):
                     qc_result = self.mongo_dao.get_qcRecord(record[QC_RESULT_ID])
                 status, errors, warnings = self.validate_node(record)
-                if errors and len(errors) > 0:
-                    self.isError = True
-                    if not qc_result:
-                        qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
-                    qc_result[ERRORS] = errors
-                else:
-                    if qc_result:
-                        qc_result[ERRORS] = []
-                if warnings and len(warnings)> 0: 
-                    self.isWarning = True
-                    if not qc_result:
-                        qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
-                    qc_result[WARNINGS] = warnings
-                else:
-                    if qc_result:
-                        qc_result[WARNINGS] = []
-                        
                 if status == STATUS_PASSED:
                     if qc_result:
                         self.mongo_dao.delete_qcRecord(qc_result[ID])
                         qc_result = None 
                     record[QC_RESULT_ID] = None
                 else:
-                    qc_result[QC_SEVERITY] = STATUS_ERROR if self.isError else STATUS_WARNING
+                    if not qc_result:
+                        qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
+                    if errors and len(errors) > 0:
+                        self.isError = True
+                        qc_result[ERRORS] = errors
+                        qc_result[QC_SEVERITY] = STATUS_ERROR
+                    else:
+                        qc_result[ERRORS] = []
+                    if warnings and len(warnings)> 0: 
+                        self.isWarning = True
+                        qc_result[WARNINGS] = warnings
+                        if not errors or len(errors) == 0:
+                            qc_result[QC_SEVERITY] = STATUS_WARNING
+                    else:
+                        qc_result[WARNINGS] = []
+
                     qc_result["validatedDate"] = current_datetime()
                     qc_results.append(qc_result)
                     record[QC_RESULT_ID] = qc_result[ID]
+                    
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
@@ -617,6 +616,7 @@ def create_new_qc_result(node, submission, validation_type):
         "displayID": node.get("latestBatchDisplayID"),
         "type": node[NODE_TYPE] if validation_type == VALIDATION_TYPE_METADATA else VALIDATION_TYPE_FILE,
         "submittedID": node[NODE_ID] if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get("fileName"),
-        "uploadedDate": node.get("uploadedDate")
+        "uploadedDate": node.get("uploadedDate"),
+        "origin": "Metadata Validation Service" if validation_type == VALIDATION_TYPE_METADATA else "Data File Validation Service"
     }
     return qc_result
