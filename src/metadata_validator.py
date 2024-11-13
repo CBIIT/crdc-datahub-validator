@@ -595,18 +595,18 @@ def check_boundary(value, min, max, msg_prefix, prop_name):
 """
 get qc result for the node record by qc_id
 """
-def get_qc_result(node, submission, validation_type, mongo_dao):
+def get_qc_result(node, validation_type, mongo_dao):
     qc_id = node.get(QC_RESULT_ID) if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get(QC_RESULT_ID)
     rc_result = None
     if not qc_id:
-        rc_result = create_new_qc_result(node, submission, validation_type)
+        rc_result = create_new_qc_result(node, validation_type)
     else: 
         rc_result = mongo_dao.get_qcRecord(qc_id)
         if not rc_result:
-            rc_result = create_new_qc_result(node, submission, validation_type)
+            rc_result = create_new_qc_result(node, validation_type)
     return rc_result
 
-def create_new_qc_result(node, submission, validation_type):
+def create_new_qc_result(node, validation_type):
     qc_result = {
         ID: get_uuid_str(),
         SUBMISSION_ID: node[SUBMISSION_ID],
