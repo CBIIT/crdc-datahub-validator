@@ -10,7 +10,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
     SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, \
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
-    QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY
+    QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -163,33 +163,33 @@ class MetaDataValidator:
                 if record.get(QC_RESULT_ID):
                     qc_result = self.mongo_dao.get_qcRecord(record[QC_RESULT_ID])
                 status, errors, warnings = self.validate_node(record)
-                if errors and len(errors) > 0:
-                    self.isError = True
-                    if not qc_result:
-                        qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
-                    qc_result[ERRORS] = errors
-                else:
-                    if qc_result:
-                        qc_result[ERRORS] = []
-                if warnings and len(warnings)> 0: 
-                    self.isWarning = True
-                    if not qc_result:
-                        qc_result = get_qc_result(record, self.submission, VALIDATION_TYPE_METADATA, self.mongo_dao)
-                    qc_result[WARNINGS] = warnings
-                else:
-                    if qc_result:
-                        qc_result[WARNINGS] = []
-                        
                 if status == STATUS_PASSED:
                     if qc_result:
                         self.mongo_dao.delete_qcRecord(qc_result[ID])
                         qc_result = None 
                     record[QC_RESULT_ID] = None
                 else:
-                    qc_result[QC_SEVERITY] = STATUS_ERROR if self.isError else STATUS_WARNING
-                    qc_result["validatedDate"] = current_datetime()
+                    if not qc_result:
+                        record[QC_RESULT_ID] = None
+                        qc_result = get_qc_result(record, VALIDATION_TYPE_METADATA, self.mongo_dao)
+                    if errors and len(errors) > 0:
+                        self.isError = True
+                        qc_result[ERRORS] = errors
+                        qc_result[QC_SEVERITY] = STATUS_ERROR
+                    else:
+                        qc_result[ERRORS] = []
+                    if warnings and len(warnings)> 0: 
+                        self.isWarning = True
+                        qc_result[WARNINGS] = warnings
+                        if not errors or len(errors) == 0:
+                            qc_result[QC_SEVERITY] = STATUS_WARNING
+                    else:
+                        qc_result[WARNINGS] = []
+
+                    qc_result[QC_VALIDATE_DATE] = current_datetime()
                     qc_results.append(qc_result)
                     record[QC_RESULT_ID] = qc_result[ID]
+
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
