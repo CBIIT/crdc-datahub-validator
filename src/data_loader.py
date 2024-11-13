@@ -6,13 +6,14 @@ from bento.common.utils import get_logger
 from common.utils import get_uuid_str, current_datetime, removeTailingEmptyColumnsAndRows
 from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_ID, \
     ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
-    MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, \
+    MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, QC_RESULT_ID, BATCH_IDS, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, ENTITY_TYPE, STUDY_ID
+    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, ENTITY_TYPE, STUDY_ID, \
+    DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, LATEST_BATCH_DISPLAY_ID
 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
-BATCH_IDS = "batchIDs"
+
 PRINCIPAL_INVESTIGATOR = "principal_investigator"
 
 
@@ -61,6 +62,13 @@ class DataLoader:
                     type = row[TYPE]
                     node_id = self.get_node_id(type, row)
                     exist_node = self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
+                    # add logic to delete QC record if exist_node
+                    if exist_node and exist_node.get(QC_RESULT_ID): 
+                        self.mongo_dao.delete_qcRecord(exist_node[QC_RESULT_ID])
+                        exist_node[QC_RESULT_ID] = None
+                        s3FileInfo = exist_node.get(S3_FILE_INFO)
+                        if s3FileInfo:
+                            s3FileInfo[QC_RESULT_ID] = None
                     # 2. construct dataRecord
                     rawData = df.loc[index].to_dict()
                     del rawData['index'] #remove index column
@@ -89,9 +97,9 @@ class DataLoader:
                             SUBMISSION_ID: self.batch[SUBMISSION_ID],
                             DATA_COMMON_NAME: self.data_common,
                             BATCH_IDS: batchIds,
-                            "latestBatchID": self.batch[ID],
-                            "latestBatchDisplayID": self.batch.get("displayID"),
-                            "uploadedDate": current_date_time, 
+                            LATEST_BATCH_ID: self.batch[ID],
+                            LATEST_BATCH_DISPLAY_ID: self.batch.get(DISPLAY_ID),
+                            UPLOADED_DATE: current_date_time, 
                             STATUS: STATUS_NEW,
                             ERRORS: [],
                             WARNINGS: [],

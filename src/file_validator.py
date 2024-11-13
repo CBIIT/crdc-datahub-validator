@@ -8,9 +8,10 @@ from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
     BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE, SUBMISSION_INTENTION, SUBMISSION_INTENTION_DELETE,\
-    VALIDATION_ID, VALIDATION_ENDED
+    VALIDATION_ID, VALIDATION_ENDED, QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_FILE, QC_SEVERITY
 from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error, get_uuid_str
 from service.ecs_agent import set_scale_in_protection
+from metadata_validator import get_qc_result
 
 VISIBILITY_TIMEOUT = 20
 """
@@ -48,6 +49,9 @@ def fileValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         #1 call mongo_dao to get batch by batch_id
                         fileRecord = mongo_dao.get_file(data[FILE_ID])
+                        if fileRecord is None: 
+                            msg.delete()
+                            continue
                         #2. validate file.
                         validator = FileValidator(mongo_dao)
                         status = validator.validate(fileRecord)
@@ -136,7 +140,7 @@ class FileValidator:
                 return STATUS_PASSED
             # validate individual file
             status, error = self.validate_file(fileRecord)
-            self.set_status(fileRecord, status, error)
+            self.save_qc_result(fileRecord, status, error)
             return status
         except Exception as e: #catch all unhandled exception
             self.log.exception(e)
@@ -375,20 +379,40 @@ class FileValidator:
             self.log.exception(msg)
             error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
             return None, [error]
-
-    def set_status(self, record, status, error):
+    
+    def set_status(self, record, qc_result, status, error):
         record[S3_FILE_INFO][UPDATED_AT] = current_datetime()
         if status == STATUS_ERROR:
             record[S3_FILE_INFO][STATUS] = STATUS_ERROR
-            record[S3_FILE_INFO][ERRORS] = [error]
-            record[S3_FILE_INFO][WARNINGS] = []
+            qc_result[ERRORS] = [error]
+            qc_result[WARNINGS] = []
+            qc_result[QC_SEVERITY] = STATUS_ERROR
             
         elif status == STATUS_WARNING: 
             record[S3_FILE_INFO][STATUS] = STATUS_WARNING
-            record[S3_FILE_INFO][WARNINGS] = [error]
-            record[S3_FILE_INFO][ERRORS] = []
+            qc_result[WARNINGS] = [error]
+            qc_result[ERRORS] = []
+            qc_result[QC_SEVERITY] = STATUS_WARNING
             
         else:
             record[S3_FILE_INFO][STATUS] = STATUS_PASSED
             record[S3_FILE_INFO][WARNINGS] = []
             record[S3_FILE_INFO][ERRORS] = []
+            qc_result = None
+
+    def save_qc_result(self, fileRecord, status, error):
+        qc_result = None
+        if fileRecord[S3_FILE_INFO].get(QC_RESULT_ID):
+            qc_result = self.mongo_dao.get_qcRecord(fileRecord[S3_FILE_INFO][QC_RESULT_ID])
+        if status == STATUS_ERROR or status == STATUS_WARNING:
+            if not qc_result:
+                qc_result = get_qc_result(fileRecord, VALIDATION_TYPE_FILE, self.mongo_dao)
+        self.set_status(fileRecord, qc_result, status, error)
+        if status == STATUS_PASSED and qc_result:
+            self.mongo_dao.delete_qcRecord(qc_result[ID])
+            qc_result = None
+            fileRecord[S3_FILE_INFO][QC_RESULT_ID] = None
+        if qc_result: # save QC result
+            fileRecord[S3_FILE_INFO][QC_RESULT_ID] = qc_result[ID]
+            qc_result["validatedDate"] = current_datetime()
+            self.mongo_dao.save_qc_results([qc_result])

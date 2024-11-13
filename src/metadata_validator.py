@@ -3,14 +3,17 @@ import pandas as pd
 import json
 from datetime import datetime
 from bento.common.sqs import VisibilityExtender
-from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
+from bento.common.utils import get_logger, DATE_FORMATS
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, ORIN_FILE_NAME, \
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
     SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, \
-    SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES
-from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
+    SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
+    QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
+    QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
+    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID
+from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
@@ -154,22 +157,41 @@ class MetaDataValidator:
     def validate_nodes(self, data_records):
         #2. loop through all records and call validateNode
         updated_records = []
+        qc_results = []
         validated_count = 0
         try:
             for record in data_records:
+                qc_result = None
+                if record.get(QC_RESULT_ID):
+                    qc_result = self.mongo_dao.get_qcRecord(record[QC_RESULT_ID])
                 status, errors, warnings = self.validate_node(record)
-                
-                if errors and len(errors) > 0:
-                    self.isError = True
-                    record[ERRORS] = errors
+                if status == STATUS_PASSED:
+                    if qc_result:
+                        self.mongo_dao.delete_qcRecord(qc_result[ID])
+                        qc_result = None 
+                    record[QC_RESULT_ID] = None
                 else:
-                    record[ERRORS] = []
-                if warnings and len(warnings)> 0: 
-                    self.isWarning = True
-                    record[WARNINGS] = warnings
-                else:
-                    record[WARNINGS] = []
+                    if not qc_result:
+                        record[QC_RESULT_ID] = None
+                        qc_result = get_qc_result(record, VALIDATION_TYPE_METADATA, self.mongo_dao)
+                    if errors and len(errors) > 0:
+                        self.isError = True
+                        qc_result[ERRORS] = errors
+                        qc_result[QC_SEVERITY] = STATUS_ERROR
+                    else:
+                        qc_result[ERRORS] = []
+                    if warnings and len(warnings)> 0: 
+                        self.isWarning = True
+                        qc_result[WARNINGS] = warnings
+                        if not errors or len(errors) == 0:
+                            qc_result[QC_SEVERITY] = STATUS_WARNING
+                    else:
+                        qc_result[WARNINGS] = []
 
+                    qc_result[QC_VALIDATE_DATE] = current_datetime()
+                    qc_results.append(qc_result)
+                    record[QC_RESULT_ID] = qc_result[ID]
+                    
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
@@ -179,14 +201,20 @@ class MetaDataValidator:
             msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
             self.isError = True 
+
         #3. update data records based on record's _id
+        if len(qc_results) > 0:
+            result = self.mongo_dao.save_qc_results(qc_results)
+            if not result:
+                msg = f'Failed to save qcResults for the submission, {self.submission_id} at scope, {self.scope}!'
+                self.log.error(msg)
+                
         result = self.mongo_dao.update_data_records_status(updated_records)
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.error(msg)
             self.isError = True
-
         return validated_count
 
     def validate_node(self, data_record):
@@ -539,6 +567,7 @@ class MetaDataValidator:
                             permissive_vals =  None #escape validation
                     self.mongo_dao.insert_cde([cde])  
         return permissive_vals
+   
     
 """util functions"""
 def check_permissive(value, permissive_vals, msg_prefix, prop_name):
@@ -564,3 +593,33 @@ def check_boundary(value, min, max, msg_prefix, prop_name):
             errors.append(create_error("Value out of range", f'{msg_prefix}  Property "{prop_name}": "{value}" is above upper bound.'))      
 
     return errors
+
+"""
+get qc result for the node record by qc_id
+"""
+def get_qc_result(node, validation_type, mongo_dao):
+    qc_id = node.get(QC_RESULT_ID) if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get(QC_RESULT_ID)
+    qc_result = None
+    if not qc_id:
+        qc_result = create_new_qc_result(node, validation_type)
+    else: 
+        qc_result = mongo_dao.get_qcRecord(qc_id)
+        if not qc_result:
+            qc_result = create_new_qc_result(node, validation_type)
+    return qc_result
+
+def create_new_qc_result(node, validation_type):
+    qc_result = {
+        ID: get_uuid_str(),
+        SUBMISSION_ID: node[SUBMISSION_ID],
+        DATA_RECORD_ID: node[ID],
+        QC_VALIDATION_TYPE: validation_type,
+        BATCH_IDS: node[BATCH_IDS],
+        LATEST_BATCH_ID: node[LATEST_BATCH_ID],
+        DISPLAY_ID: node.get(LATEST_BATCH_DISPLAY_ID),
+        TYPE: node[NODE_TYPE] if validation_type == VALIDATION_TYPE_METADATA else VALIDATION_TYPE_FILE,
+        SUBMITTED_ID: node[NODE_ID] if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get("fileName"),
+        UPLOADED_DATE: node.get(UPLOADED_DATE),
+        QC_ORIGIN: QC_ORIGIN_METADATA_VALIDATE_SERVICE if validation_type == VALIDATION_TYPE_METADATA else QC_ORIGIN_FILE_VALIDATE_SERVICE
+    }
+    return qc_result
