@@ -406,7 +406,7 @@ class FileValidator:
             qc_result = self.mongo_dao.get_qcRecord(fileRecord[S3_FILE_INFO][QC_RESULT_ID])
         if status == STATUS_ERROR or status == STATUS_WARNING:
             if not qc_result:
-                qc_result = get_qc_result(fileRecord, self.submission, VALIDATION_TYPE_FILE, self.mongo_dao)
+                qc_result = get_qc_result(fileRecord, VALIDATION_TYPE_FILE, self.mongo_dao)
         self.set_status(fileRecord, qc_result, status, error)
         if status == STATUS_PASSED and qc_result:
             self.mongo_dao.delete_qcRecord(qc_result[ID])
