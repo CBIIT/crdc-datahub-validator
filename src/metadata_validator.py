@@ -540,10 +540,13 @@ class MetaDataValidator:
     def get_permissive_value(self, prop_def):
         permissive_vals = prop_def.get("permissible_values") 
         if prop_def.get(CDE_TERM) and len(prop_def.get(CDE_TERM)) > 0:
-            # retrieve permissible values from DB
-            cde_term = prop_def[CDE_TERM][0]
-            cde_code = cde_term.get(TERM_CODE) 
-            cde_version = cde_term.get(TERM_VERSION)
+            # retrieve permissible values from DB or cde site
+            cde_code = None
+            cde_terms = [ct for ct in prop_def[CDE_TERM] if 'caDSR' in ct.get('Origin', '')]
+            if cde_terms and len(cde_terms):
+                cde_code = cde_terms[0].get(TERM_CODE) 
+                cde_version = cde_terms[0].get(TERM_VERSION)
+
             if not cde_code:
                 return permissive_vals
             
@@ -565,8 +568,7 @@ class MetaDataValidator:
                             permissive_vals =  None #escape validation
                     self.mongo_dao.insert_cde([cde])  
         return permissive_vals
-   
-    
+
 """util functions"""
 def check_permissive(value, permissive_vals, msg_prefix, prop_name):
     result = True,
