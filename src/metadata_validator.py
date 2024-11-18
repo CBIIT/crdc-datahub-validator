@@ -545,7 +545,7 @@ class MetaDataValidator:
             # retrieve permissible values from DB or cde site
             cde_code = None
             cde_terms = [ct for ct in prop_def[CDE_TERM] if 'caDSR' in ct.get('Origin', '')]
-            if cde_terms and len(cde_terms):
+            if cde_terms and len(cde_terms) > 0:
                 cde_code = cde_terms[0].get(TERM_CODE) 
                 cde_version = cde_terms[0].get(TERM_VERSION)
             if not cde_code:
