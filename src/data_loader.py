@@ -187,6 +187,10 @@ class DataLoader:
                 if studyID and node_id and entity_type:
                     result = self.mongo_dao.search_node_by_study(studyID, entity_type, node_id)
                     crdc_id = result.get(CRDC_ID) if result else None
+            # if the crdc_id can't be identified from the existing dataset, a new crdc_id should be generated.
+            if not crdc_id:
+                crdc_id = get_uuid_str()
+
         else:
             crdc_id = exist_node.get(CRDC_ID)
         return crdc_id
