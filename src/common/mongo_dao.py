@@ -628,7 +628,7 @@ class MongoDao:
     """
     set release search index, 'dataCommons_nodeType_nodeID'
     """
-    def set_search_release_index(self, dataCommon_index, crdcID_index):
+    def set_search_release_index(self, dataCommon_index, crdcID_index, study_entity_type_index):
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
         try:
@@ -639,6 +639,9 @@ class MongoDao:
             if not index_dict or not index_dict.get(crdcID_index):
                 result = data_collection.create_index([(CRDC_ID)], \
                             name=crdcID_index)
+            if not index_dict.get(study_entity_type_index):
+                result = data_collection.create_index([(STUDY_ID), (ENTITY_TYPE),(NODE_ID)], \
+                            name=study_entity_type_index)
             return True
         except errors.PyMongoError as pe:
             self.log.exception(pe)

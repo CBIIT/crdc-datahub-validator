@@ -53,7 +53,7 @@ def controller():
             log.error("Failed to set dataRecords search index!")
             return 1
         # set release search index
-        if not mongo_dao.set_search_release_index(RELEASE_SEARCH_INDEX, CRDCID_SEARCH_INDEX):
+        if not mongo_dao.set_search_release_index(RELEASE_SEARCH_INDEX, CRDCID_SEARCH_INDEX, DATA_RECORDS_STUDY_ENTITY_INDEX):
             log.error("Failed to set release search index!")
             return 1
         
