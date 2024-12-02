@@ -7,7 +7,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
-    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID
+    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, SUBMISSION_REL_STATUS_RELEASED
 from common.utils import get_exception_msg, current_datetime
 
 MAX_SIZE = 10000
@@ -774,7 +774,7 @@ class MongoDao:
             released_nodes = [node for node in results if node.get(SUBMISSION_REL_STATUS) != SUBMISSION_REL_STATUS_DELETED ]
             if len(released_nodes) == 0:
                 # search dataRecords
-                deleted_submission_ids = [rel[SUBMISSION_ID] for rel in results if rel.get(SUBMISSION_REL_STATUS) == SUBMISSION_REL_STATUS_DELETED ]
+                deleted_submission_ids = [rel[SUBMISSION_ID] for rel in results if SUBMISSION_REL_STATUS_DELETED in rel.get(SUBMISSION_REL_STATUS)]
                 rtn_val = self.search_node_by_index_crdc(data_commons, node_type, node_id, deleted_submission_ids)
             else:
                 rtn_val = released_nodes[0]
@@ -799,7 +799,10 @@ class MongoDao:
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
-            return data_collection.find_one({STUDY_ID: studyID, ENTITY_TYPE: entity_type, NODE_ID: node_id})
+            existed_node = self.search_released_node_by_study(studyID, entity_type, node_id)
+            if not existed_node:
+                existed_node =  data_collection.find_one({STUDY_ID: studyID, ENTITY_TYPE: entity_type, NODE_ID: node_id})
+            return existed_node
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to search node for study: {get_exception_msg()}")
@@ -807,6 +810,32 @@ class MongoDao:
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f"Failed to search node for study {get_exception_msg()}")
+            return None
+        
+    def search_released_node_by_study(self, studyID, entity_type, node_id):
+        """
+        Search release collection for given node
+        :param data_commons:
+        :param node_type:
+        :param node_id:
+        :return:
+        """
+        db = self.client[self.db_name]
+        data_collection = db[RELEASE_COLLECTION]
+        try:
+            query = {STUDY_ID: studyID, ENTITY_TYPE: entity_type, NODE_ID: node_id}
+            results = list(data_collection.find(query))
+            if not results or len(results) == 0:
+                return None
+            released_node = next(node for node in results if SUBMISSION_REL_STATUS_DELETED not in node.get(SUBMISSION_REL_STATUS))
+            return released_node
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to find release record for {studyID}/{entity_type}/{node_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to find release record for {studyID}/{entity_type}/{node_id}: {get_exception_msg()}")
             return None
 
     def search_released_node(self, data_commons, node_type, node_id):
