@@ -189,6 +189,24 @@ class MetaDataValidator:
                         qc_result[WARNINGS] = []
 
                     qc_result[QC_VALIDATE_DATE] = current_datetime()
+                    if not qc_result:
+                        record[QC_RESULT_ID] = None
+                        qc_result = get_qc_result(record, VALIDATION_TYPE_METADATA, self.mongo_dao)
+                    if errors and len(errors) > 0:
+                        self.isError = True
+                        qc_result[ERRORS] = errors
+                        qc_result[QC_SEVERITY] = STATUS_ERROR
+                    else:
+                        qc_result[ERRORS] = []
+                    if warnings and len(warnings)> 0: 
+                        self.isWarning = True
+                        qc_result[WARNINGS] = warnings
+                        if not errors or len(errors) == 0:
+                            qc_result[QC_SEVERITY] = STATUS_WARNING
+                    else:
+                        qc_result[WARNINGS] = []
+
+                    qc_result[QC_VALIDATE_DATE] = current_datetime()
                     qc_results.append(qc_result)
                     record[QC_RESULT_ID] = qc_result[ID]
                     
@@ -569,8 +587,7 @@ class MetaDataValidator:
                             permissive_vals =  None #escape validation
                     self.mongo_dao.insert_cde([cde])  
         return permissive_vals
-   
-    
+
 """util functions"""
 def check_permissive(value, permissive_vals, msg_prefix, prop_name):
     result = True,
