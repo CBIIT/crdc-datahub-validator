@@ -177,8 +177,8 @@ def get_s3_file_md5(bucket_name, key):
 """
 create error dict
 """
-def create_error(title, msg):
-    return {"title": title, "description": msg}
+def create_error(title, msg, code, severity, property_name, property_value):
+    return {"code": code, "severity": severity, "title": title, "offendingProperty": property_name, "offendingValue": property_value, "description": msg, }
 
 """
 dataframe util to remove tailing empty rows and columns

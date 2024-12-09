@@ -224,7 +224,7 @@ class FileValidator:
         if not self.bucket.file_exists_on_s3(key):
             msg = f'Data file “{file_name}” not found.'
             self.log.error(msg)
-            error = create_error("Data file not found", msg)
+            error = create_error("Data file not found", msg, "F001", "Error", "file", key)
             return STATUS_ERROR, error
         
         # 2. check file integrity
@@ -251,13 +251,13 @@ class FileValidator:
         if int(org_size) != int(size):
             msg = f'Data file “{file_name}”: expected size: {org_size}, actual size: {size}.'
             self.log.error(msg)
-            error = create_error("Data file size mismatch", msg)
+            error = create_error("Data file size mismatch", msg, "F003", "Error", "file size", org_size)
             return STATUS_ERROR, error
         
         if org_md5 != md5:
             msg = f'Data file “{file_name}”: expected MD5: {org_md5}, actual MD5: {md5}.'
             self.log.error(msg)
-            error = create_error("Data file MD5 mismatch", msg)
+            error = create_error("Data file MD5 mismatch", msg, "F004", "Error", "md5", org_md5)
             return STATUS_ERROR, error
         
         # check duplicates in manifest
@@ -265,7 +265,7 @@ class FileValidator:
         if not manifest_info_list or  len(manifest_info_list) == 0:
             msg = f"No data file records found for the submission."
             self.log.error(msg)
-            error = create_error("Data file records not found", msg)
+            error = create_error("Data file records not found", msg, "F002", "Error", "files", None)
             return STATUS_ERROR, error
         
         # 3. check if Same MD5 checksum and same filename 
@@ -273,7 +273,7 @@ class FileValidator:
         if len(temp_list) > 1:
             msg = f'Data file “{file_name}”: already exists with the same name and md5 value.'
             self.log.warning(msg)
-            error = create_error("Duplicated data file records detected", msg)
+            error = create_error("Duplicated data file records detected", msg, "F005", "Error", "file_name", file_name)
             return STATUS_WARNING, error 
         
         # 4. check if Same filename but different MD5 checksum 
@@ -281,14 +281,14 @@ class FileValidator:
         if len(temp_list) > 0:
             msg = f'Data file “{file_name}”: A data file with the same name but different md5 value was found.'
             self.log.warning(msg)
-            error = create_error("Conflict data file records detected", msg)
+            error = create_error("Conflict data file records detected", msg, "F006", "Error", "file_name", file_name)
             return STATUS_WARNING, error
         
         # 5. check if Same MD5 checksum but different filename
         temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] != file_name and file[S3_FILE_INFO][MD5] == org_md5]
         if len(temp_list) > 0:
             msg = f'Data file “{file_name}”: another data file with the same MD5 found.'
-            error = create_error("Duplicated data file content detected", msg)
+            error = create_error("Duplicated data file content detected", msg, "F007", "Error", "file_name", file_name)
             self.log.warning(msg)
             return STATUS_WARNING, error 
             
@@ -305,7 +305,7 @@ class FileValidator:
         if not self.get_root_path(submission_id):
             msg = f'Invalid submission object, no rootPath found, {submission_id}!'
             self.log.error(msg)
-            error = create_error("Invalid submission", msg)
+            error = create_error("Invalid submission", msg, "", "Error", SUBMISSION_ID, submission_id)
             return STATUS_ERROR, [error]
         key = os.path.join(os.path.join(self.rootPath, f"file/"))
 
@@ -355,7 +355,7 @@ class FileValidator:
                         "severity": "Error",
                         "uploadedDate": file.last_modified,
                         "validatedDate": current_datetime(),
-                        "errors": [create_error("Orphaned file found", msg)]
+                        "errors": [create_error("Orphaned file found", msg, "F008", "Error", "displayID", batchID)]
                     }
                     errors.append(error)
                     missing_count += 1
@@ -377,7 +377,8 @@ class FileValidator:
             self.log.exception(e)
             msg = f"{submission_id}: Failed to validate data files! {get_exception_msg()}!"
             self.log.exception(msg)
-            error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.",
+                                  "", "Error", "", "")
             return None, [error]
     
     def set_status(self, record, qc_result, status, error):
