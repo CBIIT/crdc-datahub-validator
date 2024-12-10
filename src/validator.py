@@ -47,7 +47,8 @@ def controller():
         job_queue = None
         if  configs[SERVICE_TYPE] not in [SERVICE_TYPE_PV_PULLER]:
             job_queue = Queue(configs[SQS_NAME])
-        mongo_dao = MongoDao(configs[MONGO_DB], configs[DB])
+        # mongo_dao = MongoDao(configs[MONGO_DB], configs[DB])
+        mongo_dao = config.mongodb_dao
         # set dataRecord search index
         if not mongo_dao.set_search_index_dataRecords(DATA_RECORDS_SEARCH_INDEX, DATA_RECORDS_CRDC_SEARCH_INDEX, DATA_RECORDS_STUDY_ENTITY_INDEX):
             log.error("Failed to set dataRecords search index!")

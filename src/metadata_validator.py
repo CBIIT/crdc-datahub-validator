@@ -3,14 +3,17 @@ import pandas as pd
 import json
 from datetime import datetime
 from bento.common.sqs import VisibilityExtender
-from bento.common.utils import get_logger, DATE_FORMATS, DATETIME_FORMAT
+from bento.common.utils import get_logger, DATE_FORMATS
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
     STATUS_WARNING, STATUS_PASSED, STATUS, UPDATED_AT, MODEL_FILE_DIR, TIER_CONFIG, DATA_COMMON_NAME, MODEL_VERSION, \
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, ORIN_FILE_NAME, \
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
     SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, \
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
-    QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE
+    QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
+    QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
+    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID
+
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -184,12 +187,11 @@ class MetaDataValidator:
                         if not errors or len(errors) == 0:
                             qc_result[QC_SEVERITY] = STATUS_WARNING
                     else:
-                        qc_result[WARNINGS] = []
+                        qc_result[WARNINGS] = []                   
 
                     qc_result[QC_VALIDATE_DATE] = current_datetime()
                     qc_results.append(qc_result)
                     record[QC_RESULT_ID] = qc_result[ID]
-
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
                 updated_records.append(record)
@@ -543,10 +545,9 @@ class MetaDataValidator:
             # retrieve permissible values from DB or cde site
             cde_code = None
             cde_terms = [ct for ct in prop_def[CDE_TERM] if 'caDSR' in ct.get('Origin', '')]
-            if cde_terms and len(cde_terms):
+            if cde_terms and len(cde_terms) > 0:
                 cde_code = cde_terms[0].get(TERM_CODE) 
                 cde_version = cde_terms[0].get(TERM_VERSION)
-
             if not cde_code:
                 return permissive_vals
             
@@ -599,26 +600,27 @@ get qc result for the node record by qc_id
 """
 def get_qc_result(node, validation_type, mongo_dao):
     qc_id = node.get(QC_RESULT_ID) if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get(QC_RESULT_ID)
-    rc_result = None
+    qc_result = None
     if not qc_id:
-        rc_result = create_new_qc_result(node, validation_type)
+        qc_result = create_new_qc_result(node, validation_type)
     else: 
-        rc_result = mongo_dao.get_qcRecord(qc_id)
-        if not rc_result:
-            rc_result = create_new_qc_result(node, validation_type)
-    return rc_result
+        qc_result = mongo_dao.get_qcRecord(qc_id)
+        if not qc_result:
+            qc_result = create_new_qc_result(node, validation_type)
+    return qc_result
 
 def create_new_qc_result(node, validation_type):
     qc_result = {
         ID: get_uuid_str(),
         SUBMISSION_ID: node[SUBMISSION_ID],
-        "dataRecordID": node[ID],
-        "validationType": validation_type,
+        DATA_RECORD_ID: node[ID],
+        QC_VALIDATION_TYPE: validation_type,
         BATCH_IDS: node[BATCH_IDS],
-        "latestBatchID": node["latestBatchID"],
-        "displayID": node.get("latestBatchDisplayID"),
-        "type": node[NODE_TYPE] if validation_type == VALIDATION_TYPE_METADATA else VALIDATION_TYPE_FILE,
-        "submittedID": node[NODE_ID] if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get("fileName"),
-        "uploadedDate": node.get("uploadedDate")
+        LATEST_BATCH_ID: node[LATEST_BATCH_ID],
+        DISPLAY_ID: node.get(LATEST_BATCH_DISPLAY_ID),
+        TYPE: node[NODE_TYPE] if validation_type == VALIDATION_TYPE_METADATA else VALIDATION_TYPE_FILE,
+        SUBMITTED_ID: node[NODE_ID] if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get("fileName"),
+        UPLOADED_DATE: node.get(UPLOADED_DATE),
+        QC_ORIGIN: QC_ORIGIN_METADATA_VALIDATE_SERVICE if validation_type == VALIDATION_TYPE_METADATA else QC_ORIGIN_FILE_VALIDATE_SERVICE
     }
     return qc_result
