@@ -135,6 +135,7 @@ class FileValidator:
             #check if the file record is valid
             if not self.validate_fileRecord(fileRecord):
                 return STATUS_ERROR
+            self.get_root_path(fileRecord[SUBMISSION_ID])
             #escape file validation if submission intention is Delete
             if self.submission.get(SUBMISSION_INTENTION) == SUBMISSION_INTENTION_DELETE:
                 return STATUS_PASSED
@@ -159,7 +160,7 @@ class FileValidator:
         if not fileRecord.get(S3_FILE_INFO):
             msg = f'Invalid file object, no s3 file info, {fileRecord[ID]}!'
             self.log.error(msg)
-            error = create_error("Invalid dataRecord", msg)
+            error = create_error("Invalid dataRecord", msg, "F009", "Error", S3_FILE_INFO, "")
             self.set_status(fileRecord, STATUS_ERROR, error)
             return False
         else:
@@ -167,23 +168,23 @@ class FileValidator:
                     or not fileRecord[S3_FILE_INFO].get(MD5):
                 msg = f'Invalid data file object: invalid s3 data file info, {fileRecord[ID]}!'
                 self.log.error(msg)
-                error = create_error("Invalid data file info", msg)
+                error = create_error("Invalid data file info", msg, "F010", FILE_NAME, "")
                 self.set_status(fileRecord, STATUS_ERROR, error)
                 return False
-
-        if not fileRecord.get(SUBMISSION_ID):
-            msg = f'Invalid data file object: no submission Id found, {fileRecord[ID]}!'
-            self.log.error(msg)
-            error = create_error("Invalid submission Id", msg)
-            self.set_status(fileRecord, STATUS_ERROR, error)
-            return False
+        # following two errors will not happen anymore.
+        # if not fileRecord.get(SUBMISSION_ID): 
+        #     msg = f'Invalid data file object: no submission Id found, {fileRecord[ID]}!'
+        #     self.log.error(msg)
+        #     error = create_error("Invalid submission Id", msg)
+        #     self.set_status(fileRecord, STATUS_ERROR, error, "", "Error", "SUBMISSION_ID", "")
+        #     return False
         
-        if not self.get_root_path(fileRecord[SUBMISSION_ID]):
-            msg = f'Invalid submission object, no rootPath found, {fileRecord[ID]}/{fileRecord[SUBMISSION_ID]}!'
-            self.log.error(msg)
-            error = create_error("Invalid submission", msg)
-            self.set_status(fileRecord, STATUS_ERROR, error)
-            return False
+        # if not self.get_root_path(fileRecord[SUBMISSION_ID]):
+        #     msg = f'Invalid submission object, no rootPath found, {fileRecord[ID]}/{fileRecord[SUBMISSION_ID]}!'
+        #     self.log.error(msg)
+        #     error = create_error("Invalid submission", msg)
+        #     self.set_status(fileRecord, STATUS_ERROR, error)
+        #     return False
 
         return True
     
@@ -273,7 +274,7 @@ class FileValidator:
         if len(temp_list) > 1:
             msg = f'Data file “{file_name}”: already exists with the same name and md5 value.'
             self.log.warning(msg)
-            error = create_error("Duplicated data file records detected", msg, "F005", "Error", "file_name", file_name)
+            error = create_error("Duplicated data file records detected", msg, "F005", "Warning", "file_name", file_name)
             return STATUS_WARNING, error 
         
         # 4. check if Same filename but different MD5 checksum 
@@ -281,14 +282,14 @@ class FileValidator:
         if len(temp_list) > 0:
             msg = f'Data file “{file_name}”: A data file with the same name but different md5 value was found.'
             self.log.warning(msg)
-            error = create_error("Conflict data file records detected", msg, "F006", "Error", "file_name", file_name)
+            error = create_error("Conflict data file records detected", msg, "F006", "Warning", "file_name", file_name)
             return STATUS_WARNING, error
         
         # 5. check if Same MD5 checksum but different filename
         temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] != file_name and file[S3_FILE_INFO][MD5] == org_md5]
         if len(temp_list) > 0:
             msg = f'Data file “{file_name}”: another data file with the same MD5 found.'
-            error = create_error("Duplicated data file content detected", msg, "F007", "Error", "file_name", file_name)
+            error = create_error("Duplicated data file content detected", msg, "F007", "Warning", "file_name", file_name)
             self.log.warning(msg)
             return STATUS_WARNING, error 
             
