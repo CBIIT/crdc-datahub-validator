@@ -147,7 +147,8 @@ class FileValidator:
             self.log.exception(e)
             msg = f"{fileRecord.get(SUBMISSION_ID)}: Failed to validate data file, {fileRecord.get(ID)}! {get_exception_msg()}!"
             self.log.exception(msg)
-            error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.",
+                                 "F011", "Error", "", "")
             self.set_status(fileRecord, STATUS_ERROR, error)
             return STATUS_ERROR
         finally:
