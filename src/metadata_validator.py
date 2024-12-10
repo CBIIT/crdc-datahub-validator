@@ -316,7 +316,7 @@ class MetaDataValidator:
         for data_key, data_value in data_record[PROPERTIES].items():
             anode_keys = anode_definition.keys()
             if "properties" not in anode_keys:
-                result[ERRORS].append(create_error("Invalid data model", f'"properties" is not defined in the model.', "", "Error", "", ""))
+                result[ERRORS].append(create_error("Invalid data model", f'"properties" is not defined in the model.', "M026", "Error", "", ""))
                 continue
 
             if data_key not in anode_definition["properties"].keys():
@@ -393,7 +393,7 @@ class MetaDataValidator:
         data_record_parent_nodes = data_record.get(PARENTS)
         if not data_record_parent_nodes or len(data_record_parent_nodes) == 0:
             result["result"] = STATUS_WARNING
-            result[ERRORS].append(create_error("Relationship not specified", f'{msg_prefix} All related node IDs are missing. Please ensure at least one related node ID is included.', "", "Error", node_type, node_id))
+            result[ERRORS].append(create_error("Relationship not specified", f'{msg_prefix} All related node IDs are missing. Please ensure at least one related node ID is included.', "M013", "Error", node_type, node_id))
             return result
 
         node_keys = self.model.get_node_keys()

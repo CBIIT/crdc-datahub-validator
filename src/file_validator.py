@@ -304,11 +304,13 @@ class FileValidator:
     def validate_all_files(self, submission_id):
         errors = []
         missing_count = 0
-        if not self.get_root_path(submission_id):
-            msg = f'Invalid submission object, no rootPath found, {submission_id}!'
-            self.log.error(msg)
-            error = create_error("Invalid submission", msg, "", "Error", SUBMISSION_ID, submission_id)
-            return STATUS_ERROR, [error]
+        # this error will not happen anymore
+        # if not self.get_root_path(submission_id):
+        #     msg = f'Invalid submission object, no rootPath found, {submission_id}!'
+        #     self.log.error(msg)
+        #     error = create_error("Invalid submission", msg, "", "Error", SUBMISSION_ID, submission_id)
+        #     return STATUS_ERROR, [error]
+        self.get_root_path(submission_id)
         key = os.path.join(os.path.join(self.rootPath, f"file/"))
 
         try:
@@ -380,7 +382,7 @@ class FileValidator:
             msg = f"{submission_id}: Failed to validate data files! {get_exception_msg()}!"
             self.log.exception(msg)
             error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.",
-                                  "", "Error", "", "")
+                                  "F011", "Error", "", "")
             return None, [error]
     
     def set_status(self, record, qc_result, status, error):

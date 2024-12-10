@@ -90,14 +90,15 @@ class CrossSubmissionValidator:
                         self.submission[DATA_COMMON_NAME], node_type, node_id, [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED])
             if result and duplicate_submissions and len(duplicate_submissions):
                 error = {"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]}# add submission id to errors
-                orig_error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in other submissions')
+                orig_error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in other submissions', "", "Error", "", "")
                 error.update(orig_error)
                 
                 errors.append(error)
                 return STATUS_ERROR, errors
         except Exception as e:
             self.log.exception(e) 
-            error = create_error("Internal error", f"{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("Internal error", f"{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.",
+                                 "M020", "Error", "", "")
             return STATUS_ERROR,[error]
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors
