@@ -91,7 +91,7 @@ class CrossSubmissionValidator:
             if result and duplicate_submissions and len(duplicate_submissions):
                 # error = {"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]}# add submission id to errors
                 error = create_error("S001", [msg_prefix], "conflictingSubmissions", [sub[ID] for sub in duplicate_submissions])
-                # error.update(orig_error)
+                error.update({"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]})  #backward compatible.
                 errors.append(error)
                 return STATUS_ERROR, errors
         except Exception as e:
