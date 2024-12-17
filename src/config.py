@@ -7,9 +7,10 @@ from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, SERVICE_TYP
     DM_BUCKET_CONFIG_NAME, PROD_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG , DATASYNC_ROLE_ARN_ENV, CONFIG_TYPE, \
     CONFIG_KEY, CDE_API_URL
 from bento.common.utils import get_logger
-from common.utils import clean_up_key_value, get_exception_msg
+from common.utils import clean_up_key_value, get_exception_msg, load_message_config
 from common.mongo_dao import MongoDao
 DM_BUCKET_NAME_ENV = "DM_BUCKET_NAME"
+
 class Config():
     def __init__(self):
         self.log = get_logger('Upload Config')
@@ -117,6 +118,12 @@ class Config():
             else:
                 self.data[DATASYNC_ROLE_ARN_CONFIG] = datasync_role
 
+            # load configured customized message to memory
+            if self.data[SERVICE_TYPE] in [SERVICE_TYPE_METADATA, SERVICE_TYPE_FILE]:
+                message_config = load_message_config()
+                if not message_config:
+                    self.log.critical(f'Failed to load message config!')
+                    return False
             return True
         except Exception as e:
             self.log.exception(e)
