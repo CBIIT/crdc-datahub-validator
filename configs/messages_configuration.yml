@@ -187,3 +187,10 @@ Messages:
    severity: "Error"
    message: 'Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists'
    description: "Unhandled exception"
+
+  #cross-submission validation
+  S001: 
+   title: "Conflict Data found"
+   severity: "Error"
+   message: '{} Identical data found in other submissions'
+   description: 'Identical data found in other submissions'
