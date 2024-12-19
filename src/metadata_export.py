@@ -13,7 +13,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
-    SUBMISSION_INTENTION_NEW_UPDATE
+    SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
@@ -80,7 +80,8 @@ def metadata_export(configs, job_queue, mongo_dao):
                     elif data.get(SQS_TYPE) == TYPE_COMPLETE_SUB:
                         export_validator = ExportMetadata(mongo_dao, submission, None, model_store, configs)
                         if export_validator.release_data():
-                            export_validator.transfer_released_files()
+                            if not submission.get(SUBMISSION_DATA_TYPE) or (submission[SUBMISSION_DATA_TYPE] != SUBMISSION_DATA_TYPE_METADATA_ONLY): 
+                                export_validator.transfer_released_files()
                     elif data.get(SQS_TYPE) == TYPE_GENERATE_DCF:
                         export_validator = GenerateDCF(configs, mongo_dao, submission, S3Service())
                         export_validator.generate_dcf()
