@@ -602,12 +602,12 @@ def get_qc_result(node, validation_type, mongo_dao):
     qc_id = node.get(QC_RESULT_ID) if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get(QC_RESULT_ID)
     qc_result = None
     if not qc_id:
-        rc_result = create_new_qc_result(node, submission, validation_type)
+        qc_result = create_new_qc_result(node, validation_type)
     else: 
-        rc_result = mongo_dao.get_qcRecord(qc_id)
-        if not rc_result:
-            rc_result = create_new_qc_result(node, submission, validation_type)
-    return rc_result
+        qc_result = mongo_dao.get_qcRecord(qc_id)
+        if not qc_result:
+            qc_result = create_new_qc_result(node, validation_type)
+    return qc_result
 
 def create_new_qc_result(node, validation_type):
     qc_result = {
