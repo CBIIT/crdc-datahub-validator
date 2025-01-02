@@ -12,7 +12,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
-    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID
+    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -490,7 +490,7 @@ class MetaDataValidator:
             permissive_vals = self.get_permissive_value(prop_def)
             if type == "string":
                 val = str(value)
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
+                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                 if not result:
                     errors.append(error)
             elif type == "integer":
@@ -499,7 +499,7 @@ class MetaDataValidator:
                 except ValueError as e:
                     errors.append(create_error("M004",[msg_prefix, prop_name, value], prop_name, value))
 
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
+                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                 if not result:
                     errors.append(error)
 
@@ -512,7 +512,7 @@ class MetaDataValidator:
                     val = float(value)
                 except ValueError as e:
                     errors.append(create_error("M005", [msg_prefix, prop_name, value], prop_name, value))
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
+                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                 if not result:
                     errors.append(error)
 
@@ -549,7 +549,7 @@ class MetaDataValidator:
                 arr = val.split(list_delimiter) if list_delimiter in val else [value]
                 for item in arr:
                     val = item.strip() if item and isinstance(item, str) else item
-                    result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
+                    result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                     if not result:
                         errors.append(error)
             else:
@@ -592,12 +592,20 @@ class MetaDataValidator:
         return permissive_vals
 
 """util functions"""
-def check_permissive(value, permissive_vals, msg_prefix, prop_name):
+def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao):
     result = True,
     error = None
     if permissive_vals and len(permissive_vals) > 0 and value not in permissive_vals:
-       result = False
-       error = create_error("M010", [msg_prefix, value, prop_name], prop_name, value)
+        result = False
+        error = create_error("M010", [msg_prefix, value, prop_name], prop_name, value)
+        # check synonym
+        synonyms = dao.find_pvs_by_synonym(value)
+        if not synonyms or len(synonyms) == 0:
+             return result, error 
+        suggested_pvs = [item[PV_TERM] for item in synonyms]
+        permissive_val = next(item for item in permissive_vals if item in suggested_pvs)
+        if permissive_val: 
+            error["description"] += f' It is recommended to use "{permissive_val}", as it is semantically equivalent to "{value}"' 
     return result, error
 
 def check_boundary(value, min, max, msg_prefix, prop_name):

@@ -7,7 +7,8 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
-    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE
+    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
+    SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM
 from common.utils import get_exception_msg, current_datetime
 
 MAX_SIZE = 10000
@@ -1087,7 +1088,10 @@ class MongoDao:
             msg = f"Failed to upsert QC records, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg
-        
+    """
+    get configuration by env var
+    :param env_var:
+    """    
     def get_configuration_by_ev_var(self, env_var_list):
         db = self.client[self.db_name]
         data_collection = db[CONFIG_COLLECTION]
@@ -1101,6 +1105,26 @@ class MongoDao:
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f"Failed to get configurations for {env_var_list}: {get_exception_msg()}")
+            return None
+    """
+    find synonym records in synonyms collection by synonym term
+    :param synonym:
+    """   
+    def find_pvs_by_synonym(self, synonym):
+        db = self.client[self.db_name]
+        data_collection = db[SYNONYM_COLLECTION]
+        query = {"$or": [{SYNONYM_TERM: {"$regex": synonym, "$options": "i"}}, 
+                     {PV_TERM: {"$regex": synonym, "$options": "i"}}    
+                ]}  #case-insensitive , 
+        try:
+            return list(data_collection.find(query))
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get synonyms for {synonym}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get synonyms for {synonym}: {get_exception_msg()}")
             return None
     
 """
