@@ -1,13 +1,14 @@
-from pymongo import MongoClient, errors, ReplaceOne, UpdateOne, DeleteOne, TEXT, DESCENDING
+from pymongo import MongoClient, errors, ReplaceOne, UpdateOne, DeleteOne, DESCENDING
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, FAILED, DATA_COMMON_NAME, KEY, \
     VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
-    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, SUBMISSION_STATUS_SUBMITTED, \
-    CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, BATCH_BUCKET
-from common.utils import get_exception_msg, current_datetime, get_uuid_str
+    SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
+    CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
+    BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID
+from common.utils import get_exception_msg, current_datetime
 
 MAX_SIZE = 10000
 
@@ -137,6 +138,10 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to search node for crdc_id {get_exception_msg()}")
             return None
+
+    """
+    check node exists by dataCommons, nodeType and nodeID
+    """
         
     """
     get file in dataRecord collection by fileId
@@ -342,7 +347,7 @@ class MongoDao:
         try:
             result = file_collection.bulk_write([
                 UpdateOne( {ID: m[ID]}, 
-                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], ERRORS: m.get(ERRORS, []), WARNINGS: m.get(WARNINGS, [])}})
+                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], QC_RESULT_ID: m.get(QC_RESULT_ID)}})
                     for m in list(data_records)
                 ])
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')
@@ -393,6 +398,11 @@ class MongoDao:
                     for m in list(nodes)
                 ])
             self.log.info(f'Total {result.deleted_count} dataRecords are deleted!')
+            # delete related qcResults
+            qc_ids = [node[QC_RESULT_ID] for node in nodes if node.get(QC_RESULT_ID)]
+            qc_ids.extend([node[S3_FILE_INFO][QC_RESULT_ID]for node in nodes if node.get(S3_FILE_INFO) and node[S3_FILE_INFO].get(QC_RESULT_ID)])
+            if qc_ids and len(qc_ids) > 0:
+                self.delete_qcRecords(qc_ids)
             return True, None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
@@ -591,7 +601,7 @@ class MongoDao:
     """
     set dataRecords search index, 'submissionID_nodeType_nodeID'
     """
-    def set_search_index_dataRecords(self, submission_index, crdc_index):
+    def set_search_index_dataRecords(self, submission_index, crdc_index, study_entity_type_index):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
@@ -602,6 +612,9 @@ class MongoDao:
             if not index_dict.get(crdc_index):
                 result = data_collection.create_index([(DATA_COMMON_NAME), (NODE_TYPE),(NODE_ID)], \
                             name=crdc_index)
+            if not index_dict.get(study_entity_type_index):
+                result = data_collection.create_index([(STUDY_ID), (ENTITY_TYPE),(NODE_ID)], \
+                            name=study_entity_type_index)
             return True
         except errors.PyMongoError as pe:
             self.log.exception(pe)
@@ -774,6 +787,27 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
             return False
+        
+    def search_node_by_study(self, studyID, entity_type, node_id):
+        """
+        Search release collection for given node, if not found, search it in dataRecord collection
+        :param studyID:
+        :param node_type:
+        :param node_id:
+        :return:
+        """
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            return data_collection.find_one({STUDY_ID: studyID, ENTITY_TYPE: entity_type, NODE_ID: node_id})
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to search node for study: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to search node for study {get_exception_msg()}")
+            return None
 
     def search_released_node(self, data_commons, node_type, node_id):
         """
@@ -914,6 +948,146 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
             return None 
+
+    def insert_cde(self, cde_list):
+        db = self.client[self.db_name]
+        data_collection = db[CDE_COLLECTION]
+        try:
+            result = data_collection.bulk_write([
+                ReplaceOne( {ID: m[ID]}, remove_id(m),  upsert=True)
+                    for m in list(cde_list)
+                ])
+            self.log.info(f'Total {result.upserted_count} CDE PV are upserted!')
+            return True, None
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            msg = f"Failed to upsert CDE PV ."
+            self.log.exception(msg)
+            return False, msg
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to upsert mCDE PV, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg 
+    """
+    set CDE search index, 'CDECode_1_CDEVersion_1'
+    """
+    def set_search_cde_index(self, cde_search_index):
+        db = self.client[self.db_name]
+        data_collection = db[CDE_COLLECTION]
+        try:
+            index_dict = data_collection.index_information()
+            if not index_dict or not index_dict.get(cde_search_index):
+                result = data_collection.create_index([(CDE_CODE), (CDE_VERSION)], \
+                            name=cde_search_index)
+            return True
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to set search index in CDE collection: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to set search index in CDE collection: {get_exception_msg()}")
+            return False
+    """
+    get CDE permissible values
+    """    
+    def get_cde_permissible_values(self, cde_code, cde_version):
+        db = self.client[self.db_name]
+        data_collection = db[CDE_COLLECTION]
+        query = {CDE_CODE: cde_code}
+        if cde_version:
+            query[CDE_VERSION] = cde_version
+        try:
+            return data_collection.find_one(query, sort=[( CDE_VERSION, DESCENDING )])  #find latest version 
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get permissible values for {cde_code}/{cde_version}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get permissible values for {cde_code}/{cde_version}: {get_exception_msg()}")
+            return None
+    """
+    get qc record by qc_id
+    :param qc_id:
+    """
+    def get_qcRecord(self, qc_id):
+        db = self.client[self.db_name]
+        data_collection = db[QC_COLLECTION]
+        try:
+            return data_collection.find_one({ID: qc_id})
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get qc record for {qc_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get qc record for {qc_id}: {get_exception_msg()}")
+            return None
+
+    """
+    delete qc record by qc_id
+    :param qc_id:
+    """   
+    def delete_qcRecord(self, qc_id):
+        db = self.client[self.db_name]
+        data_collection = db[QC_COLLECTION]
+        try:
+            result = data_collection.delete_one({ID: qc_id})
+            return True if result.deleted_count > 0 else False
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to delete qc record for {qc_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to delete qc record for {qc_id}: {get_exception_msg()}")
+            return False
+    """
+    delete qc records by qc_id list
+    :param qc_id:
+    """   
+    def delete_qcRecords(self, qc_ids):
+        db = self.client[self.db_name]
+        data_collection = db[QC_COLLECTION]
+        try:
+            result = data_collection.delete_many({ID: {"$in": qc_ids}})
+            return True if result.deleted_count > 0 else False
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to delete qc record for {qc_id}: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to delete qc record for {qc_id}: {get_exception_msg()}")
+            return False
+
+    """
+    save  rt qc records
+    :param qc_list:
+    """   
+    def save_qc_results(self, qc_list):
+        db = self.client[self.db_name]
+        data_collection = db[QC_COLLECTION]
+        try:
+            result = data_collection.bulk_write([
+                ReplaceOne({ID: m[ID]}, remove_id(m), upsert=True)
+                    for m in list(qc_list)
+                ])
+            self.log.info(f'Total {result.upserted_count} QC records are upserted!')
+            return True, None
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            msg = f"Failed to upsert QC records ."
+            self.log.exception(msg)
+            return False, msg
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to upsert QC records, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg
+    
 """
 remove _id from records for update
 """   

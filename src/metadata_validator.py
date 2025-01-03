@@ -9,12 +9,14 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     NODE_TYPE, PROPERTIES, TYPE, MIN, MAX, VALUE_EXCLUSIVE, VALUE_PROP, VALIDATION_RESULT, ORIN_FILE_NAME, \
     VALIDATED_AT, SERVICE_TYPE_METADATA, NODE_ID, PROPERTIES, PARENTS, KEY, NODE_ID, PARENT_TYPE, PARENT_ID_NAME, PARENT_ID_VAL, \
     SUBMISSION_INTENTION, SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE, TYPE_METADATA_VALIDATE, TYPE_CROSS_SUBMISSION, \
-    SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED
-from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error
+    SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
+    QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE
+from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
 from x_submission_validator import CrossSubmissionValidator
+from pv_puller import get_pv_by_code_version
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
@@ -59,7 +61,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                     submission_id = data.get(SUBMISSION_ID)
                     if data.get(SQS_TYPE) == TYPE_METADATA_VALIDATE and submission_id and data.get(SCOPE) and data.get(VALIDATION_ID):
                         scope = data[SCOPE]
-                        validator = MetaDataValidator(mongo_dao, model_store)
+                        validator = MetaDataValidator(mongo_dao, model_store, configs)
                         status = validator.validate(submission_id, scope)
                         validation_id = data[VALIDATION_ID]
                         validation_end_at = current_datetime()
@@ -97,16 +99,18 @@ Compose a list of files to be updated and their sizes (metadata or files)
 """
 class MetaDataValidator:
     
-    def __init__(self, mongo_dao, model_store):
+    def __init__(self, mongo_dao, model_store, config):
         self.log = get_logger('MetaData Validator')
         self.mongo_dao = mongo_dao
         self.model_store = model_store
+        self.config = config
         self.model = None
         self.submission_id = None
         self.scope = None
         self.submission = None
         self.isError = None
         self.isWarning = None
+
 
     def validate(self, submission_id, scope):
         #1. # get data common from submission
@@ -123,6 +127,7 @@ class MetaDataValidator:
         self.scope = scope
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
+        self.datacommon = datacommon
         model_version = submission.get(MODEL_VERSION)
         #2 get data model based on datacommon and version
         self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
@@ -140,7 +145,7 @@ class MetaDataValidator:
                 self.log.error(msg)
                 return FAILED
             
-            count = len(data_records) 
+            count = len(data_records)             
             validated_count += self.validate_nodes(data_records)
             if count < BATCH_SIZE: 
                 self.log.info(f"{submission_id}: {validated_count} out of {count + start_index} nodes are validated.")
@@ -150,21 +155,40 @@ class MetaDataValidator:
     def validate_nodes(self, data_records):
         #2. loop through all records and call validateNode
         updated_records = []
+        qc_results = []
         validated_count = 0
         try:
             for record in data_records:
+                qc_result = None
+                if record.get(QC_RESULT_ID):
+                    qc_result = self.mongo_dao.get_qcRecord(record[QC_RESULT_ID])
                 status, errors, warnings = self.validate_node(record)
-                
-                if errors and len(errors) > 0:
-                    self.isError = True
-                    record[ERRORS] = errors
+                if status == STATUS_PASSED:
+                    if qc_result:
+                        self.mongo_dao.delete_qcRecord(qc_result[ID])
+                        qc_result = None 
+                    record[QC_RESULT_ID] = None
                 else:
-                    record[ERRORS] = []
-                if warnings and len(warnings)> 0: 
-                    self.isWarning = True
-                    record[WARNINGS] = warnings
-                else:
-                    record[WARNINGS] = []
+                    if not qc_result:
+                        record[QC_RESULT_ID] = None
+                        qc_result = get_qc_result(record, VALIDATION_TYPE_METADATA, self.mongo_dao)
+                    if errors and len(errors) > 0:
+                        self.isError = True
+                        qc_result[ERRORS] = errors
+                        qc_result[QC_SEVERITY] = STATUS_ERROR
+                    else:
+                        qc_result[ERRORS] = []
+                    if warnings and len(warnings)> 0: 
+                        self.isWarning = True
+                        qc_result[WARNINGS] = warnings
+                        if not errors or len(errors) == 0:
+                            qc_result[QC_SEVERITY] = STATUS_WARNING
+                    else:
+                        qc_result[WARNINGS] = []
+
+                    qc_result[QC_VALIDATE_DATE] = current_datetime()
+                    qc_results.append(qc_result)
+                    record[QC_RESULT_ID] = qc_result[ID]
 
                 record[STATUS] = status
                 record[UPDATED_AT] = record[VALIDATED_AT] = current_datetime()
@@ -175,14 +199,20 @@ class MetaDataValidator:
             msg = f'Failed to validate dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.exception(msg) 
             self.isError = True 
+
         #3. update data records based on record's _id
+        if len(qc_results) > 0:
+            result = self.mongo_dao.save_qc_results(qc_results)
+            if not result:
+                msg = f'Failed to save qcResults for the submission, {self.submission_id} at scope, {self.scope}!'
+                self.log.error(msg)
+                
         result = self.mongo_dao.update_data_records_status(updated_records)
         if not result:
             #4. set errors in submission
             msg = f'Failed to update dataRecords for the submission, {self.submission_id} at scope, {self.scope}!'
             self.log.error(msg)
             self.isError = True
-
         return validated_count
 
     def validate_node(self, data_record):
@@ -432,9 +462,9 @@ class MetaDataValidator:
             errors.append(create_error("Invalid property definition", f'{msg_prefix} Property "{prop_name}": “{type}” type is not an allowed property type for this model.'))
         else:
             val = None
-            permissive_vals = prop_def.get("permissible_values")
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
+            permissive_vals = self.get_permissive_value(prop_def)
             if type == "string":
                 val = str(value)
                 result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name)
@@ -488,7 +518,9 @@ class MetaDataValidator:
                 if not isinstance(value, bool) and value not in ["yes", "true", "no", "false"]:
                     errors.append(create_error("Invalid boolean value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid boolean type.'))
             
-            elif type == "array" or type == "value-list":
+            elif (type == "array" or type == "value-list"):
+                if not permissive_vals or len(permissive_vals) == 0:
+                    return errors #skip validation by crdcdh-1723
                 val = str(value)
                 list_delimiter = self.model.get_list_delimiter()
                 arr = val.split(list_delimiter) if list_delimiter in val else [value]
@@ -502,6 +534,41 @@ class MetaDataValidator:
 
         return errors
     
+    """
+    get permissible values of a property
+    """
+    def get_permissive_value(self, prop_def):
+        permissive_vals = prop_def.get("permissible_values") 
+        if prop_def.get(CDE_TERM) and len(prop_def.get(CDE_TERM)) > 0:
+            # retrieve permissible values from DB or cde site
+            cde_code = None
+            cde_terms = [ct for ct in prop_def[CDE_TERM] if 'caDSR' in ct.get('Origin', '')]
+            if cde_terms and len(cde_terms):
+                cde_code = cde_terms[0].get(TERM_CODE) 
+                cde_version = cde_terms[0].get(TERM_VERSION)
+
+            if not cde_code:
+                return permissive_vals
+            
+            cde = self.mongo_dao.get_cde_permissible_values(cde_code, cde_version)
+            if cde:
+                if cde.get(CDE_PERMISSIVE_VALUES) is not None: 
+                    if len(cde.get(CDE_PERMISSIVE_VALUES)) > 0:
+                        permissive_vals = cde[CDE_PERMISSIVE_VALUES]
+                    else:
+                        permissive_vals = None
+            else:
+                # call pv_puller to get permissible values from caDSR
+                cde, msg = get_pv_by_code_version(self.config, self.log, self.datacommon, prop_def["name"], cde_code, cde_version)
+                if cde:
+                    if cde.get(CDE_PERMISSIVE_VALUES) is not None:
+                        if len(cde[CDE_PERMISSIVE_VALUES]) > 0:                        
+                            permissive_vals = cde[CDE_PERMISSIVE_VALUES]
+                        else:
+                            permissive_vals =  None #escape validation
+                    self.mongo_dao.insert_cde([cde])  
+        return permissive_vals
+
 """util functions"""
 def check_permissive(value, permissive_vals, msg_prefix, prop_name):
     result = True,
@@ -526,3 +593,32 @@ def check_boundary(value, min, max, msg_prefix, prop_name):
             errors.append(create_error("Value out of range", f'{msg_prefix}  Property "{prop_name}": "{value}" is above upper bound.'))      
 
     return errors
+
+"""
+get qc result for the node record by qc_id
+"""
+def get_qc_result(node, validation_type, mongo_dao):
+    qc_id = node.get(QC_RESULT_ID) if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get(QC_RESULT_ID)
+    rc_result = None
+    if not qc_id:
+        rc_result = create_new_qc_result(node, validation_type)
+    else: 
+        rc_result = mongo_dao.get_qcRecord(qc_id)
+        if not rc_result:
+            rc_result = create_new_qc_result(node, validation_type)
+    return rc_result
+
+def create_new_qc_result(node, validation_type):
+    qc_result = {
+        ID: get_uuid_str(),
+        SUBMISSION_ID: node[SUBMISSION_ID],
+        "dataRecordID": node[ID],
+        "validationType": validation_type,
+        BATCH_IDS: node[BATCH_IDS],
+        "latestBatchID": node["latestBatchID"],
+        "displayID": node.get("latestBatchDisplayID"),
+        "type": node[NODE_TYPE] if validation_type == VALIDATION_TYPE_METADATA else VALIDATION_TYPE_FILE,
+        "submittedID": node[NODE_ID] if validation_type == VALIDATION_TYPE_METADATA else node[S3_FILE_INFO].get("fileName"),
+        "uploadedDate": node.get("uploadedDate")
+    }
+    return qc_result

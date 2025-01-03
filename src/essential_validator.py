@@ -12,7 +12,7 @@ from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, SQS_TYPE, TYPE_LOAD, STATUS_PASSED,\
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
-    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET
+    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows
 from common.model_store import ModelFactory
 from metadata_remover import MetadataRemover
@@ -82,7 +82,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             result = validator.validate(batch)
                             if result and validator.download_file_list and len(validator.download_file_list) > 0:
                                 #3. call mongo_dao to load data
-                                data_loader = DataLoader(validator.model, batch, mongo_dao, validator.bucket, validator.root_path, validator.datacommon, validator.submission.get(SUBMISSION_INTENTION))
+                                data_loader = DataLoader(validator.model, batch, mongo_dao, validator.bucket, validator.root_path, validator.datacommon, validator.submission)
                                 result, errors = data_loader.load_data(validator.download_file_list)
                                 if result:
                                     batch[STATUS] = BATCH_STATUS_UPLOADED
@@ -121,7 +121,10 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         finally:
                             #5. update submission's metadataValidationStatus
                             if validator.submission:
-                                mongo_dao.set_submission_validation_status(validator.submission, None, STATUS_PASSED, None, None, True)
+                                status = validator.submission.get(METADATA_VALIDATION_STATUS)
+                                # only need update the status if error or warning. In the dao function will check the count of error or warning to get real time status.
+                                status = STATUS_PASSED if status in [STATUS_ERROR, STATUS_WARNING] else status 
+                                mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None, True)
                     else:
                         log.error(f'Invalid message: {data}!')
 
