@@ -205,3 +205,7 @@ DATA_RECORD_ID = "dataRecordID"
 SUBMISSION_DATA_TYPE = "dataType"
 SUBMISSION_DATA_TYPE_METADATA_ONLY = "Metadata Only"
 MESSAGE_TITLE = "title"
+SYNONYM_COLLECTION = "synonyms"
+PV_TERM = "equivalent_term"
+SYNONYM_TERM = "synonym_term"
+
