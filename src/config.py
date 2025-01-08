@@ -111,7 +111,7 @@ class Config():
                 self.data[DM_BUCKET_CONFIG_NAME] = self.data[PROD_BUCKET_CONFIG_NAME] = dm_bucket
 
             config_in_db = next(val[CONFIG_KEY] for val in configs_in_db if val[CONFIG_TYPE] == DATASYNC_ROLE_ARN_ENV)
-            datasync_role = config_in_db[DATASYNC_ROLE_ARN_ENV] if config_in_db and config_in_db.get(DATASYNC_ROLE_ARN_ENV) else self.data.get(DATASYNC_ROLE_ARN_CONFIG)
+            datasync_role = config_in_db[DATASYNC_ROLE_ARN_CONFIG] if config_in_db and config_in_db.get(DATASYNC_ROLE_ARN_CONFIG) else self.data.get(DATASYNC_ROLE_ARN_CONFIG)
             if not datasync_role and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
                 self.log.critical(f'No datasync role is configured in both env and args!')
                 return False
