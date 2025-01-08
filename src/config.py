@@ -103,7 +103,7 @@ class Config():
                 self.data[TIER_CONFIG] = tier
 
             config_in_db = next(val[CONFIG_KEY] for val in configs_in_db if val[CONFIG_TYPE] == DM_BUCKET_NAME_ENV)
-            dm_bucket = config_in_db[DM_BUCKET_NAME_ENV] if config_in_db and config_in_db.get(DM_BUCKET_NAME_ENV) else self.data.get(DM_BUCKET_CONFIG_NAME)
+            dm_bucket = config_in_db[DM_BUCKET_CONFIG_NAME] if config_in_db and config_in_db.get(DM_BUCKET_CONFIG_NAME) else self.data.get(DM_BUCKET_CONFIG_NAME)
             if not dm_bucket and self.data[SERVICE_TYPE] in [SERVICE_TYPE_EXPORT]:
                 self.log.critical(f'No data management bucket is configured in both env and args!')
                 return False
