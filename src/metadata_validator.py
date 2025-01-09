@@ -603,9 +603,9 @@ def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao):
         if not synonyms or len(synonyms) == 0:
              return result, error 
         suggested_pvs = [item[PV_TERM] for item in synonyms]
-        permissive_val = next(item for item in permissive_vals if item in suggested_pvs)
-        if permissive_val: 
-            error["description"] += f' It is recommended to use "{permissive_val}", as it is semantically equivalent to "{value}"' 
+        permissive_val = [item for item in permissive_vals if item in suggested_pvs]
+        if permissive_val and len(permissive_val): 
+            error["description"] += f' It is recommended to use "{permissive_val[0]}", as it is semantically equivalent to "{value}"' 
     return result, error
 
 def check_boundary(value, min, max, msg_prefix, prop_name):
