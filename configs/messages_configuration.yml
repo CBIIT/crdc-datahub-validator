@@ -48,17 +48,17 @@ Messages:
   M010:
    title: "Value not permitted"
    severity: "Error"
-   message: '{} "{}" is not a permissible value for property "{}"'
+   message: '{} "{}" is not a permissible value for property "{}".'
    description: "Not permissive value"
   M011:
    title: "Value out of range"
    severity: "Error"
-   message: '{} Property "{}": "{}" is below lower bound'
+   message: '{} Property "{}": "{}" is below lower bound.'
    description: "Out of value bound"
   M012:
    title: "Value out of range"
    severity: "Error"
-   message: '{} Property "{}": "{}" is above upper bound'
+   message: '{} Property "{}": "{}" is above upper bound.'
    description: "Out of value bound"
   M013:
    title: "Relationship not specified"
@@ -68,8 +68,8 @@ Messages:
   M014:
    title: "Related node not found"
    severity: "Error"
-   message: '{} Related node "{}" {} not found'
-   description: "Related node type is not found"
+   message: '{} Related node "{}" {} not found.'
+   description: "Related node type is not found."
   M015:
    title: "Identical data found"
    severity: "Error"
@@ -150,22 +150,22 @@ Messages:
   F004:
    title: "Data file MD5 mismatch"
    severity: "Error"
-   message: 'File "{}": expected MD5: {}, actual MD5: {}'
+   message: 'File "{}": expected MD5: {}, actual MD5: {}.'
    description: "Actual file MD5 in submission bucket is different from file MD5 in DB record"
   F005:
    title: "Duplicated file records detected"
    severity: "Warning"
-   message: 'File "{}": A file with the same name but different md5 value was founde'
+   message: 'File "{}": A file with the same name but different md5 value was found.'
    description: "There is another DB record with the same file name and MD5 value (different file ID)"
   F006:
    title: "Conflict file records detected"
    severity: "Warning"
-   message: 'File "{}": already exists with the same name and md5 value'
+   message: 'File "{}": already exists with the same name and md5 value.'
    description: "There is another DB record with the same file name but different MD5 value (different file ID)"
   F007:
    title: "Duplicated file content detected"
    severity: "Warning"
-   message: 'File "{}": another file with the same MD5 found'
+   message: 'File "{}": another file with the same MD5 found.'
    description: "There is another DB record with the same MD5 but different file name (different file ID)"
   F008:
    title: "Orphaned file found"
@@ -185,12 +185,12 @@ Messages:
   F011:
    title: "Internal error"
    severity: "Error"
-   message: 'Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists'
+   message: 'Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.'
    description: "Unhandled exception"
 
   #cross-submission validation
   S001: 
    title: "Conflict Data found"
    severity: "Error"
-   message: '{} Identical data found in other submissions'
+   message: '{} Identical data found in other submissions.'
    description: 'Identical data found in other submissions'
