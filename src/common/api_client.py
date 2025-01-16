@@ -47,6 +47,11 @@ class APIInvoker:
 
     def get_data_element_by_cde_code(self, cde_code, api_uri, version=None):
         """
+        Retrieve data element by cde code
+        :param cde_code: cde code
+        :param api_uri: api uri
+        :param version: version
+        :return: data element
 
         """
         url = api_uri + cde_code if version is None else api_uri + cde_code + "?version=" + version
@@ -71,4 +76,45 @@ class APIInvoker:
         except Exception as e:
             self.log.debug(e)
             self.log.exception(f'Retrieve data element by cde code failed - internal error. Please try again and contact the helpdesk if this error persists.')
+            return None
+        
+    def list_github_files(self, url, branch, token=None):
+        headers = {}
+        if token:
+            headers["Authorization"] = f"token {token}"
+        try:
+            params = {"ref": branch} 
+            response = requests.get(url, headers=headers, params=params)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            if response.status_code == 200:
+                return response.json()
+        except requests.exceptions.RequestException as e:
+            self.log.debug(e)
+            self.log.exception(f"Error retrieving synonyms: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            self.log.debug(e)
+            self.log.exception(f"Error decoding JSON response: {e}")
+            return None
+        
+    def get_synonyms(self, api_url):
+        """
+        Retrieve synonyms from the API
+        :param api_url: API URL
+        :return: List of synonyms
+        """
+        headers = {
+            "accept": "application/json"
+        }
+        try:
+            response = requests.get(api_url, headers=headers)
+            response.raise_for_status()  # Raise an exception for HTTP errors
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            self.log.debug(e)
+            self.log.exception(f"Error retrieving synonyms: {e}")
+            return None
+        except json.JSONDecodeError as e:
+            self.log.debug(e)
+            self.log.exception(f"Error decoding JSON response: {e}")
             return None

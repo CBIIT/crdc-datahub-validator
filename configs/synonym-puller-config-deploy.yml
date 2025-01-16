@@ -1,0 +1,4 @@
+Config:
+    # service type value in essential, file and metadata
+    service-type: synonym_puller    
+    synonym-api-url: https://api.github.com/repos/CBIIT/crdc-datahub-terms/contents

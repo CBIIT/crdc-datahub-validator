@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
-from common.constants import MODEL_FILE_DIR, TIER_CONFIG, CDE_COLLECTION, CDE_API_URL, CDE_CODE, CDE_VERSION, ID, CREATED_AT, UPDATED_AT,\
+from common.constants import MODEL_FILE_DIR, TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, ID, CREATED_AT, UPDATED_AT,\
         TERM_CODE, TERM_VERSION
 from common.utils import get_exception_msg, current_datetime, get_uuid_str, dump_dict_to_json, dump_dict_to_tsv, get_date_time
 from common.pv_term_reader import TermReader
