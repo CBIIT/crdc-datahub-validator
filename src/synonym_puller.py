@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import os
 from bento.common.utils import get_logger
 from common.constants import TIER_CONFIG, SYNONYM_API_URL
 from common.utils import get_exception_msg
@@ -10,7 +9,7 @@ SYNONYMS = "synonyms"
 VALUE = "value"
 
 def pull_synonyms(configs, mongo_dao):
-    log = get_logger('Synonym puller')
+    log = get_logger('Synonyms puller')
     puller = SynonymPuller(configs, mongo_dao)
     try:
         puller.pull_synonyms()
@@ -26,10 +25,9 @@ pull synonyms from sts and save to db
 """
 class SynonymPuller:
     def __init__(self, configs, mongo_dao):
-        self.log = get_logger('Permissive values puller')
+        self.log = get_logger('Synonyms puller')
         self.mongo_dao = mongo_dao
         self.configs = configs
-        self.tier = self.configs[TIER_CONFIG]
 
     def pull_synonyms(self):
         # init a synonym set to make sure all synonym/pv pairs are unique
@@ -38,7 +36,7 @@ class SynonymPuller:
         #  1) get contents in branch (tier) of the repo 
             synonym_url = str(self.configs[SYNONYM_API_URL])
             self.api_client = APIInvoker(self.configs)
-            file_list = self.api_client.list_github_files(synonym_url, self.tier)
+            file_list = self.api_client.list_github_files(synonym_url, self.configs[TIER_CONFIG])
             if not file_list or len(file_list) == 0:
                 self.log.info(f"Synonyms for {self.tier} are not found! ")
                 return None
@@ -98,8 +96,8 @@ class SynonymPuller:
                         if synonyms:
                             for synonym in synonyms_val:
                                 if synonym:
-                                    new_synonym = (synonym, value)
-                                    synonym_set.add(new_synonym)
+                                    synonym = (synonym, value)
+                                    synonym_set.add(synonym)
 
         except Exception as e:
             self.log.exception(e)
