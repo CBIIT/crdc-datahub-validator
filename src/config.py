@@ -5,7 +5,7 @@ from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, SERVICE_TYP
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
     SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE,\
     DM_BUCKET_CONFIG_NAME, PROD_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG , DATASYNC_ROLE_ARN_ENV, CONFIG_TYPE, \
-    CONFIG_KEY, CDE_API_URL
+    CONFIG_KEY, CDE_API_URL, SYNONYM_API_URL
 from bento.common.utils import get_logger
 from common.utils import clean_up_key_value, get_exception_msg, load_message_config
 from common.mongo_dao import MongoDao
@@ -81,6 +81,11 @@ class Config():
             if not cde_url: 
                 self.log.critical(f'CDE API url is required!')
                 return False
+            
+            synonym_url = self.data.get(SYNONYM_API_URL)
+            if not synonym_url: 
+                self.log.critical(f'Synonym API url is required!')
+                return False
         
         # get env configuration from DB
         env_vars = [TIER, LOADER_QUEUE, FILE_QUEUE, METADATA_QUEUE, EXPORTER_QUEUE, DM_BUCKET_NAME_ENV, DATASYNC_ROLE_ARN_ENV]
@@ -131,7 +136,7 @@ class Config():
             return False
     
     def set_sqs(self, configs_in_db):
-        if self.data[SERVICE_TYPE] == SERVICE_TYPE_PV_PULLER: 
+        if self.data[SERVICE_TYPE] in [SERVICE_TYPE_PV_PULLER]: 
             return True
         sqs_name = None
         if self.data[SERVICE_TYPE] == SERVICE_TYPE_ESSENTIAL:

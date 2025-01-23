@@ -177,6 +177,8 @@ CDE_API_URL = "cde-data-element-api"
 CDE_TERM = "Term"
 CDE_PERMISSIVE_VALUES = "PermissibleValues"
 
+SYNONYM_API_URL = "synonym-api-url"
+
 TERM_CODE = "Code"
 TERM_VERSION = "Version"
 

@@ -13,9 +13,6 @@ Config:
     pwd: ***
     # db name
     db: crdc-datahub
-    #sqs configuration
-    sqs: crdcdh-queue-pgu.fifo
     models-loc:  https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/
-    tier: dev2
 
    

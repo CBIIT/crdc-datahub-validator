@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
-from common.constants import MODEL_FILE_DIR, TIER_CONFIG, CDE_COLLECTION, CDE_API_URL, CDE_CODE, CDE_VERSION, ID, CREATED_AT, UPDATED_AT,\
-        TERM_CODE, TERM_VERSION
+from common.constants import MODEL_FILE_DIR, TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, ID, CREATED_AT, UPDATED_AT,\
+        TERM_CODE, TERM_VERSION, SYNONYM_API_URL
 from common.utils import get_exception_msg, current_datetime, get_uuid_str, dump_dict_to_json, dump_dict_to_tsv, get_date_time
 from common.pv_term_reader import TermReader
 from common.api_client import APIInvoker
@@ -14,9 +14,13 @@ CADSR_DATA_ELEMENT_LONG_NAME = "longName"
 
 def pull_pv_lists(configs, mongo_dao):
     log = get_logger('Permissive values puller')
-    puller = PVPuller(configs, mongo_dao)
+    pv_puller = PVPuller(configs, mongo_dao)
+    synonym_puller = SynonymPuller(configs, mongo_dao)
     try:
-        puller.pull_pv()
+        # pull pv
+        pv_puller.pull_pv()
+        # pull synonyms
+        synonym_puller.pull_synonyms()
     except (KeyboardInterrupt, SystemExit):
         print("Task is stopped...")
     except Exception as e:
@@ -132,4 +136,90 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
         CREATED_AT: current_datetime(),
         UPDATED_AT: current_datetime(),
     }, msg
+
+"""
+pull synonyms from sts and save to db
+"""
+class SynonymPuller:
+    def __init__(self, configs, mongo_dao):
+        self.log = get_logger('Synonyms puller')
+        self.mongo_dao = mongo_dao
+        self.configs = configs
+
+    def pull_synonyms(self):
+        # init a synonym set to make sure all synonym/pv pairs are unique
+        synonym_set = set()
+        try: 
+        #  1) get contents in branch (tier) of the repo 
+            synonym_url = str(self.configs[SYNONYM_API_URL])
+            self.api_client = APIInvoker(self.configs)
+            file_list = self.api_client.list_github_files(synonym_url, self.configs[TIER_CONFIG])
+            if not file_list or len(file_list) == 0:
+                self.log.info(f"Synonyms for {self.tier} are not found! ")
+                return None
+            """ 
+            file structure:           
+                'name' = 'README.md'
+                'path' = 'README.md'
+                'sha' = '38d749509c716ac79d3ad2540a50b043c075c0be'
+                'size' = 21
+                'url' = 'https://api.github.com/repos/CBIIT/crdc-datahub-terms/contents/README.md?ref=dev2'
+                'html_url' = 'https://github.com/CBIIT/crdc-datahub-terms/blob/dev2/README.md'
+                'git_url' = 'https://api.github.com/repos/CBIIT/crdc-datahub-terms/git/blobs/38d749509c716ac79d3ad2540a50b043c075c0be'
+                'download_url' = 'https://raw.githubusercontent.com/CBIIT/crdc-datahub-terms/dev2/README.md'
+                'type' = 'file'
+            """
+            for file in file_list:
+                if not (file["type"] == "file" and "_sts.json" in file["name"]):
+                    continue
+                # 2) pull synonyms from the file
+                self.get_synonyms_by_datacommon_version(file["download_url"], synonym_set)
+
+        #  3) save synonyms to db
+            if not synonym_set or len(synonym_set) == 0:
+                self.log.info("No synonyms found!")
+                return
+            self.log.info(f"{len(synonym_set)} unique synonym/pv pairs are retrieved!")
+            count = self.mongo_dao.insert_synonyms(list(synonym_set))
+            self.log.info(f"{count} new synonyms are inserted!")
+            return
+
+        except Exception as e: #catch all unhandled exception
+            self.log.exception(e)
+            msg = f"Failed to pull synonyms, {get_exception_msg()}!"
+            self.log.exception(msg)
+            return False
+        
+    def get_synonyms_by_datacommon_version(self, synonym_url, synonym_set):
+        """
+        get synonyms from dump file url in Github repo
+        :param synonym_url
+        :param synonym_set
+        """
+        try:
+            self.log.info(f"Pulling synonyms from {synonym_url}")
+            result = self.api_client.get_synonyms(synonym_url)
+            if not result or len(result) == 0:
+                self.log.info(f"Synonyms for {synonym_url} are not found! ")
+                return None
+            # filter out empty synonyms
+            synonyms  = [item for item in result if item.get('permissibleValues') and item.get('permissibleValues')[0].get('synonyms')] 
+            for item in synonyms:
+                pv_list = item.get('permissibleValues')
+                if pv_list:
+                    for pv in pv_list:
+                        value = pv.get('value')
+                        synonyms_val = pv.get('synonyms')
+                        if synonyms:
+                            for synonym in synonyms_val:
+                                if synonym:
+                                    synonym = (synonym, value)
+                                    synonym_set.add(synonym)
+
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to pull synonyms from {synonym_url}, {get_exception_msg()}!"
+            self.log.exception(msg)
+            return None
+        
 

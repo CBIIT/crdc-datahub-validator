@@ -9,7 +9,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
     BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
     SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM
-from common.utils import get_exception_msg, current_datetime
+from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
 
@@ -1125,6 +1125,37 @@ class MongoDao:
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f"Failed to get synonyms for {synonym}: {get_exception_msg()}")
+            return None
+    """
+    upsert synonym records
+    :param synonym_list
+    """
+    def insert_synonyms(self, synonym_list):
+        db = self.client[self.db_name]
+        data_collection = db[SYNONYM_COLLECTION]
+        to_insert = []
+        try:
+            for item in synonym_list:
+                synonym = {SYNONYM_TERM: item[0], PV_TERM: item[1]}
+                # check if synonym exists
+                existing_synonym = data_collection.find_one(synonym)
+                if existing_synonym:
+                    continue
+                to_insert.append({ID: get_uuid_str(),  **synonym})
+
+            if len(to_insert) == 0:
+                return 0
+            result = data_collection.insert_many(to_insert)
+            return len(result.inserted_ids)
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            msg = f"Failed to upsert synonyms ."
+            self.log.exception(msg)
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to upsert synonyms, {get_exception_msg()}"
+            self.log.exception(msg)
             return None
     
 """

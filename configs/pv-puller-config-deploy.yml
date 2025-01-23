@@ -3,3 +3,4 @@ Config:
     service-type: pv_puller
     models-loc: https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/
     cde-data-element-api: https://cadsrapi.cancer.gov/rad/NCIAPI/1.0/api/DataElement/
+    synonym-api-url: https://api.github.com/repos/CBIIT/crdc-datahub-terms/contents
