@@ -13,7 +13,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
-    SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY
+    SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, S3_FILE_INFO, FILE_NAME
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
@@ -142,6 +142,21 @@ class S3Service:
     def upload_file_to_s3(self, data, bucket_name, file_name):
         self.s3_client.upload_fileobj(data, bucket_name, file_name)
 
+    def get_file_info(self, bucket_name, key):
+        try:
+            response = self.s3_client.head_object(Bucket=bucket_name, Key=key)
+            return response.get('Metadata', {})
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404':
+                return None
+            else:
+                raise e
+            
+    def move_file(self, source_bucket, source_key, dest_bucket, dest_key):
+        copy_source = {'Bucket': source_bucket, 'Key': source_key}
+        self.s3_client.copy_object(Bucket=dest_bucket, CopySource=copy_source, Key=dest_key)
+        self.s3_client.delete_object(Bucket=source_bucket, Key=source_key)
+
 # Private class
 class ExportMetadata:
     def __init__(self, mongo_dao, submission, s3_service, model_store, configs):
@@ -185,6 +200,9 @@ class ExportMetadata:
         for node_type in node_types:
             thread = threading.Thread(target=self.export, args=(submission_id, node_type))
             threads.append(thread)
+            if self.submission[SUBMISSION_INTENTION] == SUBMISSION_INTENTION_DELETE and node_type in self.model.get_file_nodes():
+                thread = threading.Thread(target=self.delete_data_file, args=(submission_id, node_type))
+                threads.append(thread)
             thread.start()
 
         for thread in threads:
@@ -270,6 +288,33 @@ class ExportMetadata:
         id, root_path, bucket_name,_,_ = self.get_submission_info()      
         full_name = f"{ValidationDirectory.get_release(root_path)}/{id}-{node_type}.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
+
+    def delete_data_file(self, submission_id, node_type):
+        start_index = 0
+        file_list = []
+        while True:
+            # get nodes by submissionID and nodeType
+            data_records = self.mongo_dao.get_dataRecords_chunk_by_nodeType(submission_id, node_type, start_index, BATCH_SIZE)
+            if start_index == 0 and (not data_records or len(data_records) == 0):
+                return
+            
+            for r in data_records:
+                s3FileInfo = r.get(S3_FILE_INFO)
+                if s3FileInfo:
+                    s3_file_name = s3FileInfo.get(FILE_NAME)
+                    if s3_file_name:
+                        file_list.append(s3_file_name)
+
+            count = len(data_records) 
+            if count < BATCH_SIZE: 
+                try:
+                    self.move_s3_objects(file_list)
+                except Exception as e:
+                    self.log.exception(e)
+                    self.log.exception(f'{submission_id}: Failed to delete {node_type} file: {get_exception_msg()}.')
+
+            start_index += count 
+
 
     def release_data(self):
         submission_id = self.submission[ID]
@@ -516,6 +561,34 @@ class ExportMetadata:
             self.log.exception(f"Failed to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {get_exception_msg()}")
 
 
+    def move_s3_objects(self, file_list):
+        """
+        move s3 object from one bucket to another
+        """
+        id, root_path, bucket_name, dataCommon, study_id = self.get_submission_info()
+        data_file_folder = os.path.join(root_path, "file")
+        dest_bucket_name = self.mongo_dao.get_bucket_name("Metadata Bucket", dataCommon)
+        dest_file_folder = f'to_be_deleted/{id}/{study_id}'
+        try:
+            for file in file_list:
+                # 1) check if the file exists in source s3 bucket
+                key = os.path.join(data_file_folder, file)
+                file_info = self.s3_service.get_file_info(bucket_name, key)
+                if not file_info:
+                    self.log.error(f"File {file} does not exist in {bucket_name}!")
+                    continue
+           
+                # Construct new key
+                new_key = os.path.join(dest_file_folder, file)
+
+                self.s3_service.move_file(bucket_name, key, dest_bucket_name, new_key)
+        except ClientError as ce:
+            self.log.exception(ce)
+            self.log.exception(f"Failed to move files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {ce.response['Error']['Message']}")
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to move files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {get_exception_msg()}")
+
 def start_monitoring_task(task_execution_arn, task_arn, dataSync, source, dest, log):
             monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_execution_arn, task_arn, dataSync, source, dest, log))
             monitor_thread.start()
@@ -555,6 +628,8 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
             dest = None
             datasync.close()
             datasync = None
+
+    
 # Private class
 class ValidationDirectory:
     @staticmethod
