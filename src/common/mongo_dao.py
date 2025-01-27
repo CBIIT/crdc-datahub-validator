@@ -843,7 +843,13 @@ class MongoDao:
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
         try:
-            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_REL_STATUS: {"$in": status}})
+            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, 
+                "$expr": {
+                "$in": [
+                  { "$arrayElemAt": ["$status", -1] }, # Get the last element of the array
+                  status                                # Check if it equals nodeStatus
+                ]
+              }})
             return list(result) if result else None
         except errors.PyMongoError as pe:
             self.log.exception(pe)

@@ -94,6 +94,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while exporting data! Check debug log for details.')
                 finally:
+                    msg.delete()
                     # De-allocation memory
                     if export_validator:
                         export_validator.close()
@@ -200,10 +201,11 @@ class ExportMetadata:
         for node_type in node_types:
             thread = threading.Thread(target=self.export, args=(submission_id, node_type))
             threads.append(thread)
+            thread.start()
             if self.submission[SUBMISSION_INTENTION] == SUBMISSION_INTENTION_DELETE and node_type in self.model.get_file_nodes():
                 thread = threading.Thread(target=self.delete_data_file, args=(submission_id, node_type))
                 threads.append(thread)
-            thread.start()
+                thread.start()
 
         for thread in threads:
             thread.join()
@@ -312,6 +314,7 @@ class ExportMetadata:
                 except Exception as e:
                     self.log.exception(e)
                     self.log.exception(f'{submission_id}: Failed to delete {node_type} file: {get_exception_msg()}.')
+                return
 
             start_index += count 
 
@@ -565,9 +568,10 @@ class ExportMetadata:
         """
         move s3 object from one bucket to another
         """
-        id, root_path, bucket_name, dataCommon, study_id = self.get_submission_info()
-        data_file_folder = os.path.join(root_path, "file")
-        dest_bucket_name = self.mongo_dao.get_bucket_name("Metadata Bucket", dataCommon)
+        id, _, _, _, study_id = self.get_submission_info()
+        bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME) #nci data management account s3 bucket
+        data_file_folder =  study_id
+        dest_bucket_name = bucket_name
         dest_file_folder = f'to_be_deleted/{id}/{study_id}'
         try:
             for file in file_list:
@@ -575,7 +579,7 @@ class ExportMetadata:
                 key = os.path.join(data_file_folder, file)
                 file_info = self.s3_service.get_file_info(bucket_name, key)
                 if not file_info:
-                    self.log.error(f"File {file} does not exist in {bucket_name}!")
+                    self.log.error(f"File {key} does not exist in {bucket_name}!")
                     continue
            
                 # Construct new key
