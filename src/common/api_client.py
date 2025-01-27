@@ -54,7 +54,7 @@ class APIInvoker:
         :return: data element
 
         """
-        url = api_uri + cde_code if version is None else api_uri + cde_code + "?version=" + version
+        url = api_uri + str(cde_code) if version is None else api_uri + cde_code + "?version=" + str(version)
         headers = {
             "accept": "application/json"
         }
