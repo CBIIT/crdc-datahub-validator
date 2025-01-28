@@ -19,7 +19,11 @@ class ReplaeFileId():
         self.submission_id = submission_id
         self.db_name = db_name
         self.mongo_dao = MongoDao(mongo_connnection_str, db_name)
-        self.study_id = self.mongo_dao.get_submission(submission_id)['studyID']
+        submission = self.mongo_dao.get_submission(submission_id)
+        if not submission:
+            print(f'Submission ID {submission_id} not found in DB')
+            sys.exit(1)
+        self.study_id = submission['studyID']
 
     def print_info(self):
         print(f'DB address: {urlparse(self.mongo_con_str).hostname}')
@@ -27,7 +31,7 @@ class ReplaeFileId():
         print(f'Submission ID: {self.submission_id}')
         print(f'Study ID: {self.study_id}')
 
-    def replace_file_ids(self):
+    def replace_file_ids(self, dryrun=True):
         all_files = self.mongo_dao.get_dataRecords_chunk_by_nodeType(self.submission_id, FILE_NODE_NAME, 0, 10000)
         touched_files = []
         for file in all_files:
@@ -35,15 +39,26 @@ class ReplaeFileId():
             drs_id = self._generate_drs_id(file['props'][FILE_NAME_FIELD])
             crdc_id = drs_id
             file_id = drs_id if FILE_ID_INCLUDES_DCF_PREFIX else drs_id.replace(DCF_PREFIX, '')
+            needs_update = False
             if file['CRDC_ID'] != crdc_id:
+                file['CRDC_ID'] = crdc_id
+                needs_update = True
                 print(f'CRDC ID: {file["CRDC_ID"]} -> New: {crdc_id}')
             if file['nodeID'] != file_id:
+                file['nodeID'] = file_id
+                needs_update = True
                 print(f'NODE ID: {file["nodeID"]} -> New: {file_id}')
                 touched_files.append(file)
             if file["props"][FILE_ID_FIELD] != file_id:
+                file['props'][FILE_ID_FIELD] = file_id
+                needs_update = True
                 print(f'File ID: {file["props"][FILE_ID_FIELD]} -> New: {file_id}')
+
+            if not dryrun and needs_update:
+                self.mongo_dao.update_file(file)
+
         print(f'{len(all_files)} records found')
-        print(f'{len(touched_files)} records need to be updated')
+        print(f'{len(touched_files)} records {"need to be" if dryrun else ""} updated')
 
     # Generate DRS ID based on CRDC DH rule
     # DH -> Study ID -> Folder (optional) -> file name
@@ -60,7 +75,7 @@ class ReplaeFileId():
 
 
 if __name__ == '__main__':
-    if len(sys.argv) < 2:
+    if len(sys.argv) < 3:
         print(f'Usage: {os.path.basename(sys.argv[0])} <submission ID> <MongoDB connection string> [database name]')
         sys.exit(1)
     submission_id = sys.argv[1]
@@ -69,5 +84,5 @@ if __name__ == '__main__':
 
     replacer = ReplaeFileId(mongo_connnection_str, db_name, submission_id)
     replacer.print_info()
-    replacer.replace_file_ids()
+    replacer.replace_file_ids(False)
     # replacer.replace_file_ids()
