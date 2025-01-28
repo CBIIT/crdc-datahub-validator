@@ -5,11 +5,13 @@ from common.mongo_dao import MongoDao
 
 DH_PROD_URL = 'https://hub.datacommons.cancer.gov/'
 DB_NAME = 'crdc-datahub'
+DCF_PREFIX = 'dg.4DFC/'
 
 # Following constants are model dependent, and currently set to match CDS data model
 FILE_NODE_NAME = 'file'
 FILE_NAME_FIELD = 'file_name'
 FILE_ID_FIELD = 'file_id'
+FILE_ID_INCLUDES_DCF_PREFIX = True
 
 class ReplaeFileId():
     def __init__(self, mongo_con_str, db_name, submission_id):
@@ -31,13 +33,15 @@ class ReplaeFileId():
         for file in all_files:
             print(f'========== Processing file: {file["_id"]} ==============')
             drs_id = self._generate_drs_id(file['props'][FILE_NAME_FIELD])
-            if file['CRDC_ID'] != drs_id:
-                print(f'CRDC ID: {file["CRDC_ID"]} -> New: {drs_id}')
-            if file['nodeID'] != drs_id:
-                print(f'NODE ID: {file["nodeID"]} -> New: {drs_id}')
+            crdc_id = drs_id
+            file_id = drs_id if FILE_ID_INCLUDES_DCF_PREFIX else drs_id.replace(DCF_PREFIX, '')
+            if file['CRDC_ID'] != crdc_id:
+                print(f'CRDC ID: {file["CRDC_ID"]} -> New: {crdc_id}')
+            if file['nodeID'] != file_id:
+                print(f'NODE ID: {file["nodeID"]} -> New: {file_id}')
                 touched_files.append(file)
-            if file["props"][FILE_ID_FIELD] != drs_id:
-                print(f'File ID: {file["props"][FILE_ID_FIELD]} -> New: {drs_id}')
+            if file["props"][FILE_ID_FIELD] != file_id:
+                print(f'File ID: {file["props"][FILE_ID_FIELD]} -> New: {file_id}')
         print(f'{len(all_files)} records found')
         print(f'{len(touched_files)} records need to be updated')
 
@@ -49,7 +53,7 @@ class ReplaeFileId():
         file_path = file_name
         if folder is not None:
             file_path = os.path.join(folder, file_name)
-        file_UUID = f'dg.4DFC/{uuid.uuid5(study_UUID, file_path)}'
+        file_UUID = f'{DCF_PREFIX}{uuid.uuid5(study_UUID, file_path)}'
         # print(f'{os.path.join(DH_PROD_URL, self.study_id, file_path)} => {file_UUID}')
         return file_UUID
 
