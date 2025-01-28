@@ -4,8 +4,11 @@ from urllib.parse import urlparse
 from common.mongo_dao import MongoDao
 
 DH_PROD_URL = 'https://hub.datacommons.cancer.gov/'
-DB_NAME = 'crdc-datahub'
 DCF_PREFIX = 'dg.4DFC/'
+# correct DB name for dev, qa, stage and prod
+DB_NAME = 'crdc-datahub'
+# correct DB name for dev2 and qa2
+# DB_NAME = 'crdc-datahub2'
 
 # Following constants are model dependent, and currently set to match CDS data model
 FILE_NODE_NAME = 'file'
@@ -14,6 +17,10 @@ FILE_ID_FIELD = 'file_id'
 FILE_ID_INCLUDES_DCF_PREFIX = True
 
 class ReplaeFileId():
+    '''
+      The purpose of this script is finding all files within a data submission that don't have correct file_ids and
+      replace the file_ids and crdc_ids with correct DRS IDs
+    '''
     def __init__(self, mongo_con_str, db_name, submission_id):
         self.mongo_con_str = mongo_con_str
         self.submission_id = submission_id
@@ -31,7 +38,7 @@ class ReplaeFileId():
         print(f'Submission ID: {self.submission_id}')
         print(f'Study ID: {self.study_id}')
 
-    def replace_file_ids(self, dryrun=True):
+    def replace_file_ids(self, do_update=False):
         all_files = self.mongo_dao.get_dataRecords_chunk_by_nodeType(self.submission_id, FILE_NODE_NAME, 0, 10000)
         touched_files = []
         for file in all_files:
@@ -54,11 +61,11 @@ class ReplaeFileId():
                 needs_update = True
                 print(f'File ID: {file["props"][FILE_ID_FIELD]} -> New: {file_id}')
 
-            if not dryrun and needs_update:
+            if do_update and needs_update:
                 self.mongo_dao.update_file(file)
 
         print(f'{len(all_files)} records found')
-        print(f'{len(touched_files)} records {"need to be" if dryrun else ""} updated')
+        print(f'{len(touched_files)} records {"need to be" if not do_update else "have been"} updated')
 
     # Generate DRS ID based on CRDC DH rule
     # DH -> Study ID -> Folder (optional) -> file name
@@ -76,13 +83,13 @@ class ReplaeFileId():
 
 if __name__ == '__main__':
     if len(sys.argv) < 3:
-        print(f'Usage: {os.path.basename(sys.argv[0])} <submission ID> <MongoDB connection string> [database name]')
+        print(f'Usage: {os.path.basename(sys.argv[0])} <MongoDB connection string> <submission ID>  [Do Update(true/false)]')
         sys.exit(1)
-    submission_id = sys.argv[1]
-    mongo_connnection_str = sys.argv[2]
-    db_name = sys.argv[3] if len(sys.argv) > 3 else DB_NAME
+    mongo_connnection_str = sys.argv[1]
+    submission_id = sys.argv[2]
+    do_update = sys.argv[3].lower() == 'true' if len(sys.argv) > 3 else False
 
-    replacer = ReplaeFileId(mongo_connnection_str, db_name, submission_id)
+    replacer = ReplaeFileId(mongo_connnection_str, DB_NAME, submission_id)
     replacer.print_info()
-    replacer.replace_file_ids(False)
+    replacer.replace_file_ids(do_update)
     # replacer.replace_file_ids()
