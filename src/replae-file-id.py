@@ -48,18 +48,18 @@ class ReplaeFileId():
             file_id = drs_id if FILE_ID_INCLUDES_DCF_PREFIX else drs_id.replace(DCF_PREFIX, '')
             needs_update = False
             if file['CRDC_ID'] != crdc_id:
+                print(f'CRDC ID: {file["CRDC_ID"]} -> New: {crdc_id}')
                 file['CRDC_ID'] = crdc_id
                 needs_update = True
-                print(f'CRDC ID: {file["CRDC_ID"]} -> New: {crdc_id}')
             if file['nodeID'] != file_id:
+                print(f'NODE ID: {file["nodeID"]} -> New: {file_id}')
                 file['nodeID'] = file_id
                 needs_update = True
-                print(f'NODE ID: {file["nodeID"]} -> New: {file_id}')
                 touched_files.append(file)
             if file["props"][FILE_ID_FIELD] != file_id:
+                print(f'File ID: {file["props"][FILE_ID_FIELD]} -> New: {file_id}')
                 file['props'][FILE_ID_FIELD] = file_id
                 needs_update = True
-                print(f'File ID: {file["props"][FILE_ID_FIELD]} -> New: {file_id}')
 
             if do_update and needs_update:
                 self.mongo_dao.update_file(file)
