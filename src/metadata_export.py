@@ -595,7 +595,7 @@ class ExportMetadata:
                 key = os.path.join(data_file_folder, file)
                 file_info = self.s3_service.get_file_info(bucket_name, key)
                 if not file_info:
-                    self.log.error(f"File {key} does not exist in {bucket_name}!")
+                    self.log.warning(f"File {key} does not exist in {bucket_name}!")
                     continue
            
                 # Construct new key
