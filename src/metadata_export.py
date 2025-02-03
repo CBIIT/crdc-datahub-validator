@@ -13,7 +13,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
-    SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY
+    SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
@@ -471,6 +471,7 @@ class ExportMetadata:
         transfer s3 object with AWS DataSync
         """
         datasync_role = self.configs.get(DATASYNC_ROLE_ARN_CONFIG)
+        log_group_arn = self.configs.get(DATASYNC_LOG_ARN_CONFIG)
         datasync = boto3.client('datasync')
         try:
             # Create source S3 location
@@ -492,10 +493,12 @@ class ExportMetadata:
                 SourceLocationArn=source_location['LocationArn'],
                 DestinationLocationArn=destination_location['LocationArn'],
                 Name='Data_Hub_SyncTask',
+                CloudWatchLogGroupArn=log_group_arn,
                 Options={
-                    'VerifyMode': 'ONLY_FILES_TRANSFERRED'
+                    'VerifyMode': 'ONLY_FILES_TRANSFERRED',
+                    "LogLevel": "TRANSFER"
                 },
-                Tags = tags
+                Tags = tags, 
             )
             self.log.info(f"DataSync task {task['TaskArn']} created to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}.")
 
