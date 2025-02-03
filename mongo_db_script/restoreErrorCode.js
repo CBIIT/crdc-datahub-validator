@@ -97,16 +97,17 @@ function processCollection(field) {
     if (bulkOps.length > 0) {
         db.qcResults.bulkWrite(bulkOps);
     }
+
     print("\n");
-    console.log(`${new Date()} -> Processed data field: ${field}`);
     print("----------------------");
     console.log(`Matched Records: ${matchedCount}`);
     console.log(`Updated Records: ${updatedCount}`);
+    console.log(`${new Date()} -> Processed data field: ${field}`);
     print("----------------------");
     print("\n");
 }
 
 // Restore code in qcResults.errors
 processCollection("errors");
-// Restore code in qcResults.warning
+// Restore code in qcResults.warnings
 processCollection("warnings");
