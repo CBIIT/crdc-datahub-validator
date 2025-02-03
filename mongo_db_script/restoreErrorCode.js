@@ -66,6 +66,8 @@ function processCollection(field) {
     const bulkOps = [];
     let matchedCount = 0;
     let updatedCount = 0;
+    print("\n");
+    print("----------------------");
     console.log(`${new Date()} -> Processing data field: ${field}`);
     db.qcResults.find({ [field]: { $ne: null }, [`${field}.title`]: { $exists: true }, [`${field}.code`]: { $exists: false } }).forEach(doc => {
         let updated = false;
@@ -98,8 +100,6 @@ function processCollection(field) {
         db.qcResults.bulkWrite(bulkOps);
     }
 
-    print("\n");
-    print("----------------------");
     console.log(`Matched Records: ${matchedCount}`);
     console.log(`Updated Records: ${updatedCount}`);
     console.log(`${new Date()} -> Processed data field: ${field}`);
