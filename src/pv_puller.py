@@ -65,8 +65,7 @@ class PVPuller:
                     cde_origin = term.get("Origin")
                     if not cde_origin or not "caDSR" in cde_origin:
                         continue
-                    cde_id = str(cde_id)
-                    if not cde_id.isdigit(): # skip non-numeric cde codes
+                    if not str(cde_id).isdigit(): # skip non-numeric cde codes
                         self.log.info(f"CDE id is invalid for {data_common}:{prop_name}: {cde_id}")
                         no_found_cde.append({"data_commons": data_common, "property": prop_name, "CDE_code": cde_id, "error": "Invalid CDE code."})
                         continue
