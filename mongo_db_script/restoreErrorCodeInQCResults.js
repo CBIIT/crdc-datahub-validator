@@ -58,8 +58,12 @@ function getCodeByTitle(title, description = null) {
             }
         }
     }
-    else
+    else {
         console.error(`No code found for title: ${title}`);
+        return null;
+
+    }
+       
     return null;
 }
 
