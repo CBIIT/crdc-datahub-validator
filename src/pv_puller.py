@@ -10,14 +10,19 @@ MODEL_DEFS = "models"
 CADSR_DATA_ELEMENT = "DataElement"
 CADSR_VALUE_DOMAIN = "ValueDomain"
 CADSR_DATA_ELEMENT_LONG_NAME = "longName"
+FILE_DOWNLOAD_URL = "download_url"
+FILE_NAME = "name"
+FILE_TYPE = "type"
 
 def pull_pv_lists(configs, mongo_dao):
-    log = get_logger('Permissive values puller')
-    pv_puller = PVPuller(configs, mongo_dao)
-    synonym_puller = SynonymPuller(configs, mongo_dao)
+    log = get_logger('Permissive values and synonym puller')
+    api_client = APIInvoker(configs)
+    pv_puller = PVPuller(configs, mongo_dao, api_client)
+    synonym_puller = SynonymPuller(configs, mongo_dao, api_client)
+    
     try:
         # pull pv
-        pv_puller.pull_cde()
+        pv_puller.pull_cde_pv()
         # pull synonyms
         synonym_puller.pull_synonyms()
     except (KeyboardInterrupt, SystemExit):
@@ -32,10 +37,11 @@ pull permissive values from CDE and save to db
 """
 class PVPuller:
     
-    def __init__(self, configs, mongo_dao):
+    def __init__(self, configs, mongo_dao, api_client):
         self.log = get_logger('Permissive values puller')
         self.mongo_dao = mongo_dao
         self.configs = configs
+        self.api_client = api_client
 
     def pull_pv(self):
         """
@@ -102,11 +108,10 @@ class PVPuller:
             self.log.exception(msg)
             return False
         
-    def pull_cde(self):
+    def pull_cde_pv(self):
         """
-        pull cde from CDE API
+        pull cde pv from CDE dump files in github and save to CDE collection in DB
         """
-        self.api_client = APIInvoker(self.configs)
         file_list = get_cde_dump_files(self.api_client, self.configs[SYNONYM_API_URL], self.configs[TIER_CONFIG], self.log)
         if not file_list:
             self.log.info("No CDE dump files found!")   
@@ -114,7 +119,7 @@ class PVPuller:
         cde_set = set()
         cde_records = []
         for file in file_list:
-            self.extract_cde_from_file(file["download_url"], cde_set, cde_records)
+            self.extract_cde_from_file(file[FILE_DOWNLOAD_URL], cde_set, cde_records)
         
         if not cde_records or len(cde_records) == 0:
             self.log.info("No cde found!")
@@ -138,7 +143,7 @@ class PVPuller:
             if not result or len(result) == 0:
                 self.log.info(f"CDE dump files in {download_url} are not found! ")
                 return None
-            cde_list  = [item for item in result if item.get('CDECode')] 
+            cde_list  = [item for item in result if item.get(CDE_CODE) and item.get(CDE_CODE) != 'null'] 
             if not cde_list or len(cde_list) == 0:
                 self.log.info(f"No cde found in {download_url}")
                 return
@@ -172,7 +177,7 @@ def get_cde_dump_files(api_client, github_url, tier, log):
     """
     try:        
         file_list = api_client.list_github_files(github_url, tier)
-        file_list = [f for f in file_list if f["name"].endswith("_sts.json")]
+        file_list = [f for f in file_list if f[FILE_NAME].endswith("_sts.json")]
         if not file_list or len(file_list) == 0:
             log.info(f"CDE dump files for {tier} are not found! ")
             return None
@@ -196,7 +201,7 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
     if not result or not result.get(CADSR_DATA_ELEMENT) or not result[CADSR_DATA_ELEMENT].get(CADSR_VALUE_DOMAIN):
         log.info(f"No data element found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
         return None, "No CDE element found."
-    pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CADSR_PERMISSIVE_VALUES)
+    pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CDE_PERMISSIVE_VALUES)
     cde_long_name = result[CADSR_DATA_ELEMENT].get(CADSR_DATA_ELEMENT_LONG_NAME)
     if not pv_list or len(pv_list) == 0:
         log.info(f"No permissive values found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
@@ -210,10 +215,10 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
             pv_list = None #new requirement in CRDCDH-1723
     return {
         ID: get_uuid_str(),
-        "CDEFullName": cde_long_name,
+        CDE_FULL_NAME: cde_long_name,
         CDE_CODE: cde_code,
         CDE_VERSION: cde_version,
-        CADSR_PERMISSIVE_VALUES: pv_list,
+        CDE_PERMISSIVE_VALUES: pv_list,
         CREATED_AT: current_datetime(),
         UPDATED_AT: current_datetime(),
     }, msg
@@ -222,10 +227,11 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
 pull synonyms from sts and save to db
 """
 class SynonymPuller:
-    def __init__(self, configs, mongo_dao):
+    def __init__(self, configs, mongo_dao, api_client):
         self.log = get_logger('Synonyms puller')
         self.mongo_dao = mongo_dao
         self.configs = configs
+        self.api_client = api_client
 
     def pull_synonyms(self):
         # init a synonym set to make sure all synonym/pv pairs are unique
@@ -233,7 +239,6 @@ class SynonymPuller:
         try: 
         #  1) get contents in branch (tier) of the repo 
             synonym_url = str(self.configs[SYNONYM_API_URL])
-            self.api_client = APIInvoker(self.configs)
             file_list = get_cde_dump_files(self.api_client, synonym_url, self.configs[TIER_CONFIG], self.log)
             """ 
             file structure:           
@@ -248,10 +253,10 @@ class SynonymPuller:
                 'type' = 'file'
             """
             for file in file_list:
-                if not (file["type"] == "file" and "_sts.json" in file["name"]):
+                if not (file[FILE_TYPE] == "file" and "_sts.json" in file[FILE_NAME]):
                     continue
                 # 2) pull synonyms from the file
-                self.get_synonyms_by_datacommon_version(file["download_url"], synonym_set)
+                self.get_synonyms_by_datacommon_version(file[FILE_DOWNLOAD_URL], synonym_set)
 
         #  3) save synonyms to db
             if not synonym_set or len(synonym_set) == 0:
