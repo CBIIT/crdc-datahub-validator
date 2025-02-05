@@ -13,7 +13,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
-    SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY
+    SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from dcf_manifest_generator import GenerateDCF
@@ -73,7 +73,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                         log.error(f'Submission {submission_id} does not exist!')
                         continue
                     if data.get(SQS_TYPE) == TYPE_EXPORT_METADATA: 
-                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store, configs)
+                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(configs.get('aws_profile')), model_store, configs)
                         export_validator.export_data_to_file()
                         # transfer metadata to destination s3 bucket if error occurred.
                         export_validator.transfer_release_metadata()
@@ -108,12 +108,14 @@ def metadata_export(configs, job_queue, mongo_dao):
 
 # Private class
 class S3Service:
-    def __init__(self):
-        self.s3_client = boto3.client('s3')
+    def __init__(self, aws_profile):
+        self.session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
+        self.s3_client = self.session.client('s3')
 
     def close(self, log):
         try:
             self.s3_client.close()
+            self.session = None
         except Exception as e1:
             log.exception(e1)
             log.critical(
@@ -471,6 +473,7 @@ class ExportMetadata:
         transfer s3 object with AWS DataSync
         """
         datasync_role = self.configs.get(DATASYNC_ROLE_ARN_CONFIG)
+        log_group_arn = self.configs.get(DATASYNC_LOG_ARN_CONFIG)
         datasync = boto3.client('datasync')
         try:
             # Create source S3 location
@@ -492,10 +495,12 @@ class ExportMetadata:
                 SourceLocationArn=source_location['LocationArn'],
                 DestinationLocationArn=destination_location['LocationArn'],
                 Name='Data_Hub_SyncTask',
+                CloudWatchLogGroupArn=log_group_arn,
                 Options={
-                    'VerifyMode': 'ONLY_FILES_TRANSFERRED'
+                    'VerifyMode': 'ONLY_FILES_TRANSFERRED',
+                    "LogLevel": "TRANSFER"
                 },
-                Tags = tags
+                Tags = tags, 
             )
             self.log.info(f"DataSync task {task['TaskArn']} created to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}.")
 

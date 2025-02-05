@@ -5,7 +5,7 @@ from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, SERVICE_TYP
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
     SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE,\
     DM_BUCKET_CONFIG_NAME, PROD_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG , DATASYNC_ROLE_ARN_ENV, CONFIG_TYPE, \
-    CONFIG_KEY, CDE_API_URL, SYNONYM_API_URL
+    CONFIG_KEY, CDE_API_URL, SYNONYM_API_URL, DATASYNC_LOG_ARN_ENV, DATASYNC_LOG_ARN_CONFIG
 from bento.common.utils import get_logger
 from common.utils import clean_up_key_value, get_exception_msg, load_message_config
 from common.mongo_dao import MongoDao
@@ -88,7 +88,7 @@ class Config():
                 return False
         
         # get env configuration from DB
-        env_vars = [TIER, LOADER_QUEUE, FILE_QUEUE, METADATA_QUEUE, EXPORTER_QUEUE, DM_BUCKET_NAME_ENV, DATASYNC_ROLE_ARN_ENV]
+        env_vars = [TIER, LOADER_QUEUE, FILE_QUEUE, METADATA_QUEUE, EXPORTER_QUEUE, DM_BUCKET_NAME_ENV, DATASYNC_ROLE_ARN_ENV, DATASYNC_LOG_ARN_ENV]
         try:
             configs_in_db = self.mongodb_dao.get_configuration_by_ev_var(env_vars) 
             if configs_in_db is None or len(configs_in_db) == 0:
@@ -117,11 +117,14 @@ class Config():
 
             config_in_db = next(val[CONFIG_KEY] for val in configs_in_db if val[CONFIG_TYPE] == DATASYNC_ROLE_ARN_ENV)
             datasync_role = config_in_db[DATASYNC_ROLE_ARN_CONFIG] if config_in_db and config_in_db.get(DATASYNC_ROLE_ARN_CONFIG) else self.data.get(DATASYNC_ROLE_ARN_CONFIG)
-            if not datasync_role and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
+            config_in_db = next(val[CONFIG_KEY] for val in configs_in_db if val[CONFIG_TYPE] == DATASYNC_LOG_ARN_ENV)
+            datasync_log_arn = config_in_db[DATASYNC_LOG_ARN_CONFIG] if config_in_db and config_in_db.get(DATASYNC_LOG_ARN_CONFIG) else self.data.get(DATASYNC_LOG_ARN_CONFIG)
+            if not (datasync_role or datasync_log_arn) and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
                 self.log.critical(f'No datasync role is configured in both env and args!')
                 return False
             else:
                 self.data[DATASYNC_ROLE_ARN_CONFIG] = datasync_role
+                self.data[DATASYNC_LOG_ARN_CONFIG] = datasync_log_arn
 
             # load configured customized message to memory
             if self.data[SERVICE_TYPE] in [SERVICE_TYPE_METADATA, SERVICE_TYPE_FILE]:
