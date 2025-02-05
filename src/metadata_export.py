@@ -73,7 +73,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                         log.error(f'Submission {submission_id} does not exist!')
                         continue
                     if data.get(SQS_TYPE) == TYPE_EXPORT_METADATA: 
-                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store, configs)
+                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(configs.get('aws_profile')), model_store, configs)
                         export_validator.export_data_to_file()
                         # transfer metadata to destination s3 bucket if error occurred.
                         export_validator.transfer_release_metadata()
@@ -108,12 +108,14 @@ def metadata_export(configs, job_queue, mongo_dao):
 
 # Private class
 class S3Service:
-    def __init__(self):
-        self.s3_client = boto3.client('s3')
+    def __init__(self, aws_profile):
+        self.session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
+        self.s3_client = self.session.client('s3')
 
     def close(self, log):
         try:
             self.s3_client.close()
+            self.session = None
         except Exception as e1:
             log.exception(e1)
             log.critical(
