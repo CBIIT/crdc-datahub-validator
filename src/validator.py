@@ -5,7 +5,7 @@
 import os
 from bento.common.utils import get_logger, LOG_PREFIX
 # from bento.common.sqs import Queue
-from common.sns_queue import Queue
+from common.sqs_queue import Queue
 from common.constants import SQS_NAME, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, \
     SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, SERVICE_TYPE_EXPORT, SERVICE_TYPE_PV_PULLER
 from common.utils import get_exception_msg
