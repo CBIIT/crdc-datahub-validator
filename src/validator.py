@@ -4,7 +4,8 @@
 #############################
 import os
 from bento.common.utils import get_logger, LOG_PREFIX
-from bento.common.sqs import Queue
+# from bento.common.sqs import Queue
+from common.sqs_queue import Queue
 from common.constants import SQS_NAME, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, \
     SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, SERVICE_TYPE_EXPORT, SERVICE_TYPE_PV_PULLER
 from common.utils import get_exception_msg
@@ -43,7 +44,7 @@ def controller():
     try:
         job_queue = None
         if  configs[SERVICE_TYPE] not in [SERVICE_TYPE_PV_PULLER]:
-            job_queue = Queue(configs[SQS_NAME])
+            job_queue = Queue(configs[SQS_NAME], configs.get('aws_profile'))
         mongo_dao = config.mongodb_dao
         # set dataRecord search index
         if not mongo_dao.set_search_index_dataRecords(DATA_RECORDS_SEARCH_INDEX, DATA_RECORDS_CRDC_SEARCH_INDEX, DATA_RECORDS_STUDY_ENTITY_INDEX):
