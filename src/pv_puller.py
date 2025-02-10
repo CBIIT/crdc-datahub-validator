@@ -94,6 +94,9 @@ class PVPuller:
                 pv_list = None
                 if cde.get('permissibleValues') and cde.get('permissibleValues')[0].get('value'): 
                     pv_list  = [item.get('value') for item in cde['permissibleValues']] 
+                    contains_http = any(s for s in pv_list if "http:" in s or "https:" in s )
+                    if contains_http:
+                        pv_list = None #new requirement in CRDCDH-1723
                 
                 cde_record.append({
                     CDE_FULL_NAME: cde_long_name,
