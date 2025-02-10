@@ -636,7 +636,7 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
                     
                     # wait 5 min or 300 sec for SNS to send notification before delete the tasks.
                     log.info(f"Wait 5min before deleting task and locations.")
-                    # time.sleep(300)
+                    time.sleep(300)
                     datasync.delete_task(TaskArn=task_arn)
                     log.info(f"Task: {task_arn} deleted.")
                     # delete files from source s3 bucket if the file_key_list length more than 0
@@ -661,7 +661,7 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
                     
                     break
                 else:
-                    log.info(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
+                    log.debug(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
                     time.sleep(wait_interval)
         except ClientError as ce:
             log.exception(ce)
