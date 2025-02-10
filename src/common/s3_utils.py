@@ -59,6 +59,20 @@ class S3Service:
                 return None
             else:
                 raise e
+            
+    def delete_files(self, bucket,  file_key_list):
+        """
+        delete files from s3 bucket
+        """
+        try:
+            objects = [{'Key': key} for key in file_key_list]
+            if objects:
+                self.s3_client.delete_objects(Bucket=bucket, Delete={'Objects': objects})
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404' or e.response['Error']['Code'] == 'NoSuchKey':
+                return None
+            else:
+                raise e
 
     def add_tags(self, bucket_name, key, tags):
         try:

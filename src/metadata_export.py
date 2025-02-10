@@ -463,19 +463,31 @@ class ExportMetadata:
             ]
         self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags)
 
-    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags):
+    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags, file_key_list = None):
         """
         transfer s3 object with AWS DataSync
         """
         datasync_role = self.configs.get(DATASYNC_ROLE_ARN_CONFIG)
         log_group_arn = self.configs.get(DATASYNC_LOG_ARN_CONFIG)
         datasync = boto3.client('datasync')
+        file_filter = []
         try:
             # Create source S3 location
+            source_location = None
+            # add include filter for moving files from source to destination
+            if file_key_list and len(file_key_list) > 0:
+                value = "|".join(["/" + key.split("/")[-1] for key in file_key_list])
+                file_filter = [
+                    {
+                        'FilterType': 'SIMPLE_PATTERN',
+                        'Value': value
+                    }
+                ]
+
             source_location = datasync.create_location_s3(
                 S3BucketArn=f'arn:aws:s3:::{bucket_name}',
                 S3Config={'BucketAccessRoleArn': datasync_role},
-                Subdirectory= f'{data_file_folder}'
+                Subdirectory=f'{data_file_folder}',
             )
 
             # Create destination S3 location
@@ -486,17 +498,32 @@ class ExportMetadata:
             )
 
             # Create DataSync task
-            task = datasync.create_task(
-                SourceLocationArn=source_location['LocationArn'],
-                DestinationLocationArn=destination_location['LocationArn'],
-                Name='Data_Hub_SyncTask',
-                CloudWatchLogGroupArn=log_group_arn,
-                Options={
-                    'VerifyMode': 'ONLY_FILES_TRANSFERRED',
-                    "LogLevel": "TRANSFER"
-                },
-                Tags = tags, 
-            )
+            if file_filter and len(file_filter) > 0:
+                task = datasync.create_task(
+                    SourceLocationArn=source_location['LocationArn'],
+                    DestinationLocationArn=destination_location['LocationArn'],
+                    Name='Data_Hub_SyncTask',
+                    CloudWatchLogGroupArn=log_group_arn,
+                    Options={
+                        'VerifyMode': 'ONLY_FILES_TRANSFERRED',
+                        "LogLevel": "TRANSFER",
+                    },
+                    Includes=file_filter, 
+                    Tags = tags, 
+                )
+            else: 
+                task = datasync.create_task(
+                    SourceLocationArn=source_location['LocationArn'],
+                    DestinationLocationArn=destination_location['LocationArn'],
+                    Name='Data_Hub_SyncTask',
+                    CloudWatchLogGroupArn=log_group_arn,
+                    Options={
+                        'VerifyMode': 'ONLY_FILES_TRANSFERRED',
+                        "LogLevel": "TRANSFER",
+                    },
+                    Tags = tags, 
+                )
+
             self.log.info(f"DataSync task {task['TaskArn']} created to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}.")
 
             # Start DataSync task
@@ -506,7 +533,7 @@ class ExportMetadata:
             task_execution_arn = task_execution['TaskExecutionArn']
             self.log.info(f"Started DataSync task execution: {task_execution_arn}")
 
-            start_monitoring_task(task_execution_arn, task['TaskArn'], datasync, source_location, destination_location, self.log)
+            start_monitoring_task(task_execution_arn, task['TaskArn'], datasync, source_location, destination_location, self.log, bucket_name, file_key_list)
 
         except ClientError as ce:
             self.log.exception(ce)
@@ -525,6 +552,7 @@ class ExportMetadata:
         data_file_folder =  study_id
         dest_bucket_name = bucket_name
         dest_file_folder = f'to_be_deleted/{id}/{study_id}'
+        file_key_list = []
         try:
             for file in file_list:
                 # 1) check if the file exists in source s3 bucket
@@ -533,11 +561,16 @@ class ExportMetadata:
                 if not file_info:
                     self.log.warning(f"File {key} does not exist in {bucket_name}!")
                     continue
-           
-                # Construct new key
-                new_key = os.path.join(dest_file_folder, file)
+                file_key_list.append(key)   
+                # # Construct new key
+                # new_key = os.path.join(dest_file_folder, file)
 
-                self.s3_service.move_file(bucket_name, key, dest_bucket_name, new_key)
+                # self.s3_service.move_file(bucket_name, key, dest_bucket_name, new_key)
+            tags = [
+                {"Key": "Tier", "Value": self.configs[TIER_CONFIG]}, 
+                {"Key": "Type", "Value" : "Data File"}
+                ]
+            self.transfer_s3_obj(bucket_name, data_file_folder, bucket_name, dest_file_folder, tags, file_key_list)
         except ClientError as ce:
             self.log.exception(ce)
             self.log.exception(f"Failed to move files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {ce.response['Error']['Message']}")
@@ -573,12 +606,15 @@ class ExportMetadata:
         try:
             # get contents in the folder and loop through and put file kay in a file_key_list
             file_key_list = self.s3_service.list_objects(bucket_name, data_file_folder)
-            if not file_key_list:
+            if not file_key_list or len(file_key_list) == 0:
                 self.log.error(f"Failed to restore files from {data_file_folder}. No files found!")
-            # Move files back to the original location
-            for file_key in file_key_list:
-                new_key = file_key.replace(f'to_be_deleted/{id}/{study_id}', study_id)
-                self.s3_service.move_file(bucket_name, file_key, bucket_name, new_key)
+            # Move files back to the original location with dataSync
+            dest_file_folder =  study_id
+            tags = [
+                {"Key": "Tier", "Value": self.configs[TIER_CONFIG]}, 
+                {"Key": "Type", "Value" : "Data File"}
+                ]
+            self.transfer_s3_obj(bucket_name, data_file_folder, bucket_name, dest_file_folder, tags, file_key_list)
         except ClientError as ce:
             self.log.exception(ce)
             self.log.exception(f"Failed to restore files from {data_file_folder}. {ce.response['Error']['Message']}")
@@ -586,11 +622,11 @@ class ExportMetadata:
             self.log.exception(e)
             self.log.exception(f"Failed to restore files from {data_file_folder}. {get_exception_msg()}")
 
-def start_monitoring_task(task_execution_arn, task_arn, dataSync, source, dest, log):
-            monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_execution_arn, task_arn, dataSync, source, dest, log))
+def start_monitoring_task(task_execution_arn, task_arn, dataSync, source, dest, log, source_bucket, file_key_list):
+            monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_execution_arn, task_arn, dataSync, source, dest, log, source_bucket, file_key_list))
             monitor_thread.start()
     
-def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, log, wait_interval=30):
+def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, log, source_bucket, file_key_list, wait_interval=30):
         # Initialize the DataSync client
         try:
             # Poll the task status
@@ -600,11 +636,27 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
                 
                 if status in ['SUCCESS', 'ERROR']:
                     print(f"Task: {task_arn} completed with status: {status}")
+                    
                     # wait 5 min or 300 sec for SNS to send notification before delete the tasks.
                     print(f"Wait 5min before deleting task and locations.")
-                    time.sleep(300)
+                    # time.sleep(300)
                     datasync.delete_task(TaskArn=task_arn)
                     print(f"Task: {task_arn} deleted.")
+                    # delete files from source s3 bucket if the file_key_list length more than 0
+                    if status == 'SUCCESS' and file_key_list and len(file_key_list) > 0:
+                        try:
+                            s3_service = S3Service()
+                            s3_service.delete_files(source_bucket, file_key_list)
+                            print(f"Files : {file_key_list} are deleted.")
+                        except ClientError as ce:
+                            log.exception(ce)
+                            log.exception(f"Failed to delete files {file_key_list} from {source_bucket}. {ce.response['Error']['Message']}")
+                        except Exception as e:
+                            log.exception(e)
+                            log.exception(f"Failed to delete files {file_key_list} from {source_bucket}. {get_exception_msg()}")
+                        finally:
+                            s3_service.close(log)
+
                     datasync.delete_location(LocationArn=source['LocationArn'])
                     print(f"Source location: {source['LocationArn']} is deleted.")
                     datasync.delete_location(LocationArn=dest['LocationArn'])
