@@ -632,19 +632,19 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
                 status = response['Status']
                 
                 if status in ['SUCCESS', 'ERROR']:
-                    print(f"Task: {task_arn} completed with status: {status}")
+                    log.info(f"Task: {task_arn} completed with status: {status}")
                     
                     # wait 5 min or 300 sec for SNS to send notification before delete the tasks.
-                    print(f"Wait 5min before deleting task and locations.")
+                    log.info(f"Wait 5min before deleting task and locations.")
                     # time.sleep(300)
                     datasync.delete_task(TaskArn=task_arn)
-                    print(f"Task: {task_arn} deleted.")
+                    log.info(f"Task: {task_arn} deleted.")
                     # delete files from source s3 bucket if the file_key_list length more than 0
                     if status == 'SUCCESS' and file_key_list and len(file_key_list) > 0:
                         try:
                             s3_service = S3Service()
                             s3_service.delete_files(source_bucket, file_key_list)
-                            print(f"Files : {file_key_list} are deleted.")
+                            log.info(f"Files : {file_key_list} are deleted.")
                         except ClientError as ce:
                             log.exception(ce)
                             log.exception(f"Failed to delete files {file_key_list} from {source_bucket}. {ce.response['Error']['Message']}")
@@ -655,13 +655,13 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
                             s3_service.close(log)
 
                     datasync.delete_location(LocationArn=source['LocationArn'])
-                    print(f"Source location: {source['LocationArn']} is deleted.")
+                    log.info(f"Source location: {source['LocationArn']} is deleted.")
                     datasync.delete_location(LocationArn=dest['LocationArn'])
-                    print(f"Destination location: {dest['LocationArn']} is deleted.")
+                    log.info(f"Destination location: {dest['LocationArn']} is deleted.")
                     
                     break
                 else:
-                    print(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
+                    log.info(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
                     time.sleep(wait_interval)
         except ClientError as ce:
             log.exception(ce)
