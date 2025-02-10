@@ -562,10 +562,7 @@ class ExportMetadata:
                     self.log.warning(f"File {key} does not exist in {bucket_name}!")
                     continue
                 file_key_list.append(key)   
-                # # Construct new key
-                # new_key = os.path.join(dest_file_folder, file)
 
-                # self.s3_service.move_file(bucket_name, key, dest_bucket_name, new_key)
             tags = [
                 {"Key": "Tier", "Value": self.configs[TIER_CONFIG]}, 
                 {"Key": "Type", "Value" : "Data File"}
