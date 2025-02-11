@@ -1,4 +1,4 @@
-from pymongo import MongoClient, errors, ReplaceOne, UpdateOne, DeleteOne, DESCENDING
+from pymongo import MongoClient, errors, ReplaceOne, UpdateOne, DeleteOne, DESCENDING, InsertOne
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, \
@@ -8,7 +8,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
     BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
-    SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM
+    SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -967,9 +967,42 @@ class MongoDao:
             return False, msg
         except Exception as e:
             self.log.exception(e)
-            msg = f"Failed to upsert mCDE PV, {get_exception_msg()}"
+            msg = f"Failed to upsert CDE PV, {get_exception_msg()}"
             self.log.exception(msg)
             return False, msg 
+        
+    def upsert_cde(self, cde_list):
+        db = self.client[self.db_name]
+        data_collection = db[CDE_COLLECTION]
+        commands = []
+        try:
+            for m in list(cde_list):
+                query = {CDE_CODE: m[CDE_CODE], CDE_VERSION: m[CDE_VERSION]}
+                cde = data_collection.find_one(query)
+                if cde:
+                    cde[UPDATED_AT] = current_datetime()
+                    cde[CDE_FULL_NAME] = m[CDE_FULL_NAME]
+                    cde[CDE_PERMISSIVE_VALUES] = m[CDE_PERMISSIVE_VALUES]
+                    commands.append(UpdateOne({ID: cde[ID]}, {"$set": cde}))
+                else:
+                    m[CREATED_AT] = current_datetime()
+                    m[UPDATED_AT] = current_datetime()
+                    m[ID] = get_uuid_str()
+                    commands.append(InsertOne(m))
+            if len(commands) > 0:
+                result = data_collection.bulk_write(commands)
+            self.log.info(f'Total {result.inserted_count} CDE PV are inserted and {result.modified_count} CDE PV are updated.')
+            return True, None
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            msg = f"Failed to upsert CDE PV ."
+            self.log.exception(msg)
+            return False, msg
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to upsert CDE PV, {get_exception_msg()}"
+            self.log.exception(msg)
+            return False, msg
     """
     set CDE search index, 'CDECode_1_CDEVersion_1'
     """
