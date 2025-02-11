@@ -14,7 +14,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
     SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, \
-    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILE
+    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from common.s3_utils import S3Service
@@ -75,7 +75,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                         export_validator.export_data_to_file()
                         # transfer metadata to destination s3 bucket if error occurred.
                         export_validator.transfer_release_metadata()
-                    elif data.get(SQS_TYPE) == RESTORE_DELETED_DATA_FILE:
+                    elif data.get(SQS_TYPE) == RESTORE_DELETED_DATA_FILES:
                         export_validator = ExportMetadata(mongo_dao, submission, model_store, configs)
                         export_validator.restore_deleted_file()
                     elif data.get(SQS_TYPE) == TYPE_COMPLETE_SUB:
