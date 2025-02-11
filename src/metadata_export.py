@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import pandas as pd
 import json
-import boto3
+import os, io, boto3
 import time
 import threading
 from botocore.exceptions import ClientError
@@ -13,16 +13,14 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
-    SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, S3_FILE_INFO, FILE_NAME
+    SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, \
+    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
+from common.s3_utils import S3Service
 from dcf_manifest_generator import GenerateDCF
-import threading
-import boto3
-import io
 from service.ecs_agent import set_scale_in_protection
-import os
-import os
+
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
@@ -73,12 +71,15 @@ def metadata_export(configs, job_queue, mongo_dao):
                         log.error(f'Submission {submission_id} does not exist!')
                         continue
                     if data.get(SQS_TYPE) == TYPE_EXPORT_METADATA: 
-                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(configs.get('aws_profile')), model_store, configs)
+                        export_validator = ExportMetadata(mongo_dao, submission, model_store, configs)
                         export_validator.export_data_to_file()
                         # transfer metadata to destination s3 bucket if error occurred.
                         export_validator.transfer_release_metadata()
+                    elif data.get(SQS_TYPE) == RESTORE_DELETED_DATA_FILES:
+                        export_validator = ExportMetadata(mongo_dao, submission, model_store, configs)
+                        export_validator.restore_deleted_file()
                     elif data.get(SQS_TYPE) == TYPE_COMPLETE_SUB:
-                        export_validator = ExportMetadata(mongo_dao, submission, S3Service(), model_store, configs)
+                        export_validator = ExportMetadata(mongo_dao, submission, model_store, configs)
                         if export_validator.release_data():
                             if submission.get(SUBMISSION_INTENTION) != SUBMISSION_INTENTION_DELETE and (not submission.get(SUBMISSION_DATA_TYPE) 
                                 or (submission[SUBMISSION_DATA_TYPE] != SUBMISSION_DATA_TYPE_METADATA_ONLY)): 
@@ -106,86 +107,16 @@ def metadata_export(configs, job_queue, mongo_dao):
             log.info('Good bye!')
             return
 
-
-# Private class
-class S3Service:
-    def __init__(self, aws_profile):
-        self.session = boto3.Session(profile_name=aws_profile) if aws_profile else boto3.Session()
-        self.s3_client = self.session.client('s3')
-
-    def close(self, log):
-        try:
-            self.s3_client.close()
-            self.session = None
-        except Exception as e1:
-            log.exception(e1)
-            log.critical(
-                f'An error occurred while attempting to close the s3 client! Check debug log for details.')
-
-    def archive_s3_if_exists(self, bucket_name, root_path):
-        prev_directory = ValidationDirectory.get_release(root_path)
-        new_directory = ValidationDirectory.get_archive(root_path)
-        # 1. List all objects in the old folder
-        paginator = self.s3_client.get_paginator('list_objects_v2')
-
-        # Iterate over each object in the source directory
-        for page in paginator.paginate(Bucket=bucket_name, Prefix=prev_directory):
-            if "Contents" in page:
-                for obj in page["Contents"]:
-                    copy_source = {'Bucket': bucket_name, 'Key': obj['Key']}
-                    new_key = obj['Key'].replace(prev_directory, new_directory, 1)
-                    if not copy_source  or not new_key:
-                        continue
-                    # Copy object to the target directory
-                    self.s3_client.copy_object(Bucket=bucket_name, CopySource=copy_source, Key=new_key)
-
-                    # Delete the original object
-                    self.s3_client.delete_object(Bucket=bucket_name, Key=obj['Key'])
-
-    def upload_file_to_s3(self, data, bucket_name, file_name):
-        self.s3_client.upload_fileobj(data, bucket_name, file_name)
-
-    def get_file_info(self, bucket_name, key):
-        try:
-            response = self.s3_client.head_object(Bucket=bucket_name, Key=key)
-            return response.get('Metadata', {})
-        except ClientError as e:
-            if e.response['Error']['Code'] == '404' or e.response['Error']['Code'] == 'NoSuchKey':
-                return None
-            else:
-                raise e
-            
-    def move_file(self, source_bucket, source_key, dest_bucket, dest_key):
-        copy_source = {'Bucket': source_bucket, 'Key': source_key}
-        self.s3_client.copy_object(Bucket=dest_bucket, CopySource=copy_source, Key=dest_key)
-        self.s3_client.delete_object(Bucket=source_bucket, Key=source_key)
-
-    def add_tags(self, bucket_name, key, tags):
-        try:
-            response = self.s3_client.put_object_tagging(
-                Bucket=bucket_name,
-                Key=key,
-                Tagging={
-                    'TagSet': tags
-                }
-            )
-            return response
-        except ClientError as e:
-            if e.response['Error']['Code'] == '404' or e.response['Error']['Code'] == 'NoSuchKey':
-                return None
-            else:
-                raise e
-
 # Private class
 class ExportMetadata:
-    def __init__(self, mongo_dao, submission, s3_service, model_store, configs):
+    def __init__(self, mongo_dao, submission,  model_store, configs):
         self.log = get_logger(TYPE_EXPORT_METADATA)
         self.configs = configs
         self.model_store = model_store
         self.model = None
         self.mongo_dao = mongo_dao
         self.submission = submission
-        self.s3_service = s3_service
+        self.s3_service = S3Service()
         self.intention = submission.get(SUBMISSION_INTENTION)
 
     def close(self):
@@ -207,7 +138,7 @@ class ExportMetadata:
             return 
         #2 archive existing release if exists
         try:
-            self.s3_service.archive_s3_if_exists(bucket_name, root_path)
+            self.s3_service.archive_s3_if_exists(bucket_name, ValidationDirectory.get_release(root_path), ValidationDirectory.get_archive(root_path))
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f'{submission_id}: Failed to archive existed release: {get_exception_msg()}.')
@@ -532,19 +463,31 @@ class ExportMetadata:
             ]
         self.transfer_s3_obj(bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags)
 
-    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags):
+    def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags, file_key_list = None):
         """
         transfer s3 object with AWS DataSync
         """
         datasync_role = self.configs.get(DATASYNC_ROLE_ARN_CONFIG)
         log_group_arn = self.configs.get(DATASYNC_LOG_ARN_CONFIG)
         datasync = boto3.client('datasync')
+        file_filter = []
         try:
             # Create source S3 location
+            source_location = None
+            # add include filter for moving files from source to destination
+            if file_key_list and len(file_key_list) > 0:
+                value = "|".join(["/" + key.split("/")[-1] for key in file_key_list])
+                file_filter = [
+                    {
+                        'FilterType': 'SIMPLE_PATTERN',
+                        'Value': value
+                    }
+                ]
+
             source_location = datasync.create_location_s3(
                 S3BucketArn=f'arn:aws:s3:::{bucket_name}',
                 S3Config={'BucketAccessRoleArn': datasync_role},
-                Subdirectory= f'{data_file_folder}'
+                Subdirectory=f'{data_file_folder}',
             )
 
             # Create destination S3 location
@@ -555,17 +498,32 @@ class ExportMetadata:
             )
 
             # Create DataSync task
-            task = datasync.create_task(
-                SourceLocationArn=source_location['LocationArn'],
-                DestinationLocationArn=destination_location['LocationArn'],
-                Name='Data_Hub_SyncTask',
-                CloudWatchLogGroupArn=log_group_arn,
-                Options={
-                    'VerifyMode': 'ONLY_FILES_TRANSFERRED',
-                    "LogLevel": "TRANSFER"
-                },
-                Tags = tags, 
-            )
+            if file_filter and len(file_filter) > 0:
+                task = datasync.create_task(
+                    SourceLocationArn=source_location['LocationArn'],
+                    DestinationLocationArn=destination_location['LocationArn'],
+                    Name='Data_Hub_SyncTask',
+                    CloudWatchLogGroupArn=log_group_arn,
+                    Options={
+                        'VerifyMode': 'ONLY_FILES_TRANSFERRED',
+                        "LogLevel": "TRANSFER",
+                    },
+                    Includes=file_filter, 
+                    Tags = tags, 
+                )
+            else: 
+                task = datasync.create_task(
+                    SourceLocationArn=source_location['LocationArn'],
+                    DestinationLocationArn=destination_location['LocationArn'],
+                    Name='Data_Hub_SyncTask',
+                    CloudWatchLogGroupArn=log_group_arn,
+                    Options={
+                        'VerifyMode': 'ONLY_FILES_TRANSFERRED',
+                        "LogLevel": "TRANSFER",
+                    },
+                    Tags = tags, 
+                )
+
             self.log.info(f"DataSync task {task['TaskArn']} created to transfer files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}.")
 
             # Start DataSync task
@@ -575,7 +533,7 @@ class ExportMetadata:
             task_execution_arn = task_execution['TaskExecutionArn']
             self.log.info(f"Started DataSync task execution: {task_execution_arn}")
 
-            start_monitoring_task(task_execution_arn, task['TaskArn'], datasync, source_location, destination_location, self.log)
+            start_monitoring_task(task_execution_arn, task['TaskArn'], datasync, source_location, destination_location, self.log, bucket_name, file_key_list)
 
         except ClientError as ce:
             self.log.exception(ce)
@@ -594,6 +552,7 @@ class ExportMetadata:
         data_file_folder =  study_id
         dest_bucket_name = bucket_name
         dest_file_folder = f'to_be_deleted/{id}/{study_id}'
+        file_key_list = []
         try:
             for file in file_list:
                 # 1) check if the file exists in source s3 bucket
@@ -602,11 +561,13 @@ class ExportMetadata:
                 if not file_info:
                     self.log.warning(f"File {key} does not exist in {bucket_name}!")
                     continue
-           
-                # Construct new key
-                new_key = os.path.join(dest_file_folder, file)
+                file_key_list.append(key)   
 
-                self.s3_service.move_file(bucket_name, key, dest_bucket_name, new_key)
+            tags = [
+                {"Key": "Tier", "Value": self.configs[TIER_CONFIG]}, 
+                {"Key": "Type", "Value" : "Data File"}
+                ]
+            self.transfer_s3_obj(bucket_name, data_file_folder, bucket_name, dest_file_folder, tags, file_key_list)
         except ClientError as ce:
             self.log.exception(ce)
             self.log.exception(f"Failed to move files from {data_file_folder} to {dest_bucket_name}:{dest_file_folder}. {ce.response['Error']['Message']}")
@@ -634,11 +595,35 @@ class ExportMetadata:
             self.log.exception(e)
             self.log.exception(f"Failed to add tags to {key}. {get_exception_msg()}")
 
-def start_monitoring_task(task_execution_arn, task_arn, dataSync, source, dest, log):
-            monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_execution_arn, task_arn, dataSync, source, dest, log))
+    def restore_deleted_file(self):
+        id, _, _, _, study_id = self.get_submission_info()
+        # check if deleted files are exist in s3 data folder
+        bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME) #nci data management account s3 bucket
+        data_file_folder = f'to_be_deleted/{id}/{study_id}'
+        try:
+            # get contents in the folder and loop through and put file kay in a file_key_list
+            file_key_list = self.s3_service.list_objects(bucket_name, data_file_folder)
+            if not file_key_list or len(file_key_list) == 0:
+                self.log.error(f"Failed to restore files from {data_file_folder}. No files found!")
+            # Move files back to the original location with dataSync
+            dest_file_folder =  study_id
+            tags = [
+                {"Key": "Tier", "Value": self.configs[TIER_CONFIG]}, 
+                {"Key": "Type", "Value" : "Data File"}
+                ]
+            self.transfer_s3_obj(bucket_name, data_file_folder, bucket_name, dest_file_folder, tags, file_key_list)
+        except ClientError as ce:
+            self.log.exception(ce)
+            self.log.exception(f"Failed to restore files from {data_file_folder}. {ce.response['Error']['Message']}")
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to restore files from {data_file_folder}. {get_exception_msg()}")
+
+def start_monitoring_task(task_execution_arn, task_arn, dataSync, source, dest, log, source_bucket, file_key_list):
+            monitor_thread = threading.Thread(target=monitor_datasync_task, args=(task_execution_arn, task_arn, dataSync, source, dest, log, source_bucket, file_key_list))
             monitor_thread.start()
     
-def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, log, wait_interval=30):
+def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, log, source_bucket, file_key_list, wait_interval=30):
         # Initialize the DataSync client
         try:
             # Poll the task status
@@ -647,20 +632,36 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
                 status = response['Status']
                 
                 if status in ['SUCCESS', 'ERROR']:
-                    print(f"Task: {task_arn} completed with status: {status}")
+                    log.info(f"Task: {task_arn} completed with status: {status}")
+                    
                     # wait 5 min or 300 sec for SNS to send notification before delete the tasks.
-                    print(f"Wait 5min before deleting task and locations.")
+                    log.info(f"Wait 5min before deleting task and locations.")
                     time.sleep(300)
                     datasync.delete_task(TaskArn=task_arn)
-                    print(f"Task: {task_arn} deleted.")
+                    log.info(f"Task: {task_arn} deleted.")
+                    # delete files from source s3 bucket if the file_key_list length more than 0
+                    if status == 'SUCCESS' and file_key_list and len(file_key_list) > 0:
+                        try:
+                            s3_service = S3Service()
+                            s3_service.delete_files(source_bucket, file_key_list)
+                            log.info(f"Files : {file_key_list} are deleted.")
+                        except ClientError as ce:
+                            log.exception(ce)
+                            log.exception(f"Failed to delete files {file_key_list} from {source_bucket}. {ce.response['Error']['Message']}")
+                        except Exception as e:
+                            log.exception(e)
+                            log.exception(f"Failed to delete files {file_key_list} from {source_bucket}. {get_exception_msg()}")
+                        finally:
+                            s3_service.close(log)
+
                     datasync.delete_location(LocationArn=source['LocationArn'])
-                    print(f"Source location: {source['LocationArn']} is deleted.")
+                    log.info(f"Source location: {source['LocationArn']} is deleted.")
                     datasync.delete_location(LocationArn=dest['LocationArn'])
-                    print(f"Destination location: {dest['LocationArn']} is deleted.")
+                    log.info(f"Destination location: {dest['LocationArn']} is deleted.")
                     
                     break
                 else:
-                    print(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
+                    log.debug(f"Current status for task {task_arn}: {status}. Waiting for {wait_interval} seconds before next check...")
                     time.sleep(wait_interval)
         except ClientError as ce:
             log.exception(ce)
