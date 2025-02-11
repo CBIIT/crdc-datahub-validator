@@ -21,6 +21,8 @@ function getCodeByTitle(title, description = null) {
         "Identical data found": "M015",
         "Duplicate IDs": "M016",
         "Invalid Property": "M017",
+        "Invalid property": "M017",
+        "Invalid property": "M017",
         "Updating existing data": "M018",
         "Data not found": "M019",
         "Internal error": {
