@@ -465,7 +465,7 @@ class ExportMetadata:
 
     def transfer_s3_obj(self, bucket_name, data_file_folder, dest_bucket_name, dest_file_folder, tags, file_key_list = None):
         """
-        transfer s3 object with AWS DataSync
+        transfer s3 object with AWS DataSync, the file_key_list is the list of file keys to be transferred and will be deleted after transfer
         """
         datasync_role = self.configs.get(DATASYNC_ROLE_ARN_CONFIG)
         log_group_arn = self.configs.get(DATASYNC_LOG_ARN_CONFIG)
