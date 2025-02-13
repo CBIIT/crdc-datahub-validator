@@ -114,7 +114,7 @@ download file from url and load into dict
 """
 def download_file_to_dict(url):
     # NOTE the stream=True parameter below
-    file_ext = url.split('.')[-1]
+    file_ext = url.split('.')[-1] if url and '.' in url else None
     with requests.get(url) as r:
         if r.status_code > 400: 
             raise Exception(f"Can't find model file at {url}, {r.content}!")
