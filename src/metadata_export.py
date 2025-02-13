@@ -636,12 +636,6 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
                 
                 if status in ['SUCCESS', 'ERROR']:
                     log.info(f"Task: {task_arn} completed with status: {status}")
-                    
-                    # wait 5 min or 300 sec for SNS to send notification before delete the tasks.
-                    log.info(f"Wait 5min before deleting task and locations.")
-                    time.sleep(300)
-                    datasync.delete_task(TaskArn=task_arn)
-                    log.info(f"Task: {task_arn} deleted.")
                     # delete files from source s3 bucket if the file_key_list length more than 0
                     if status == 'SUCCESS' and file_key_list and len(file_key_list) > 0:
                         try:
@@ -656,6 +650,11 @@ def monitor_datasync_task(task_execution_arn, task_arn, datasync, source, dest, 
                             log.exception(f"Failed to delete files {file_key_list} from {source_bucket}. {get_exception_msg()}")
                         finally:
                             s3_service.close(log)
+                    # wait 5 min or 300 sec for SNS to send notification before delete the tasks.
+                    log.info(f"Wait 5min before deleting task and locations.")
+                    time.sleep(300)
+                    datasync.delete_task(TaskArn=task_arn)
+                    log.info(f"Task: {task_arn} deleted.")
 
                     datasync.delete_location(LocationArn=source['LocationArn'])
                     log.info(f"Source location: {source['LocationArn']} is deleted.")
