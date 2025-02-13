@@ -476,7 +476,7 @@ class ExportMetadata:
             source_location = None
             # add include filter for moving files from source to destination
             if file_key_list and len(file_key_list) > 0:
-                value = "|".join(["/" + key.split("/")[-1] for key in file_key_list])
+                value = "|".join(["/" + key.split("/")[-1] for key in file_key_list if key])
                 file_filter = [
                     {
                         'FilterType': 'SIMPLE_PATTERN',
@@ -605,8 +605,11 @@ class ExportMetadata:
             file_key_list = self.s3_service.list_objects(bucket_name, data_file_folder)
             if not file_key_list or len(file_key_list) == 0:
                 self.log.error(f"Failed to restore files from {data_file_folder}. No files found!")
+                return
+            # remove folder and empty key from the list
+            file_key_list = [item for item in file_key_list if item and not item.endswith("/")]
             # Move files back to the original location with dataSync
-            dest_file_folder =  study_id
+            dest_file_folder = study_id
             tags = [
                 {"Key": "Tier", "Value": self.configs[TIER_CONFIG]}, 
                 {"Key": "Type", "Value" : "Data File"}
