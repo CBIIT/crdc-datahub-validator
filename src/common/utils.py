@@ -149,7 +149,7 @@ def get_uuid_str():
 
     
 """
-get MD5 and object size by object stream 
+get s3 file size and last modified
 """
 def get_s3_file_info(bucket_name, key):
     s3 = None

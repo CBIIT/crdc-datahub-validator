@@ -589,12 +589,18 @@ class MetaDataValidator:
                         else:
                             permissive_vals =  None #escape validation
                     self.mongo_dao.insert_cde([cde])  
+        # strip white space if the value is string
+        if permissive_vals and len(permissive_vals) > 0 and isinstance(permissive_vals[0], str):
+            permissive_vals = [item.strip() for item in permissive_vals]
         return permissive_vals
 
 """util functions"""
 def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao):
     result = True,
     error = None
+    # strip white space from input value
+    if value and isinstance(value, str):
+        value = value.strip()
     if permissive_vals and len(permissive_vals) > 0 and value not in permissive_vals:
         result = False
         error = create_error("M010", [msg_prefix, value, prop_name], prop_name, value)
