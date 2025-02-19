@@ -15,7 +15,7 @@ FILE_TYPE = "type"
 
 def pull_pv_lists(configs, mongo_dao):
     """
-    Pull permissive values and synonyms from STS and save them to the database.
+    Pull permissible values and synonyms from STS and save them to the database.
     
     :param configs: Configuration settings for the puller.
     :param mongo_dao: Data access object for MongoDB operations.
@@ -39,7 +39,7 @@ def pull_pv_lists(configs, mongo_dao):
 
 class PVPuller:
     """
-    Class for pulling permissive values from STS and saving them to the database.
+    Class for pulling permissible values from STS and saving them to the database.
     """
     def __init__(self, configs, mongo_dao, api_client):
         self.log = get_logger('Permissive values puller')
