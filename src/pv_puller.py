@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
-from common.constants import MODEL_FILE_DIR, TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, CDE_FULL_NAME, ID, CREATED_AT, UPDATED_AT,\
-        TERM_CODE, TERM_VERSION, SYNONYM_API_URL, CDE_PERMISSIVE_VALUES
-from common.utils import get_exception_msg, current_datetime, get_uuid_str, dump_dict_to_json, dump_dict_to_tsv, get_date_time
-from common.pv_term_reader import TermReader
+from common.constants import TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, CDE_FULL_NAME, ID, CREATED_AT, UPDATED_AT,\
+        SYNONYM_API_URL, CDE_PERMISSIVE_VALUES
+from common.utils import get_exception_msg, current_datetime, get_uuid_str
 from common.api_client import APIInvoker
 
 MODEL_DEFS = "models"
@@ -15,6 +14,12 @@ FILE_NAME = "name"
 FILE_TYPE = "type"
 
 def pull_pv_lists(configs, mongo_dao):
+    """
+    Pull permissible values and synonyms from STS and save them to the database.
+    
+    :param configs: Configuration settings for the puller.
+    :param mongo_dao: Data access object for MongoDB operations.
+    """
     log = get_logger('Permissive values and synonym puller')
     api_client = APIInvoker(configs)
     pv_puller = PVPuller(configs, mongo_dao, api_client)
@@ -32,11 +37,10 @@ def pull_pv_lists(configs, mongo_dao):
         log.critical(
             f'Something wrong happened while pulling permissive values! Check debug log for details.')
 
-"""
-pull permissive values from CDE and save to db
-"""
 class PVPuller:
-    
+    """
+    Class for pulling permissible values from STS and saving them to the database.
+    """
     def __init__(self, configs, mongo_dao, api_client):
         self.log = get_logger('Permissive values puller')
         self.mongo_dao = mongo_dao
@@ -67,10 +71,10 @@ class PVPuller:
         else:
             self.log.error(f"Failed to pull and save CDE PV! {msg}")
         return
-
+    
     def extract_cde_from_file(self, download_url, cde_set, cde_record):
         """
-        extract cde from file
+        extract cde from cde dump file
         """
         try:
             self.log.info(f"Extracting cde from {download_url}")
@@ -91,23 +95,32 @@ class PVPuller:
                     continue
                 cde_set.add(cde_key)
                 cde_long_name  = cde.get(CDE_FULL_NAME)
-                pv_list = None
-                if cde.get('permissibleValues') and cde.get('permissibleValues')[0].get('value'): 
-                    pv_list  = [item.get('value') for item in cde['permissibleValues']] 
-                    contains_http = any(s for s in pv_list if "http:" in s or "https:" in s )
-                    if contains_http:
-                        pv_list = None #new requirement in CRDCDH-1723
-                
                 cde_record.append({
                     CDE_FULL_NAME: cde_long_name,
                     CDE_CODE: cde_code,
                     CDE_VERSION: cde_version,
-                    CDE_PERMISSIVE_VALUES: pv_list
+                    CDE_PERMISSIVE_VALUES: extract_pv_list(cde.get('permissibleValues'))
                 })
 
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f"Failed to extract cde from {download_url}")
+
+def extract_pv_list(cde_pv_list):
+    """
+    extract pv list from cde dump file
+    """
+    pv_list = None
+    if cde_pv_list and len(cde_pv_list) > 0 and cde_pv_list[0].get('value'): 
+        pv_list  = [item['value'] for item in cde_pv_list] 
+        contains_http = any(s for s in pv_list if s.startswith(("http:", "https:")))
+        if contains_http:
+            return None
+        # strip white space if the value is a string
+        if pv_list and isinstance(pv_list[0], str): 
+            pv_list = [item.strip() for item in pv_list]
+    
+    return pv_list
 
 def get_cde_dump_files(api_client, github_url, tier, log):
     """
@@ -161,10 +174,11 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
         UPDATED_AT: current_datetime(),
     }, msg
 
-"""
-pull synonyms from sts and save to db
-"""
+
 class SynonymPuller:
+    """
+    pull synonyms from sts and save to db
+    """
     def __init__(self, configs, mongo_dao, api_client):
         self.log = get_logger('Synonyms puller')
         self.mongo_dao = mongo_dao
