@@ -71,7 +71,8 @@ class DataLoader:
                             s3FileInfo[QC_RESULT_ID] = None
                     # 2. construct dataRecord
                     rawData = df.loc[index].to_dict()
-                    del rawData['index'] #remove index column
+                    if rawData.get('index') is not None:
+                        del rawData['index'] #remove index column
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
                     batchIds = [self.batch[ID]] if not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
