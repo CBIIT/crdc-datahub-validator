@@ -12,6 +12,7 @@ CADSR_DATA_ELEMENT_LONG_NAME = "longName"
 FILE_DOWNLOAD_URL = "download_url"
 FILE_NAME = "name"
 FILE_TYPE = "type"
+STS_FILE_URL = "https://raw.githubusercontent.com/CBIIT/crdc-datahub-terms/{}/{}_{}_sts.json"
 
 def pull_pv_lists(configs, mongo_dao):
     """
@@ -174,6 +175,53 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
         UPDATED_AT: current_datetime(),
     }, msg
 
+def get_pv_by_datacommon_version_cde(tier, data_commons, data_model_version, cde_code, cde_version, log):
+    """
+    Retrieves permissive values for a given data common, version, CDE code, and CDE version.
+    This function fetches the CDE (Common Data Element) information from a specified URL,
+    filters the CDE list based on the provided CDE code and version, and extracts the permissive values.
+    
+    Args:
+        tier (str): The tier of the environment (e.g., 'dev', 'qa', 'prod').
+        data_commons (str): The name of the data commons.
+        version (str): The version of the data commons.
+        cde_code (str): The code of the CDE to retrieve.
+        cde_version (str): The version of the CDE to retrieve.
+        log (Logger): Logger instance for logging information and errors.
+    
+    Returns:
+        dict: A dictionary containing the CDE full name, code, version, and permissive values.
+        None: If the CDE is not found or an error occurs.
+    """
+    # construct the sts dump file url based on tier, data commons, and model version
+    sts_file_url = STS_FILE_URL.format(tier, data_commons.lower(), data_model_version)
+    try:
+        log.info(f"Extracting cde from {sts_file_url}")
+        api_client = APIInvoker({})
+        result = api_client.get_synonyms(sts_file_url)
+        if not result or len(result) == 0:
+            log.error(f"CDE dump file,{sts_file_url} is not found! ")
+            return None
+        cde_list  = [item for item in result if item.get(CDE_CODE) and item.get(CDE_CODE) != 'null'] 
+        if not cde_list or len(cde_list) == 0:
+            log.error(f"No cde found in {sts_file_url}")
+            return
+        cde = next((item for item in cde_list if item.get(CDE_CODE) == cde_code and item.get(CDE_VERSION) == cde_version), None)
+        if not cde:
+            log.error(f"No cde found in {sts_file_url} for {cde_code}:{cde_version}")
+            return None
+        cde_long_name  = cde.get(CDE_FULL_NAME)
+        cde_record = {
+            CDE_FULL_NAME: cde_long_name,
+            CDE_CODE: cde_code,
+            CDE_VERSION: cde_version,
+            CDE_PERMISSIVE_VALUES: extract_pv_list(cde.get('permissibleValues'))
+        }
+        return cde_record
+    except Exception as e:
+        log.exception(e)
+        log.exception(f"Failed to extract cde from {sts_file_url}")
+        return None
 
 class SynonymPuller:
     """

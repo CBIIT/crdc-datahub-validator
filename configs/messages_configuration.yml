@@ -130,6 +130,11 @@ Messages:
    severity: "Error"
    message: '"properties" is not defined in the model.'
    description: "Data model missing properties definitions."
+  M027:
+   title: "CDE not available"
+   severity: "Error"
+   message: '{} CDE for property "{}" is not available. Please try again later and contact the helpdesk if this error persists.'
+   description: "CDE version doesn't exist in DB, and on-demand pull failed."
 
   # data file validation message
   F001:

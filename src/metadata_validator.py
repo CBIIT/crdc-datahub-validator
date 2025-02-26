@@ -18,10 +18,11 @@ from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
 from x_submission_validator import CrossSubmissionValidator
-from pv_puller import get_pv_by_code_version
+from pv_puller import get_pv_by_datacommon_version_cde
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
+CDE_NOT_FOUND = "CDE not available"
 
 def metadataValidate(configs, job_queue, mongo_dao):
     log = get_logger('Metadata Validation Service')
@@ -112,6 +113,7 @@ class MetaDataValidator:
         self.submission = None
         self.isError = None
         self.isWarning = None
+        self.searched_sts = False
 
 
     def validate(self, submission_id, scope):
@@ -487,7 +489,9 @@ class MetaDataValidator:
             val = None
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
-            permissive_vals = self.get_permissive_value(prop_def)
+            permissive_vals, msg = self.get_permissive_value(prop_def)
+            if msg and msg == CDE_NOT_FOUND:
+                errors.append(create_error("M027", [msg_prefix, prop_name], prop_name, value))
             if type == "string":
                 val = str(value)
                 result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
@@ -562,6 +566,7 @@ class MetaDataValidator:
     """
     def get_permissive_value(self, prop_def):
         permissive_vals = prop_def.get("permissible_values") 
+        msg = None
         if prop_def.get(CDE_TERM) and len(prop_def.get(CDE_TERM)) > 0:
             # retrieve permissible values from DB or cde site
             cde_code = None
@@ -580,19 +585,24 @@ class MetaDataValidator:
                     else:
                         permissive_vals = None
             else:
-                # call pv_puller to get permissible values from caDSR
-                cde, msg = get_pv_by_code_version(self.config, self.log, self.datacommon, prop_def["name"], cde_code, cde_version)
-                if cde:
-                    if cde.get(CDE_PERMISSIVE_VALUES) is not None:
-                        if len(cde[CDE_PERMISSIVE_VALUES]) > 0:                        
-                            permissive_vals = cde[CDE_PERMISSIVE_VALUES]
-                        else:
-                            permissive_vals =  None #escape validation
-                    self.mongo_dao.insert_cde([cde])  
+                if not self.searched_sts:
+                    cde = get_pv_by_datacommon_version_cde(self.config[TIER_CONFIG], self.submission[DATA_COMMON_NAME], 
+                                                            self.submission[MODEL_VERSION], cde_code, cde_version, self.log)
+                    self.searched_sts = True
+                    if cde:
+                        if cde.get(CDE_PERMISSIVE_VALUES) is not None:
+                            if len(cde[CDE_PERMISSIVE_VALUES]) > 0:
+                                permissive_vals = cde[CDE_PERMISSIVE_VALUES]
+                            else:
+                                permissive_vals =  None #escape validation
+                        self.mongo_dao.upsert_cde([cde])
+                    else:
+                        msg = CDE_NOT_FOUND
+                       
         # strip white space if the value is string
         if permissive_vals and len(permissive_vals) > 0 and isinstance(permissive_vals[0], str):
             permissive_vals = [item.strip() for item in permissive_vals]
-        return permissive_vals
+        return permissive_vals, msg
 
 """util functions"""
 def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao):
