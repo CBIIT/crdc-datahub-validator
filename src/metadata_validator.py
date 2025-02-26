@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import pandas as pd
 import json
 from datetime import datetime
 from bento.common.sqs import VisibilityExtender
@@ -94,12 +93,6 @@ def metadataValidate(configs, job_queue, mongo_dao):
         except KeyboardInterrupt:
             log.info('Good bye!')
             return
-
-
-""" Requirement for the ticket crdcdh-343
-For metadata: validate data folder contains TSV or TXT files
-Compose a list of files to be updated and their sizes (metadata or files)
-"""
 class MetaDataValidator:
     
     def __init__(self, mongo_dao, model_store, config):
@@ -523,12 +516,6 @@ class MetaDataValidator:
                 errs = check_boundary(val, minimum, maximum, msg_prefix, prop_name)
                 if len(errs) > 0:
                     errors.extend(errs)
-
-            # elif type == "datetime":
-            #     try:
-            #         val = datetime.strptime(value, DATETIME_FORMAT)
-            #     except ValueError as e:
-            #         errors.append(create_error("Invalid datetime value", f'{msg_prefix} Property "{prop_name}": "{value}" is not a valid datetime type.'))
 
             elif type == "date" or type == "datetime":
                 val = None
