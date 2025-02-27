@@ -107,6 +107,7 @@ class MetaDataValidator:
         self.isError = None
         self.isWarning = None
         self.searched_sts = False
+        self.not_found_cde = False
 
 
     def validate(self, submission_id, scope):
@@ -585,6 +586,11 @@ class MetaDataValidator:
                         self.mongo_dao.upsert_cde([cde])
                     else:
                         msg = CDE_NOT_FOUND
+                        self.not_found_cde = True
+                else: 
+                    if not self.not_found_cde:
+                        msg = CDE_NOT_FOUND
+
                        
         # strip white space if the value is string
         if permissive_vals and len(permissive_vals) > 0 and isinstance(permissive_vals[0], str):
