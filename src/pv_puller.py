@@ -96,9 +96,9 @@ class PVPuller:
                 if cde_key in cde_set:
                     continue
                 cde_set.add(cde_key)
-                cde_record.append({
+                cde_record.append(
                     compose_cde_record(cde)
-                })
+                )
 
         except Exception as e:
             self.log.exception(e)
