@@ -575,7 +575,7 @@ class MetaDataValidator:
             else:
                 if not self.searched_sts:
                     cde = get_pv_by_datacommon_version_cde(self.config[TIER_CONFIG], self.submission[DATA_COMMON_NAME], 
-                                                            self.submission[MODEL_VERSION], cde_code, cde_version, self.log)
+                                                            self.submission[MODEL_VERSION], cde_code, cde_version, self.log, self.mongo_dao)
                     self.searched_sts = True
                     if cde:
                         if cde.get(CDE_PERMISSIVE_VALUES) is not None:
@@ -583,12 +583,11 @@ class MetaDataValidator:
                                 permissive_vals = cde[CDE_PERMISSIVE_VALUES]
                             else:
                                 permissive_vals =  None #escape validation
-                        self.mongo_dao.upsert_cde([cde])
                     else:
                         msg = CDE_NOT_FOUND
                         self.not_found_cde = True
                 else: 
-                    if not self.not_found_cde:
+                    if self.not_found_cde:
                         msg = CDE_NOT_FOUND
 
                        
