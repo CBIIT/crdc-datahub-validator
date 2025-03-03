@@ -12,6 +12,8 @@ CADSR_DATA_ELEMENT_LONG_NAME = "longName"
 FILE_DOWNLOAD_URL = "download_url"
 FILE_NAME = "name"
 FILE_TYPE = "type"
+CDE_PV_NAME = "permissibleValues"
+STS_FILE_URL = "https://raw.githubusercontent.com/CBIIT/crdc-datahub-terms/{}/{}_{}_sts.json"
 
 def pull_pv_lists(configs, mongo_dao):
     """
@@ -94,13 +96,9 @@ class PVPuller:
                 if cde_key in cde_set:
                     continue
                 cde_set.add(cde_key)
-                cde_long_name  = cde.get(CDE_FULL_NAME)
-                cde_record.append({
-                    CDE_FULL_NAME: cde_long_name,
-                    CDE_CODE: cde_code,
-                    CDE_VERSION: cde_version,
-                    CDE_PERMISSIVE_VALUES: extract_pv_list(cde.get('permissibleValues'))
-                })
+                cde_record.append(
+                    compose_cde_record(cde)
+                )
 
         except Exception as e:
             self.log.exception(e)
@@ -174,6 +172,70 @@ def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_v
         UPDATED_AT: current_datetime(),
     }, msg
 
+def get_pv_by_datacommon_version_cde(tier, data_commons, data_model_version, cde_code, cde_version, log, mongo_dao):
+    """
+    extracts the CDE list by data_commons, data_model_version and finds matches based on the provided CDE code and version,
+    finally saves the CDE list into DB.
+
+    :param tier: The tier of the environment (e.g., 'dev', 'qa', 'prod').
+    :param data_commons: The name of the data commons.
+    :param data_model_version: The version of the data model.
+    :param cde_code: The code of the CDE to retrieve.
+    :param cde_version: The version of the CDE to retrieve.
+    :param log: Logger instance for logging information and errors.
+    :param mongo_dao: Data access object for MongoDB operations.
+    :returns: A dictionary containing the CDE full name, code, version, and permissive values, or None if the CDE is not found or an error occurs.
+    """
+    # construct the sts dump file url based on tier, data commons, and model version
+    sts_file_url = STS_FILE_URL.format(tier, data_commons.lower(), data_model_version)
+    try:
+        log.info(f"Extracting cde from {sts_file_url}")
+        api_client = APIInvoker({})
+        result = api_client.get_synonyms(sts_file_url)
+        if not result or len(result) == 0:
+            log.error(f"CDE dump file,{sts_file_url} is not found! ")
+            return None
+        cde_list  = [item for item in result if item.get(CDE_CODE) and item.get(CDE_CODE) != 'null'] 
+        if not cde_list or len(cde_list) == 0:
+            log.error(f"No cde found in {sts_file_url}")
+            return
+        
+        cde_set = set()
+        cde_records = []
+        return_cde = None
+        for item in cde_list:
+            code = item.get(CDE_CODE)
+            version = item.get(CDE_VERSION) if item.get(CDE_VERSION) and item.get(CDE_VERSION) != 'null' else None
+            cde_key = (code, version)
+            if cde_key in cde_set:
+                continue
+            cde_set.add(cde_key)
+            cde_record = compose_cde_record(item)
+            cde_records.append(
+                cde_record
+            )
+            if code  == cde_code and version == cde_version:
+                return_cde = cde_record
+        # save all extracted CDEs
+        mongo_dao.upsert_cde(cde_records)
+        # return matched CDE
+        return return_cde
+    except Exception as e:
+        log.exception(e)
+        log.exception(f"Failed to extract cde from {sts_file_url}")
+        return None
+    
+def compose_cde_record(cde_item):
+    """
+    compose cde record from cde dump file
+    """
+    cde_record = {
+        CDE_FULL_NAME: cde_item.get(CDE_FULL_NAME),
+        CDE_CODE: cde_item.get(CDE_CODE),
+        CDE_VERSION: cde_item.get(CDE_VERSION) if cde_item.get(CDE_VERSION) and cde_item.get(CDE_VERSION) != 'null' else None,
+        CDE_PERMISSIVE_VALUES: extract_pv_list(cde_item.get(CDE_PV_NAME))
+    }
+    return cde_record
 
 class SynonymPuller:
     """
@@ -238,9 +300,9 @@ class SynonymPuller:
                 self.log.info(f"Synonyms for {synonym_url} are not found! ")
                 return None
             # filter out empty synonyms
-            synonyms  = [item for item in result if item.get('permissibleValues') and item.get('permissibleValues')[0].get('synonyms')] 
+            synonyms  = [item for item in result if item.get(CDE_PV_NAME) and item.get(CDE_PV_NAME)[0].get('synonyms')] 
             for item in synonyms:
-                pv_list = item.get('permissibleValues')
+                pv_list = item.get(CDE_PV_NAME)
                 if pv_list:
                     for pv in pv_list:
                         value = pv.get('value')
