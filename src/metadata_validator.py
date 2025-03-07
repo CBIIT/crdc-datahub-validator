@@ -109,7 +109,6 @@ class MetaDataValidator:
         self.searched_sts = False
         self.not_found_cde = False
 
-
     def validate(self, submission_id, scope):
         #1. # get data common from submission
         submission = self.mongo_dao.get_submission(submission_id)
@@ -355,7 +354,7 @@ class MetaDataValidator:
             if not prop_def or v is None: 
                 continue
             
-            errs = self.validate_prop_value(k, v, prop_def, msg_prefix)
+            errs = self.validate_prop_value(k, v, prop_def, msg_prefix, dataRecord)
             if len(errs) > 0:
                 errors.extend(errs)
 
@@ -473,7 +472,7 @@ class MetaDataValidator:
                 child_id_list = list(set(child_id_list + [item[NODE_ID] for item in children]))
             return child_id_list
 
-    def validate_prop_value(self, prop_name, value, prop_def, msg_prefix):
+    def validate_prop_value(self, prop_name, value, prop_def, msg_prefix, data_record):
         # set default return values
         errors = []
         type = prop_def.get(TYPE)
@@ -488,7 +487,7 @@ class MetaDataValidator:
                 errors.append(create_error("M027", [msg_prefix, prop_name], prop_name, value))
             if type == "string":
                 val = str(value)
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
+                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
                 if not result:
                     errors.append(error)
             elif type == "integer":
@@ -530,9 +529,13 @@ class MetaDataValidator:
                     errors.append(create_error("M007",[msg_prefix, prop_name, value], prop_name, value))
 
             elif type == "boolean":
-                if not isinstance(value, bool) and value not in ["yes", "true", "no", "false"]:
-                    errors.append(create_error("M008",[msg_prefix, prop_name, value], prop_name, value))
-            
+                if not isinstance(value, bool):
+                    if value.lower() not in ["yes", "true", "no", "false"]: 
+                        errors.append(create_error("M008",[msg_prefix, prop_name, value], prop_name, value))
+                    else:
+                        matched_val = next(item for item in permissive_vals if item == value.lower())
+                        data_record[PROPERTIES][prop_name] = (matched_val in ["yes", "true"]) #transform to boolean
+
             elif (type == "array" or type == "value-list"):
                 if not permissive_vals or len(permissive_vals) == 0:
                     return errors #skip validation by crdcdh-1723
@@ -541,7 +544,7 @@ class MetaDataValidator:
                 arr = val.split(list_delimiter) if list_delimiter in val else [value]
                 for item in arr:
                     val = item.strip() if item and isinstance(item, str) else item
-                    result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
+                    result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
                     if not result:
                         errors.append(error)
             else:
@@ -596,24 +599,38 @@ class MetaDataValidator:
             permissive_vals = [item.strip() for item in permissive_vals]
         return permissive_vals, msg
 
+    
 """util functions"""
-def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao):
+def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao, data_record=None):
     result = True,
     error = None
     # strip white space from input value
     if value and isinstance(value, str):
         value = value.strip()
-    if permissive_vals and len(permissive_vals) > 0 and value not in permissive_vals:
-        result = False
-        error = create_error("M010", [msg_prefix, value, prop_name], prop_name, value)
-        # check synonym
-        synonyms = dao.find_pvs_by_synonym(value)
-        if not synonyms or len(synonyms) == 0:
-             return result, error 
-        suggested_pvs = [item[PV_TERM] for item in synonyms]
-        permissive_val = [item for item in permissive_vals if item in suggested_pvs]
-        if permissive_val and len(permissive_val) > 0: 
-            error["description"] += f' It is recommended to use "{permissive_val[0]}", as it is semantically equivalent to "{value}"' 
+    if permissive_vals and len(permissive_vals) > 0:
+        if isinstance(permissive_vals[0], str):
+            # find value in pv list in case-insensitive if value is string
+            matched_val = next((item for item in permissive_vals if item.lower() == value.lower()), None)
+            if not matched_val: 
+                result = False
+            else:
+                # if found, check if value in pv list in case-sensitive
+                if value not in permissive_vals and data_record is not None:
+                    # updated the value withe correct case.
+                    data_record[PROPERTIES][prop_name] = matched_val
+        else:
+            result = (value in permissive_vals)
+
+        if not result:
+            error = create_error("M010", [msg_prefix, value, prop_name], prop_name, value)
+            # check synonym
+            synonyms = dao.find_pvs_by_synonym(value)
+            if not synonyms or len(synonyms) == 0:
+                return result, error 
+            suggested_pvs = [item[PV_TERM] for item in synonyms]
+            permissive_val = [item for item in permissive_vals if item in suggested_pvs]
+            if permissive_val and len(permissive_val) > 0: 
+                error["description"] += f' It is recommended to use "{permissive_val[0]}", as it is semantically equivalent to "{value}"' 
     return result, error
 
 def check_boundary(value, min, max, msg_prefix, prop_name):
