@@ -41,6 +41,7 @@ function getCodeByTitle(title, description = null) {
         "Duplicated file records detected": "F005",
         "Conflict file records detected": "F006",
         "Duplicated file content detected": "F007",
+        "Duplicated data file content detected": "F007",
         "Orphaned file found": "F008",
         "Invalid dataRecord": "F009",
         "Invalid data file info": "F010",
