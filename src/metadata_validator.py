@@ -534,7 +534,7 @@ class MetaDataValidator:
                         errors.append(create_error("M008",[msg_prefix, prop_name, value], prop_name, value))
                     else:
                         matched_val = next(item for item in permissive_vals if item == value.lower())
-                        data_record[PROPERTIES][prop_name] = matched_val
+                        data_record[PROPERTIES][prop_name] = (matched_val in ["yes", "true"]) #transform to boolean
 
             elif (type == "array" or type == "value-list"):
                 if not permissive_vals or len(permissive_vals) == 0:
