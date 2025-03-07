@@ -8,7 +8,8 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
     BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
-    SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT, PROPERTIES
+    SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT, PROPERTIES,\
+    STUDY_COLLECTION, ORGANIZATION_COLLECTION
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -1189,6 +1190,45 @@ class MongoDao:
             self.log.exception(e)
             msg = f"Failed to upsert synonyms, {get_exception_msg()}"
             self.log.exception(msg)
+            return None
+        
+    """
+    find study by study_id
+    :param study_id
+    """
+    def find_study_by_id(self, study_id):
+        db = self.client[self.db_name]
+        data_collection = db[STUDY_COLLECTION]
+        query = {ID: study_id}
+        try:
+            return data_collection.find_one(query)
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get study for {study_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get study for {study_id}: {get_exception_msg()}")
+            return None
+
+    """
+    find organization name by study_id
+    :param study_id
+    """   
+    def find_organization_name_by_study_id(self, study_id):
+        db = self.client[self.db_name]
+        data_collection = db[ORGANIZATION_COLLECTION]
+        query = {"studies._id": study_id}
+        try:
+            result = list(data_collection.find_one(query))
+            return [item.get('name') for item in result]
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
             return None
     
 """
