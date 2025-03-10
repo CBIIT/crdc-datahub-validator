@@ -533,11 +533,11 @@ class MetaDataValidator:
                     if value.lower() not in ["yes", "true", "no", "false"]: 
                         errors.append(create_error("M008",[msg_prefix, prop_name, value], prop_name, value))
                     else:
-                        matched_val = next(item for item in permissive_vals if item == value.lower())
+                        matched_val = next((item for item in ["yes", "true", "no", "false"] if item == value.lower()))
                         data_record[PROPERTIES][prop_name] = (matched_val in ["yes", "true"]) #transform to boolean
 
             elif (type == "array" or type == "value-list"):
-                if not permissive_vals or len(permissive_vals) == 0:
+                if not permissive_vals or len(permissive_vals) == 0: 
                     return errors #skip validation by crdcdh-1723
                 val = str(value)
                 list_delimiter = self.model.get_list_delimiter()
