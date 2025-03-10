@@ -1220,7 +1220,7 @@ class MongoDao:
         data_collection = db[ORGANIZATION_COLLECTION]
         query = {"studies._id": study_id}
         try:
-            result = list(data_collection.find_one(query))
+            result = list(data_collection.find(query))
             return [item.get('name') for item in result]
         except errors.PyMongoError as pe:
             self.log.exception(pe)

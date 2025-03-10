@@ -127,6 +127,7 @@ class MetaDataValidator:
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
         self.datacommon = datacommon
+        # get study name and program name(s) from submission and/or study for name validation required in CRDCDH-2431
         study_id = submission.get(STUDY_ID)
         if not study_id:
             msg = f'Invalid submission, no study id found, {submission_id}!'
@@ -138,9 +139,13 @@ class MetaDataValidator:
             self.log.error(msg)
             return FAILED
         self.study_name = study.get("studyName")
-        program = submission.get("organization")
+        program = submission.get("organization") 
         if program:
-            self.program_names = [program.get("name")]
+            if isinstance(program,dict) and program.get("name"):
+                self.program_names = [program["name"]]
+            else:
+                self.program_names = [program]
+
         else:
             self.program_names = self.mongo_dao.find_organization_name_by_study_id(study_id)
         
@@ -342,10 +347,10 @@ class MetaDataValidator:
                 if data_value is None or not str(data_value).strip():
                     result[ERRORS].append(create_error("M003",[msg_prefix, data_key], data_key, data_value))
                 else:
-                    # validate program name and study name,  both are required properties
+                    # validate program name and study name required in CRDCDH-2431.  Both are required properties.
                     if node_type == "program" and data_key == "program_name":
                         if not self.program_names: # no program associated with the study
-                            result[WARNINGS].append(create_error("M030", [msg_prefix], data_key, data_value))
+                            result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
                         else:
                             matched_val = next((x for x in self.program_names if x.lower() == data_value.lower()), None)
                             if not matched_val:
@@ -354,8 +359,8 @@ class MetaDataValidator:
                                 data_record[PROPERTIES][data_key] = matched_val
                     
                     if node_type in ["study"] and data_key in ["study_name", "clinical_study_name"]:
-                        if data_value.lower() != self.study_name.low():
-                            result[ERRORS].append(create_error("M031", [msg_prefix, self.study_name], data_key, data_value))
+                        if data_value.lower() != self.study_name.lower():
+                            result[ERRORS].append(create_error("M029", [msg_prefix, self.study_name], data_key, data_value))
                         else:
                             data_record[PROPERTIES][data_key] = self.study_name
 
