@@ -529,11 +529,12 @@ class MetaDataValidator:
                     errors.append(create_error("M007",[msg_prefix, prop_name, value], prop_name, value))
 
             elif type == "boolean":
+                pv_list = ["yes", "true", "no", "false"]
                 if not isinstance(value, bool):
-                    if value.lower() not in ["yes", "true", "no", "false"]: 
+                    if value.lower() not in pv_list: 
                         errors.append(create_error("M008",[msg_prefix, prop_name, value], prop_name, value))
                     else:
-                        matched_val = next((item for item in ["yes", "true", "no", "false"] if item == value.lower()))
+                        matched_val = next((item for item in pv_list if item == value.lower()))
                         data_record[PROPERTIES][prop_name] = (matched_val in ["yes", "true"]) #transform to boolean
 
             elif (type == "array" or type == "value-list"):
