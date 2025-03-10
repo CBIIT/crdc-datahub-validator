@@ -1167,9 +1167,7 @@ class MongoDao:
     def find_pvs_by_synonym(self, synonym):
         db = self.client[self.db_name]
         data_collection = db[SYNONYM_COLLECTION]
-        query = {"$or": [{SYNONYM_TERM: {"$regex": synonym, "$options": "i"}}, 
-                     {PV_TERM: {"$regex": synonym, "$options": "i"}}    
-                ]}  #case-insensitive , 
+        query ={SYNONYM_TERM: {"$regex": synonym, "$options": "i"}} #case-insensitive , 
         try:
             return list(data_collection.find(query))
         except errors.PyMongoError as pe:
