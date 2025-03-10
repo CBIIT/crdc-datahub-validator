@@ -35,6 +35,7 @@ function getCodeByTitle(title, description = null) {
         "Many-to-one relationship conflict": "M025",
         "Invalid data model": "M026",
         "Data File not found": "F001",
+        "Data file not found": "F001",
         "File records not found": "F002",
         "Data file size mismatch": "F003",
         "Data file MD5 mismatch": "F004",
