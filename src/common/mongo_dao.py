@@ -650,6 +650,26 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to set search index in release collection: {get_exception_msg()}")
             return False
+    """
+    set synonym search index, 'synonym_term'
+    """
+    def set_search_synonym_index(self, synonym_index):
+        db = self.client[self.db_name]
+        data_collection = db[SYNONYM_COLLECTION]
+        try:
+            index_dict = data_collection.index_information()
+            if not index_dict or not index_dict.get(synonym_index):
+                result = data_collection.create_index([(SYNONYM_TERM)], \
+                            name=synonym_index)
+            return True
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to set search index in synonym collection: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to set search index in synonym collection: {get_exception_msg()}")
+            return False
         
     """
     find cached file md5 by submissionID and fileName
