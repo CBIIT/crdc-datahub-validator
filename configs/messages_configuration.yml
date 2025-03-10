@@ -82,7 +82,7 @@ Messages:
    description: "Duplicate ID found"
   M017:
    title: "Invalid Property"
-   severity: "Error"
+   severity: "Warning"
    message: '{} Property "{}" is not defined in the model.'
    description: "Property is not defined"
   M018:
