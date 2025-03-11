@@ -36,6 +36,7 @@ function getCodeByTitle(title, description = null) {
         "Invalid data model": "M026",
         "Data File not found": "F001",
         "File records not found": "F002",
+        "Data file records not found": "F002",
         "Data file size mismatch": "F003",
         "Data file MD5 mismatch": "F004",
         "Duplicated file records detected": "F005",
