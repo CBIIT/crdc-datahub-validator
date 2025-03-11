@@ -145,7 +145,6 @@ class MetaDataValidator:
                 self.program_names = [program["name"]]
             else:
                 self.program_names = [program]
-
         else:
             self.program_names = self.mongo_dao.find_organization_name_by_study_id(study_id)
         
@@ -352,7 +351,7 @@ class MetaDataValidator:
                         if not self.program_names: # no program associated with the study
                             result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
                         else:
-                            matched_val = next((x for x in self.program_names if x.lower() == data_value.lower()), None)
+                            matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
                             if not matched_val:
                                 result[ERRORS].append(create_error("M028", [msg_prefix, ",".join([f'"{name}"' for name in self.program_names])], data_key, data_value))
                             else:
