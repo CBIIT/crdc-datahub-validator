@@ -563,7 +563,7 @@ class MetaDataValidator:
                 cde_code = cde_terms[0].get(TERM_CODE) 
                 cde_version = cde_terms[0].get(TERM_VERSION)
             if not cde_code:
-                return permissive_vals
+                return permissive_vals, msg
             
             cde = self.mongo_dao.get_cde_permissible_values(cde_code, cde_version)
             if cde:
