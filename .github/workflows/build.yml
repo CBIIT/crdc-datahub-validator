@@ -9,7 +9,7 @@ on:
       environment:
         description: "Choose the environment to build"
         type: environment
-      code_branch
+      code_branch:
         description: "Branch to build file validation"
         required: true
       code_branch_pvpuller:
