@@ -116,11 +116,11 @@ jobs:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           ESSENTIAL_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_ESSENTIAL_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
         uses: aquasecurity/trivy-action@master
-          with:
-            image-ref: '${{ env.ESSENTIAL_VALID_IMAGE_NAME }}'
-            format: 'table'
-            exit-code: 1
-            severity: 'CRITICAL,HIGH'
+        with:
+          image-ref: '${{ env.ESSENTIAL_VALID_IMAGE_NAME }}'
+          format: 'table'
+          exit-code: 1
+          severity: 'CRITICAL,HIGH'
 
   push-docker-images:
     name: Push docker images
