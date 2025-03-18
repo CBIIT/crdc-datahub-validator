@@ -7,14 +7,14 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: "Choose the environment to build"
+        description: Choose the environment to build
         type: environment
       code_branch:
-        description: "Branch to build file validation"
-        required: true
+        description: Branch to build validation
+        required: false
       code_branch_pvpuller:
-        description: "Branch to build pvpuller" 
-        required: true
+        description: Branch to build pvpuller 
+        required: false
       trivy_test_scan_file_validation:
         description: "Run Trivy Test Scan"
         required: true
@@ -157,3 +157,10 @@ jobs:
           echo "Pushing: $FILE_VALID_IMAGE_NAME"
           docker push $FILE_VALID_IMAGE_NAME
 
+      - name: Push docker Image for File validation
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
+          ESSENTIAL_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_ESSENTIAL_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
+        run: |
+          echo "Pushing: $ESSENTIAL_VALID_IMAGE_NAME"
+          docker push $ESSENTIAL_VALID_IMAGE_NAME
