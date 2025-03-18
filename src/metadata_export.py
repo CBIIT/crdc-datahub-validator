@@ -84,9 +84,6 @@ def metadata_export(configs, job_queue, mongo_dao):
                             if submission.get(SUBMISSION_INTENTION) != SUBMISSION_INTENTION_DELETE and (not submission.get(SUBMISSION_DATA_TYPE) 
                                 or (submission[SUBMISSION_DATA_TYPE] != SUBMISSION_DATA_TYPE_METADATA_ONLY)): 
                                 export_validator.transfer_released_files()
-                    elif data.get(SQS_TYPE) == TYPE_GENERATE_DCF:
-                        export_validator = GenerateDCF(configs, mongo_dao, submission, S3Service())
-                        export_validator.generate_dcf()
                     else:
                         pass
                     export_processed += 1
@@ -158,6 +155,11 @@ class ExportMetadata:
 
         for thread in threads:
             thread.join()
+        
+        #4 export DCF-manifest
+        DCF_manifest_exporter = GenerateDCF(self.configs, self.mongo_dao, self.submission, self.s3_service )
+        DCF_manifest_exporter.generate_dcf()
+
         
     def export(self, submission_id, node_type):
         start_index = 0
@@ -266,7 +268,6 @@ class ExportMetadata:
                 return
 
             start_index += count 
-
 
     def release_data(self):
         submission_id = self.submission[ID]
