@@ -15,6 +15,31 @@ on:
       code_branch_pvpuller:
         description: Branch to build pvpuller 
         required: false
+      build_file_validation:
+        description: "Build File Validation"
+        required: true
+        type: boolean
+        default: false
+      build_essential_validation:
+        description: "Build Essential Validation"
+        required: true
+        type: boolean
+        default: false
+      build_metadata_validation:
+        description: "Build Metadata Validation"
+        required: true
+        type: boolean
+        default: false
+      build_export_validation:
+        description: "Build Export Validation"
+        required: true
+        type: boolean
+        default: false
+      build_pvpuller:
+        description: "Build PvPuller"
+        required: true
+        type: boolean
+        default: false
       trivy_test_scan_file_validation:
         description: "Run Trivy Test Scan"
         required: true
