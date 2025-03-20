@@ -139,14 +139,7 @@ class MetaDataValidator:
             self.log.error(msg)
             return FAILED
         self.study_name = study.get("studyName")
-        program = submission.get("organization") 
-        if program:
-            if isinstance(program,dict) and program.get("name"):
-                self.program_names = [program["name"]]
-            else:
-                self.program_names = [program]
-        else:
-            self.program_names = self.mongo_dao.find_organization_name_by_study_id(study_id)
+        self.program_names = self.mongo_dao.find_organization_name_by_study_id(study_id)
         
         model_version = submission.get(MODEL_VERSION)
         #2 get data model based on datacommon and version
@@ -346,8 +339,9 @@ class MetaDataValidator:
                 if data_value is None or not str(data_value).strip():
                     result[ERRORS].append(create_error("M003",[msg_prefix, data_key], data_key, data_value))
                 else:
+                    entity_type = self.model.get_entity_type(node_type)
                     # validate program name and study name required in CRDCDH-2431.  Both are required properties.
-                    if node_type == "program" and data_key == "program_name":
+                    if entity_type == "Program" and data_key == "program_name":
                         if not self.program_names: # no program associated with the study
                             result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
                         else:
@@ -356,8 +350,7 @@ class MetaDataValidator:
                                 result[ERRORS].append(create_error("M028", [msg_prefix, ",".join([f'"{name}"' for name in self.program_names])], data_key, data_value))
                             else:
                                 data_record[PROPERTIES][data_key] = matched_val
-                    
-                    if node_type in ["study"] and data_key in ["study_name", "clinical_study_name"]:
+                    elif entity_type == "Study" and data_key in ["study_name", "clinical_study_name"]:
                         if data_value.lower() != self.study_name.lower():
                             result[ERRORS].append(create_error("M029", [msg_prefix, self.study_name], data_key, data_value))
                         else:
