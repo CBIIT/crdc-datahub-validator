@@ -15,31 +15,10 @@ on:
       code_branch_pvpuller:
         description: Branch to build pvpuller 
         required: false
-      build_file_validation:
-        description: "Build File Validation"
+      build_options:
+        description: "Build options (JSON: {file_validation: false, pvpuller: false})"
         required: true
-        type: boolean
-        default: false
-      build_essential_validation:
-        description: "Build Essential Validation"
-        required: true
-        type: boolean
-        default: false
-      build_metadata_validation:
-        description: "Build Metadata Validation"
-        required: true
-        type: boolean
-        default: false
-      build_export_validation:
-        description: "Build Export Validation"
-        required: true
-        type: boolean
-        default: false
-      build_pvpuller:
-        description: "Build PvPuller"
-        required: true
-        type: boolean
-        default: false
+        default: '{"file_validation": false, "essential_validation": false, "metadata_validation": false, "export_validation": false, "pvpuller": false}'
       trivy_test_scan_file_validation:
         description: "Run Trivy Test Scan"
         required: true
@@ -80,6 +59,10 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
     steps:
+      - name: parse build options
+        id: parse-build
+        run: echo "BUILD_OPTIONS=$(echo '${{ github.event.inputs.build_options }}' | jq -r .)" >> $GITHUB_ENV
+
       - name: Checkout Code Repository
         uses: actions/checkout@v4
         with:
@@ -88,6 +71,7 @@ jobs:
 
       - name: Build File Validation Docker Image
         id: build-image
+        if: ${{ fromJson(env.BUILD_OPTIONS).file_validation == true }}
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           FILE_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_FILE_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
@@ -120,14 +104,19 @@ jobs:
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
 
     steps:
+      - name: parse-build-essential-options
+        id: parse-build-essential
+        run: echo "BUILD_OPTIONS=$(echo '${{ github.event.inputs.build_options }}' | jq -r .)" >> $GITHUB_ENV
+
       - name: Checkout Code Repository
         uses: actions/checkout@v4
         with:
           ref: ${{ env.CODE_BRANCH }}
           submodules: true
 
-      - name: Build File Validation Docker Image
+      - name: Build Essential Validation Docker Image
         id: build-image
+        if: ${{ fromJson(env.BUILD_OPTIONS).essential_validation == true }} 
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           ESSENTIAL_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_ESSENTIAL_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
@@ -182,7 +171,7 @@ jobs:
           echo "Pushing: $FILE_VALID_IMAGE_NAME"
           docker push $FILE_VALID_IMAGE_NAME
 
-      - name: Push docker Image for File validation
+      - name: Push docker Image for Essential validation
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
           ESSENTIAL_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_ESSENTIAL_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
