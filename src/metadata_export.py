@@ -11,7 +11,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     RELEASE, ARCHIVE_RELEASE, EXPORT_METADATA, EXPORT_ROOT_PATH, SERVICE_TYPE_EXPORT, CRDC_ID, NODE_ID,\
     DATA_COMMON_NAME, CREATED_AT, MODEL_VERSION, MODEL_FILE_DIR, TIER_CONFIG, SQS_NAME, TYPE, UPDATED_AT, \
     PARENTS, PROPERTIES, SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_RELEASED, SUBMISSION_INTENTION, \
-    SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME, TYPE_GENERATE_DCF,\
+    SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
     SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, \
     S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES
@@ -61,7 +61,7 @@ def metadata_export(configs, job_queue, mongo_dao):
                 try:
                     data = json.loads(msg.body)
                     log.debug(data)
-                    if not data.get(SQS_TYPE) in [TYPE_EXPORT_METADATA, TYPE_COMPLETE_SUB, TYPE_GENERATE_DCF] or not data.get(SUBMISSION_ID):
+                    if not data.get(SQS_TYPE) in [TYPE_EXPORT_METADATA, TYPE_COMPLETE_SUB] or not data.get(SUBMISSION_ID):
                         pass
                     
                     extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
@@ -84,9 +84,6 @@ def metadata_export(configs, job_queue, mongo_dao):
                             if submission.get(SUBMISSION_INTENTION) != SUBMISSION_INTENTION_DELETE and (not submission.get(SUBMISSION_DATA_TYPE) 
                                 or (submission[SUBMISSION_DATA_TYPE] != SUBMISSION_DATA_TYPE_METADATA_ONLY)): 
                                 export_validator.transfer_released_files()
-                    elif data.get(SQS_TYPE) == TYPE_GENERATE_DCF:
-                        export_validator = GenerateDCF(configs, mongo_dao, submission, S3Service())
-                        export_validator.generate_dcf()
                     else:
                         pass
                     export_processed += 1
@@ -158,6 +155,11 @@ class ExportMetadata:
 
         for thread in threads:
             thread.join()
+        
+        #4 export DCF-manifest
+        DCF_manifest_exporter = GenerateDCF(self.configs, self.mongo_dao, self.submission, self.s3_service )
+        DCF_manifest_exporter.generate_dcf()
+
         
     def export(self, submission_id, node_type):
         start_index = 0
@@ -266,7 +268,6 @@ class ExportMetadata:
                 return
 
             start_index += count 
-
 
     def release_data(self):
         submission_id = self.submission[ID]
