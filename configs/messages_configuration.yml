@@ -135,6 +135,22 @@ Messages:
    severity: "Error"
    message: '{} CDE for property "{}" is not available. Please try again later and contact the helpdesk if this error persists.'
    description: "CDE version doesn't exist in DB, and on-demand pull failed."
+  M028:
+   title: "Program name mismatch"
+   severity: "Error"
+   message: "{} Program name doesn't match pre-approved name(s) {}."
+   description: "Program name doesn't match pre-approved name(s)."
+  M029:
+   title: "Study name mismatch"
+   severity: "Error"
+   message: '{} Study name does not match pre-approved name "{}".'
+   description: "Study name doesn't match pre-approved name."
+  M030:
+   title: "Unknown program association"
+   severity: "Error"
+   message: '{} Study "{}" has no program association. Please contact your curator about this issue.'
+   description: "If an approved study doesn't have a program associated, and a program record is uploaded."
+
 
   # data file validation message
   F001:
