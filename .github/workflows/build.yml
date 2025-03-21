@@ -61,7 +61,6 @@ jobs:
           echo "BUILD_FILE_VALIDATION=$BUILD_FILE_VALIDATION" >> $GITHUB_ENV
           echo "BUILD_ESSENTIAL_VALIDATION=$BUILD_ESSENTIAL_VALIDATION" >> $GITHUB_ENV
           echo "BUILD_PVPULLER=$BUILD_PVPULLER" >> $GITHUB_ENV
-        shell: bash
 
   build-file-validation:
     name: Build File Validation image
