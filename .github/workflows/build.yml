@@ -121,7 +121,8 @@ jobs:
 
     steps:
       - name: check extracted values for essential validation build
-        run: echo "Essential Validation: $BUILD_ESSENTIAL_VALIDATION"
+        run: |
+          echo "Essential Validation: $BUILD_ESSENTIAL_VALIDATION"
 
       - name: Checkout Code Repository
         uses: actions/checkout@v4
