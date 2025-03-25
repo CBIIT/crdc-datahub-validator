@@ -154,7 +154,7 @@ jobs:
   push-docker-images:
     name: Push docker images
     runs-on: ubuntu-latest
-    needs: [build-file-validation, build-essential-validation]
+    needs: [build-file-validation]
     environment: ${{ inputs.environment }}
     env:
       ECR_REPO_FILE_VALIDATION: "crdc-hub-filevalidation"
