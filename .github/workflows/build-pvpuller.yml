@@ -58,7 +58,7 @@ jobs:
 
       - name: Run Trivy test scan for PV Puller Docker Image
         id: trivy-scan-pvpuller
-        if: github.event.inputs.trivy_test_scan_file_validation == 'true'
+        if: github.event.inputs.trivy_test_scan_pvpuller == 'true'
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
           #PV_PULLER_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_PVPULLER }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
