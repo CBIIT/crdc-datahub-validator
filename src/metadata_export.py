@@ -225,7 +225,7 @@ class ExportMetadata:
                 if len(same_type_parents) == 1:
                     for item in rows:
                         item[rel_name] = same_type_parents[0].get("parentIDValue")
-                else:
+                else: 
                     index = 0
                     for parent in same_type_parents:
                         if index == 0:

@@ -7,7 +7,7 @@ import os
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import DATA_COMMON_NAME,NODE_ID, FILE_NAME, MODEL_VERSION, ROOT_PATH, \
-        SUBMISSION_ID,NODE_TYPE, S3_FILE_INFO, BATCH_BUCKET, PARENT_TYPE, PARENTS
+        SUBMISSION_ID,NODE_TYPE, S3_FILE_INFO, BATCH_BUCKET, PARENT_TYPE, PARENTS, PARENT_ID_VAL
 from common.utils import get_exception_msg
 
 """
@@ -129,16 +129,26 @@ class MetadataRemover:
         deleted_child_nodes = []
         updated_child_nodes = []
         file_nodes = []
-        parent_types = [item[NODE_TYPE] for item in deleted_nodes]
         file_def_types = self.def_file_nodes.keys()
         for node in child_nodes:
-            parents = list(filter(lambda x: (x[PARENT_TYPE] not in parent_types), node.get(PARENTS)))
-            if len(parents) == 0:  #delete if no other parents
-                deleted_child_nodes.append(node)
+            for parent in node.get(PARENTS):
+                deleted_parent_ids = [item[NODE_ID] for item in deleted_nodes if item[NODE_TYPE] == parent[PARENT_TYPE] and 
+                                       item[NODE_ID] in parent[PARENT_ID_VAL]]
+                for deleted_parent_id in deleted_parent_ids:
+                    if deleted_parent_id in parent[PARENT_ID_VAL]:
+                        if deleted_parent_id + "|" in parent[PARENT_ID_VAL]: # m to m relationship
+                            parent[PARENT_ID_VAL] = parent[PARENT_ID_VAL].replace(deleted_parent_id + "|", '')
+                        else:
+                            parent[PARENT_ID_VAL] = parent[PARENT_ID_VAL].replace(deleted_parent_id, '')
+                if parent[PARENT_ID_VAL].strip() == '' or parent[PARENT_ID_VAL].replace("|", "").strip() == '':
+                    parent = None
+
+            if not next([item for item in node.get(PARENTS) if item is not None], None): #delete if no parents
                 if node.get(NODE_TYPE) in file_def_types and node.get(S3_FILE_INFO):
                     file_nodes.append(node[S3_FILE_INFO])
-            else: #remove deleted parent and update the node
-                node[PARENTS] = parents
+                deleted_child_nodes.append(node)
+            else:
+                node[PARENTS] = [item for item in node.get(PARENTS) if item is not None]
                 updated_child_nodes.append(node)
 
         updated_results = True
