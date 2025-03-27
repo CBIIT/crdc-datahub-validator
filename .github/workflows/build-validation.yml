@@ -326,8 +326,7 @@ jobs:
         if: success()
         env:
           REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
-          EXPORT_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_EXPORT_VALIDATION
-}}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
+          EXPORT_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_EXPORT_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
         run: |
           echo "Pushing: $EXPORT_VALID_IMAGE_NAME"
           docker push $EXPORT_VALID_IMAGE_NAME
