@@ -340,21 +340,23 @@ class MetaDataValidator:
                     result[ERRORS].append(create_error("M003",[msg_prefix, data_key], data_key, data_value))
                 else:
                     entity_type = self.model.get_entity_type(node_type)
-                    # validate program name and study name required in CRDCDH-2431.  Both are required properties.
-                    if entity_type == "Program" and data_key == "program_name":
-                        if not self.program_names: # no program associated with the study
-                            result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
-                        else:
-                            matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
-                            if not matched_val:
-                                result[ERRORS].append(create_error("M028", [msg_prefix, ",".join([f'"{name}"' for name in self.program_names])], data_key, data_value))
+                    if entity_type == "Program":
+                        # validate program name and study name required in CRDCDH-2431.  Both are required properties.
+                        if data_key == self.model.get_configured_prop_name("programName"):
+                            if not self.program_names: # no program associated with the study
+                                result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
                             else:
-                                data_record[PROPERTIES][data_key] = matched_val
-                    elif entity_type == "Study" and data_key in ["study_name", "clinical_study_name"]:
-                        if data_value.lower() != self.study_name.lower():
-                            result[ERRORS].append(create_error("M029", [msg_prefix, self.study_name], data_key, data_value))
-                        else:
-                            data_record[PROPERTIES][data_key] = self.study_name
+                                matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
+                                if not matched_val:
+                                    result[ERRORS].append(create_error("M028", [msg_prefix, ",".join([f'"{name}"' for name in self.program_names])], data_key, data_value))
+                                else:
+                                    data_record[PROPERTIES][data_key] = matched_val
+                    elif entity_type == "Study":
+                        if data_key == self.model.get_configured_prop_name("studyName"):
+                            if data_value.lower() != self.study_name.lower():
+                                result[ERRORS].append(create_error("M029", [msg_prefix, self.study_name], data_key, data_value))
+                            else:
+                                data_record[PROPERTIES][data_key] = self.study_name
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
