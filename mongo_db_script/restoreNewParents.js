@@ -8,8 +8,8 @@ function processCollection(collectionName) {
     let updatedCount = 0;
     print("\n");
     print("----------------------");
-    console.log(`${new Date()} -> Processing data field: ${field}`);
-    db[collectionName].find({ "parents": { $ne: null }}).forEach(doc => {
+    console.log(`${new Date()} -> Processing collection: ${collectionName}`);
+    db[collectionName].find({ "parents": { $ne: [] }}).forEach(doc => {
         let updated = false;
         let newParents = [];
         matchedCount++;
@@ -18,19 +18,20 @@ function processCollection(collectionName) {
             const sameTypeParents = doc["parents"].filter(parent => parent.type === type);
             const newParent = sameTypeParents[0];
             if (sameTypeParents.length > 1) {
-                const newParentIds = sameTypeParents.map(parent => parent.id).join("|");
-                newParent["newParent"] = newParentIds;
+                const newParentIds = sameTypeParents.map(parent => parent.parentIDValue).join("|");
+                newParent["parentIDValue"] = newParentIds;
+                updated = true;
             }
             newParents.push(newParent);
-            if (updated) {
-                updatedCount++;
-                bulkOps.push({
-                    updateOne: {
-                        filter: { _id: doc._id },
-                        update: { $set: { [field]: doc[field] } }
-                    }
-                });
+        });
+        if (updated) {
+            updatedCount++;
+            bulkOps.push({
+                updateOne: {
+                    filter: { _id: doc._id },
+                    update: { $set: { "parents": newParents } }
             }
+            });
         }
     });
 
@@ -38,8 +39,8 @@ function processCollection(collectionName) {
         db[collectionName].bulkWrite(bulkOps);
     }
 
-    console.log(`Matched Records: ${matchedCount}`);
-    console.log(`Updated Records: ${updatedCount}`);
+    console.log(`Matched Records with parents: ${matchedCount}`);
+    console.log(`Updated Records with M to M relation: ${updatedCount}`);
     console.log(`${new Date()} -> Processed collection: ${collectionName}`);
     print("----------------------");
     print("\n");

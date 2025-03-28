@@ -131,6 +131,7 @@ class MetadataRemover:
         file_nodes = []
         file_def_types = self.def_file_nodes.keys()
         for node in child_nodes:
+            empty_parents = []
             for parent in node.get(PARENTS):
                 deleted_parent_ids = [item[NODE_ID] for item in deleted_nodes if item[NODE_TYPE] == parent[PARENT_TYPE] and 
                                        item[NODE_ID] in parent[PARENT_ID_VAL]]
@@ -140,10 +141,10 @@ class MetadataRemover:
                             parent[PARENT_ID_VAL] = parent[PARENT_ID_VAL].replace(deleted_parent_id + "|", '')
                         else:
                             parent[PARENT_ID_VAL] = parent[PARENT_ID_VAL].replace(deleted_parent_id, '')
-                if parent[PARENT_ID_VAL].strip() == '' or parent[PARENT_ID_VAL].replace("|", "").strip() == '':
-                    parent = None
-
-            if not next([item for item in node.get(PARENTS) if item is not None], None): #delete if no parents
+                    if len(parent[PARENT_ID_VAL]) == 0:
+                        empty_parents.append(parent)
+            node[PARENTS] = [ item for item in node.get(PARENTS) if item not in empty_parents]
+            if not node.get(PARENTS): #delete if no parents
                 if node.get(NODE_TYPE) in file_def_types and node.get(S3_FILE_INFO):
                     file_nodes.append(node[S3_FILE_INFO])
                 deleted_child_nodes.append(node)
