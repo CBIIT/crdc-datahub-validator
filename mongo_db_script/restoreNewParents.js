@@ -9,7 +9,7 @@ function processCollection(collectionName) {
     print("\n");
     print("----------------------");
     console.log(`${new Date()} -> Processing collection: ${collectionName}`);
-    db[collectionName].find({ "parents": { $ne: [] }}).forEach(doc => {
+    db[collectionName].find({$expr: { $gt: [{ $size: "$parents" }, 1] }}).forEach(doc => {
         let updated = false;
         let newParents = [];
         matchedCount++;
@@ -39,7 +39,7 @@ function processCollection(collectionName) {
         db[collectionName].bulkWrite(bulkOps);
     }
 
-    console.log(`Matched Records with parents: ${matchedCount}`);
+    console.log(`Matched Records with multiple parents: ${matchedCount}`);
     console.log(`Updated Records with M to M relation: ${updatedCount}`);
     console.log(`${new Date()} -> Processed collection: ${collectionName}`);
     print("----------------------");
