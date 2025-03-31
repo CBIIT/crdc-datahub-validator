@@ -163,9 +163,6 @@ class DataLoader:
                 existed_node[PARENTS] = parents
                 return True
             for parent in parents:
-                # if not any( p.get(PARENT_TYPE) == parent.get(PARENT_TYPE) and p.get("parentIDPropName") ==  parent.get("parentIDPropName") \
-                #            and p.get("parentIDValue") ==  parent.get("parentIDValue")  for p in existed_parents):
-                #    existed_node[PARENTS].append(parent)
                 exist_parent = next((p for p in existed_parents if p.get(PARENT_TYPE) == parent.get(PARENT_TYPE) and p.get("parentIDPropName") ==  parent.get("parentIDPropName")), None)
                 if exist_parent:
                     if parent.get("parentIDValue") != exist_parent.get("parentIDValue"):

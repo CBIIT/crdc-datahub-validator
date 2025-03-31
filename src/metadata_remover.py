@@ -7,7 +7,7 @@ import os
 from bento.common.utils import get_logger
 from bento.common.s3 import S3Bucket
 from common.constants import DATA_COMMON_NAME,NODE_ID, FILE_NAME, MODEL_VERSION, ROOT_PATH, \
-        SUBMISSION_ID,NODE_TYPE, S3_FILE_INFO, BATCH_BUCKET, PARENT_TYPE, PARENTS, PARENT_ID_VAL
+        NODE_TYPE, S3_FILE_INFO, BATCH_BUCKET, PARENT_TYPE, PARENTS, PARENT_ID_VAL
 from common.utils import get_exception_msg
 
 """
