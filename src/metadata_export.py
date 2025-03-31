@@ -176,10 +176,10 @@ class ExportMetadata:
             for r in data_records:
                 # node_id = r.get(NODE_ID)
                 crdc_id = r.get(CRDC_ID) if node_type in main_nodes.keys() else None
-                row_list = self.convert_2_row(r, node_type, crdc_id)
-                rows.extend(row_list)
+                row = self.convert_2_row(r, node_type, crdc_id)
+                rows.append(row)
                 if r.get(ORIN_FILE_NAME) != file_name:
-                    columns.update(row_list[0].keys())
+                    columns.update(row.keys())
                     file_name = r.get(ORIN_FILE_NAME) 
 
             count = len(data_records) 
@@ -207,7 +207,6 @@ class ExportMetadata:
             start_index += count 
 
     def convert_2_row(self, data_record, node_type, crdc_id):
-        rows = []
         row = data_record.get(PROPERTIES)
         row[TYPE] = node_type
         if crdc_id is not None:
@@ -215,7 +214,6 @@ class ExportMetadata:
         else:
             if CRDC_ID.lower() in row.keys():
                 del row[CRDC_ID.lower()]
-        rows.append(row)
         parents = data_record.get("parents", None)
         if parents: 
             parent_types = list(set([item["parentType"] for item in parents]))
@@ -223,19 +221,10 @@ class ExportMetadata:
                 same_type_parents = [item for item in parents if item["parentType"] == type]
                 rel_name = f'{same_type_parents[0].get("parentType")}.{same_type_parents[0].get("parentIDPropName")}'
                 if len(same_type_parents) == 1:
-                    for item in rows:
-                        item[rel_name] = same_type_parents[0].get("parentIDValue")
-                else: 
-                    index = 0
-                    for parent in same_type_parents:
-                        if index == 0:
-                            row[rel_name] = parent.get("parentIDValue")
-                        else:
-                            m2m_row = row.copy()
-                            m2m_row[rel_name] = parent.get("parentIDValue")
-                            rows.append(m2m_row)
-                        index += 1
-        return rows
+                    row[rel_name] = same_type_parents[0].get("parentIDValue")
+                else:
+                   self.log.error(f'{self.submission[ID]}: {node_type} has multiple parents in wrong format of the same type {type}')
+        return row
     
     def upload_file(self, buf, node_type):
         id, root_path, bucket_name,_,_ = self.get_submission_info()      
