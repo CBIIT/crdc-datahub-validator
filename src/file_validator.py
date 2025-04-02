@@ -135,6 +135,7 @@ class FileValidator:
             #check if the file record is valid
             if not self.validate_fileRecord(fileRecord):
                 return STATUS_ERROR
+            self.get_root_path(fileRecord[SUBMISSION_ID])
             #escape file validation if submission intention is Delete
             if self.submission.get(SUBMISSION_INTENTION) == SUBMISSION_INTENTION_DELETE:
                 return STATUS_PASSED
@@ -146,8 +147,8 @@ class FileValidator:
             self.log.exception(e)
             msg = f"{fileRecord.get(SUBMISSION_ID)}: Failed to validate data file, {fileRecord.get(ID)}! {get_exception_msg()}!"
             self.log.exception(msg)
-            error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
-            self.set_status(fileRecord, STATUS_ERROR, error)
+            error = create_error("F011", [], "", "")
+            self.save_qc_result(fileRecord, STATUS_ERROR, error)
             return STATUS_ERROR
         finally:
             if self.bucket:
@@ -159,32 +160,17 @@ class FileValidator:
         if not fileRecord.get(S3_FILE_INFO):
             msg = f'Invalid file object, no s3 file info, {fileRecord[ID]}!'
             self.log.error(msg)
-            error = create_error("Invalid dataRecord", msg)
-            self.set_status(fileRecord, STATUS_ERROR, error)
+            error = create_error("F009", [fileRecord[ID]], S3_FILE_INFO, "")
+            self.save_qc_result(fileRecord, STATUS_ERROR, error)
             return False
         else:
             if not fileRecord[S3_FILE_INFO].get(FILE_NAME) or not fileRecord[S3_FILE_INFO].get(SIZE) \
                     or not fileRecord[S3_FILE_INFO].get(MD5):
                 msg = f'Invalid data file object: invalid s3 data file info, {fileRecord[ID]}!'
                 self.log.error(msg)
-                error = create_error("Invalid data file info", msg)
-                self.set_status(fileRecord, STATUS_ERROR, error)
+                error = create_error("F010", [fileRecord[ID]],  FILE_NAME, "")
+                self.save_qc_result(fileRecord, STATUS_ERROR, error)
                 return False
-
-        if not fileRecord.get(SUBMISSION_ID):
-            msg = f'Invalid data file object: no submission Id found, {fileRecord[ID]}!'
-            self.log.error(msg)
-            error = create_error("Invalid submission Id", msg)
-            self.set_status(fileRecord, STATUS_ERROR, error)
-            return False
-        
-        if not self.get_root_path(fileRecord[SUBMISSION_ID]):
-            msg = f'Invalid submission object, no rootPath found, {fileRecord[ID]}/{fileRecord[SUBMISSION_ID]}!'
-            self.log.error(msg)
-            error = create_error("Invalid submission", msg)
-            self.set_status(fileRecord, STATUS_ERROR, error)
-            return False
-
         return True
     
     def get_root_path(self, submissionID):
@@ -224,7 +210,7 @@ class FileValidator:
         if not self.bucket.file_exists_on_s3(key):
             msg = f'Data file “{file_name}” not found.'
             self.log.error(msg)
-            error = create_error("Data file not found", msg)
+            error = create_error("F001", [file_name], "file", key)
             return STATUS_ERROR, error
         
         # 2. check file integrity
@@ -251,13 +237,13 @@ class FileValidator:
         if int(org_size) != int(size):
             msg = f'Data file “{file_name}”: expected size: {org_size}, actual size: {size}.'
             self.log.error(msg)
-            error = create_error("Data file size mismatch", msg)
+            error = create_error("F003", [file_name, org_size, size], "file size", org_size)
             return STATUS_ERROR, error
         
         if org_md5 != md5:
             msg = f'Data file “{file_name}”: expected MD5: {org_md5}, actual MD5: {md5}.'
             self.log.error(msg)
-            error = create_error("Data file MD5 mismatch", msg)
+            error = create_error("F004", [file_name, org_md5, md5],  "md5", org_md5)
             return STATUS_ERROR, error
         
         # check duplicates in manifest
@@ -265,7 +251,7 @@ class FileValidator:
         if not manifest_info_list or  len(manifest_info_list) == 0:
             msg = f"No data file records found for the submission."
             self.log.error(msg)
-            error = create_error("Data file records not found", msg)
+            error = create_error("F002", [], "files", None)
             return STATUS_ERROR, error
         
         # 3. check if Same MD5 checksum and same filename 
@@ -273,7 +259,7 @@ class FileValidator:
         if len(temp_list) > 1:
             msg = f'Data file “{file_name}”: already exists with the same name and md5 value.'
             self.log.warning(msg)
-            error = create_error("Duplicated data file records detected", msg)
+            error = create_error("F005", [file_name], "file name", file_name)
             return STATUS_WARNING, error 
         
         # 4. check if Same filename but different MD5 checksum 
@@ -281,14 +267,14 @@ class FileValidator:
         if len(temp_list) > 0:
             msg = f'Data file “{file_name}”: A data file with the same name but different md5 value was found.'
             self.log.warning(msg)
-            error = create_error("Conflict data file records detected", msg)
+            error = create_error("F006", [file_name], "file name", file_name)
             return STATUS_WARNING, error
         
         # 5. check if Same MD5 checksum but different filename
         temp_list = [file for file in manifest_info_list if file[S3_FILE_INFO][FILE_NAME] != file_name and file[S3_FILE_INFO][MD5] == org_md5]
         if len(temp_list) > 0:
             msg = f'Data file “{file_name}”: another data file with the same MD5 found.'
-            error = create_error("Duplicated data file content detected", msg)
+            error = create_error("F007", [file_name], "file name", file_name)
             self.log.warning(msg)
             return STATUS_WARNING, error 
             
@@ -302,11 +288,13 @@ class FileValidator:
     def validate_all_files(self, submission_id):
         errors = []
         missing_count = 0
-        if not self.get_root_path(submission_id):
-            msg = f'Invalid submission object, no rootPath found, {submission_id}!'
-            self.log.error(msg)
-            error = create_error("Invalid submission", msg)
-            return STATUS_ERROR, [error]
+        # this error will not happen anymore
+        # if not self.get_root_path(submission_id):
+        #     msg = f'Invalid submission object, no rootPath found, {submission_id}!'
+        #     self.log.error(msg)
+        #     error = create_error("Invalid submission", msg, "", "Error", SUBMISSION_ID, submission_id)
+        #     return STATUS_ERROR, [error]
+        self.get_root_path(submission_id)
         key = os.path.join(os.path.join(self.rootPath, f"file/"))
 
         try:
@@ -355,7 +343,7 @@ class FileValidator:
                         "severity": "Error",
                         "uploadedDate": file.last_modified,
                         "validatedDate": current_datetime(),
-                        "errors": [create_error("Orphaned file found", msg)]
+                        "errors": [create_error("F008", [file_name], "file name", file_name)]
                     }
                     errors.append(error)
                     missing_count += 1
@@ -377,7 +365,7 @@ class FileValidator:
             self.log.exception(e)
             msg = f"{submission_id}: Failed to validate data files! {get_exception_msg()}!"
             self.log.exception(msg)
-            error = create_error("Internal error", "Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("F011", [], "", "")
             return None, [error]
     
     def set_status(self, record, qc_result, status, error):
@@ -402,6 +390,8 @@ class FileValidator:
 
     def save_qc_result(self, fileRecord, status, error):
         qc_result = None
+        if not fileRecord.get(S3_FILE_INFO):
+            fileRecord[S3_FILE_INFO] = {}
         if fileRecord[S3_FILE_INFO].get(QC_RESULT_ID):
             qc_result = self.mongo_dao.get_qcRecord(fileRecord[S3_FILE_INFO][QC_RESULT_ID])
         if status == STATUS_ERROR or status == STATUS_WARNING:

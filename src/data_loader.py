@@ -8,7 +8,8 @@ from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_I
     ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
     MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, QC_RESULT_ID, BATCH_IDS, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
-    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, ENTITY_TYPE, STUDY_ID
+    ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, ENTITY_TYPE, STUDY_ID, \
+    DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, LATEST_BATCH_DISPLAY_ID
 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -70,7 +71,8 @@ class DataLoader:
                             s3FileInfo[QC_RESULT_ID] = None
                     # 2. construct dataRecord
                     rawData = df.loc[index].to_dict()
-                    del rawData['index'] #remove index column
+                    if rawData.get('index') is not None:
+                        del rawData['index'] #remove index column
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
                     batchIds = [self.batch[ID]] if not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
@@ -96,9 +98,9 @@ class DataLoader:
                             SUBMISSION_ID: self.batch[SUBMISSION_ID],
                             DATA_COMMON_NAME: self.data_common,
                             BATCH_IDS: batchIds,
-                            "latestBatchID": self.batch[ID],
-                            "latestBatchDisplayID": self.batch.get("displayID"),
-                            "uploadedDate": current_date_time, 
+                            LATEST_BATCH_ID: self.batch[ID],
+                            LATEST_BATCH_DISPLAY_ID: self.batch.get(DISPLAY_ID),
+                            UPLOADED_DATE: current_date_time, 
                             STATUS: STATUS_NEW,
                             ERRORS: [],
                             WARNINGS: [],

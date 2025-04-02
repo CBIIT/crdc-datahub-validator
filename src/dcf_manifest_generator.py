@@ -39,7 +39,11 @@ class GenerateDCF:
         rows = []
         columns = ["guid", "md5", "size", "acl", "authz", "urls"]
         control_access = self.submission.get(CONTROL_ACCESS, False)
-        dbGaPID = self.submission.get(DBGA_PID).split('.')[0]
+        dbGaPID = self.submission.get(DBGA_PID)
+        if control_access == True and not dbGaPID:
+            self.log.error(f'If control access is set true, dbGaPID is required!')
+            return 
+        dbGaPID = dbGaPID.split('.')[0] if dbGaPID else None
         acl ="['*']" if not control_access else f"['{dbGaPID}']"
         authz = "['/open']" if not control_access else f"['/programs/{dbGaPID}']"
         url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission.get(STUDY_ID)}/'

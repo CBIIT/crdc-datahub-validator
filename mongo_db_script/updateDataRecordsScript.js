@@ -27,3 +27,8 @@ db.dataRecords.aggregate([
         }
     }
 ]);
+
+db.dataRecords.updateMany(
+    {},
+    { $unset: { "submission_info": null } }
+);

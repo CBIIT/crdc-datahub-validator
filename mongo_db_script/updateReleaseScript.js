@@ -28,6 +28,11 @@ db.release.aggregate([
     }
 ]);
 
+db.release.updateMany(
+    {},
+    { $unset: { "submission_info": null } }
+);
+
 
 db.release.updateMany({"nodeType": "program"},
  {"$set": {"entityType": "Program"}}

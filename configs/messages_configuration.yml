@@ -1,0 +1,201 @@
+Messages:
+  # metadata validation message
+  M001:
+   title: ""
+   severity: "Error"
+   message: 'CDS model version "{}" is not available.'
+   description: "Model version was not found"
+  M002:
+   title: ""
+   severity: "Error"
+   message: "No more new metadata to be validated."
+   description: "Couldn't find any new/undated metadata"
+  M003:
+   title: "Missing required property"
+   severity: "Error"
+   message: '{} Required property "{}" is empty.'
+   description: "Missing required property"
+  M004:
+   title: "Invalid integer value"
+   severity: "Error"
+   message: '{} Property "{}": "{}" is not a valid integer type.'
+   description: 
+  M005:
+   title: "Invalid number value"
+   severity: "Error"
+   message: '{} Property "{}": "{}" is not a valid number type.'
+   description: "value is invalid number"
+  M006:
+   title: "Invalid datetime value"
+   severity: "Error"
+   message: '{} Property "{}": "{}" is not a valid datetime type.'
+   description: "value is invalid datetime"
+  M007:
+   title: "Invalid date value"
+   severity: "Error"
+   message: '{} Property "{}": "{}" is not a valid date type.'
+   description: "value is invalid date"
+  M008:
+   title: "Invalid boolean value"
+   severity: "Error"
+   message: '{} Property "{}": "{}" is not a valid boolean type.'
+   description: "value is invalid boolean"
+  M009:
+   title: "Invalid property definition"
+   severity: "Error"
+   message: '{} Property "{}": "{}" type is not an allowed property type for this model'
+   description: "Invalid property is not defined in the model"
+  M010:
+   title: "Value not permitted"
+   severity: "Error"
+   message: '{} "{}" is not a permissible value for property "{}".'
+   description: "Not permissive value"
+  M011:
+   title: "Value out of range"
+   severity: "Error"
+   message: '{} Property "{}": "{}" is below lower bound.'
+   description: "Out of value bound"
+  M012:
+   title: "Value out of range"
+   severity: "Error"
+   message: '{} Property "{}": "{}" is above upper bound.'
+   description: "Out of value bound"
+  M013:
+   title: "Relationship not specified"
+   severity: "Error"
+   message: '{} All related node IDs are missing. Please ensure at least one related node ID is included.'
+   description: "All relationship cells are empty"
+  M014:
+   title: "Related node not found"
+   severity: "Error"
+   message: '{} Related node "{}" {} not found.'
+   description: "Related node type is not found."
+  M015:
+   title: "Identical data found"
+   severity: "Error"
+   message: '{} Identical data for "{}" {} has been released before.'
+   description: 'A node in a "New" submission has been released before.'
+  M016:
+   title: "Duplicate IDs"
+   severity: "Error"
+   message: '{} Same ID also appears in {}.'
+   description: "Duplicate ID found"
+  M017:
+   title: "Invalid Property"
+   severity: "Warning"
+   message: '{} Property "{}" is not defined in the model.'
+   description: "Property is not defined"
+  M018:
+   title: "Updating existing data"
+   severity: "Warning"
+   message: '{} "{}": "{}" : already exists and will be updated.'
+   description: "Found existing record(s) in release collection when the submission intension is New/Update."
+  M019:
+   title: "Data not found"
+   severity: "Error"
+   message: '{} The node to be deleted  "{}": "{}" : does not exist in the Data Commons repository.'
+   description: "Try to delete a unexisting data record."
+  M020:
+   title: "Internal error"
+   severity: "Error"
+   message: 'Metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.'
+   description: "Unhandled exception is caught."
+  M021:
+   title: "Invalid node"
+   severity: "Error"
+   message: '{} "nodeType" or "props" is empty.'
+   description: "NodeType or properties are null in a node record."
+  M022:
+   title: "Missing ID property"
+   severity: "Error"
+   message: '{} ID property, "{}" is empty.'
+   description: "NodeID is missing in a node record."
+  M023:
+   title: "Invalid relationship"
+   severity: "Error"
+   message: '{} Relationship to a "{}" node is not defined.'
+   description: "relationship is not defined in data model."
+  M024:
+   title: "One-to-one relationship conflict"
+   severity: "Error"
+   message: '{} Associated with multiple "{}" nodes: {}.'
+   description: "For a one-to-one relationship, found multiple parents are associated."
+  M025:
+   title: "Many-to-one relationship conflict"
+   severity: "Error"
+   message: '{} Associated with multiple "{}" nodes: {}.'
+   description: "For a many-to-one relationship, found multiple parents are associated."
+  M026:
+   title: "Invalid data model"
+   severity: "Error"
+   message: '"properties" is not defined in the model.'
+   description: "Data model missing properties definitions."
+  M027:
+   title: "CDE not available"
+   severity: "Error"
+   message: '{} CDE for property "{}" is not available. Please try again later and contact the helpdesk if this error persists.'
+   description: "CDE version doesn't exist in DB, and on-demand pull failed."
+
+  # data file validation message
+  F001:
+   title: "Data File not found"
+   severity: "Error"
+   message: 'File "{}" not found.'
+   description: "Data file is not found."
+  F002:
+   title: "File records not found"
+   severity: "Error"
+   message: 'File "{}" not found.'
+   description: "Data file record is not found."
+  F003:
+   title: "Data file size mismatch"
+   severity: "Error"
+   message: 'File "{}": expected size: {}, actual size: {}.'
+   description: "Actual file size in submission bucket is different from file size in DB record"
+  F004:
+   title: "Data file MD5 mismatch"
+   severity: "Error"
+   message: 'File "{}": expected MD5: {}, actual MD5: {}.'
+   description: "Actual file MD5 in submission bucket is different from file MD5 in DB record"
+  F005:
+   title: "Duplicated file records detected"
+   severity: "Warning"
+   message: 'File "{}": A file with the same name but different md5 value was found.'
+   description: "There is another DB record with the same file name and MD5 value (different file ID)"
+  F006:
+   title: "Conflict file records detected"
+   severity: "Warning"
+   message: 'File "{}": already exists with the same name and md5 value.'
+   description: "There is another DB record with the same file name but different MD5 value (different file ID)"
+  F007:
+   title: "Duplicated file content detected"
+   severity: "Warning"
+   message: 'File "{}": another file with the same MD5 found.'
+   description: "There is another DB record with the same MD5 but different file name (different file ID)"
+  F008:
+   title: "Orphaned file found"
+   severity: "Error"
+   message: 'File "{}": associated metadata not found. Please upload associated metadata (aka. manifest) file.'
+   description: "A file exists in submission bucket, but there aren't ave any DB records associated with it"
+  F009:
+   title: "Invalid dataRecord"
+   severity: "Error"
+   message: 'Invalid file object, no s3 file info.'
+   description: "File node without s3FileInfo"
+  F010:
+   title: "Invalid data file info"
+   severity: "Error"
+   message: 'Invalid s3 data file info.'
+   description: "File node with s3FileInfo but missing size or md5"
+  F011:
+   title: "Internal error"
+   severity: "Error"
+   message: 'Data file validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.'
+   description: "Unhandled exception"
+
+  #cross-submission validation
+  S001: 
+   title: "Conflict Data found"
+   severity: "Error"
+   message: '{} Identical data found in other submissions.'
+   description: 'Identical data found in other submissions'

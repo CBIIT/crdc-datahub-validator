@@ -12,7 +12,13 @@ import numpy as np
 from bento.common.utils import get_stream_md5
 from datetime import datetime
 import uuid
-from common.constants import DATA_COMMON, VERSION, LAST_MODIFIED
+from common.constants import QC_SEVERITY, LAST_MODIFIED
+
+VALIDATION_MESSAGE_CONFIG_FILE = "configs/messages_configuration.yml"
+VALIDATION_MESSAGES = "Messages"
+MESSAGE = "message"
+MESSAGE_TITLE = "title"
+MESSAGE_CODE = "code"
 
 """ 
 clean_up_key_value(dict)
@@ -108,7 +114,7 @@ download file from url and load into dict
 """
 def download_file_to_dict(url):
     # NOTE the stream=True parameter below
-    file_ext = url.split('.')[-1]
+    file_ext = url.split('.')[-1] if url and '.' in url else None
     with requests.get(url) as r:
         if r.status_code > 400: 
             raise Exception(f"Can't find model file at {url}, {r.content}!")
@@ -143,7 +149,7 @@ def get_uuid_str():
 
     
 """
-get MD5 and object size by object stream 
+get s3 file size and last modified
 """
 def get_s3_file_info(bucket_name, key):
     s3 = None
@@ -177,9 +183,38 @@ def get_s3_file_md5(bucket_name, key):
 """
 create error dict
 """
-def create_error(title, msg):
-    return {"title": title, "description": msg}
+def create_error(code, msg, property_name, property_value):
+    message_config = load_message_config()
+    if message_config:
+        error_config = message_config.get(code)
+        if error_config:
+            title = error_config.get(MESSAGE_TITLE)
+            severity = error_config.get(QC_SEVERITY)
+            # if msg is list of args, use configured template, else use the message passed in.
+            msg = error_config[MESSAGE].format(*msg) if isinstance(msg, list) and error_config.get(MESSAGE) else msg
+    return {MESSAGE_CODE: code, QC_SEVERITY: severity, MESSAGE_TITLE: title, "offendingProperty": property_name, "offendingValue": property_value, "description": msg, }
+"""
+Load message config from yaml file
+"""
+def load_message_config():
+    if not hasattr(load_message_config, 'message_config'):
+        messages = load_yaml_to_dict(VALIDATION_MESSAGE_CONFIG_FILE)
+        if messages:
+            load_message_config.message_config = messages.get(VALIDATION_MESSAGES)
+    return load_message_config.message_config
 
+"""
+load yaml file to dict
+"""
+def load_yaml_to_dict(file_path):
+    if not os.path.isfile(file_path):
+        return None
+    with open(file_path, 'r') as stream:
+        try:
+            return yaml.safe_load(stream)
+        except yaml.YAMLError as exc:
+            print(exc)
+            return None
 """
 dataframe util to remove tailing empty rows and columns
 """

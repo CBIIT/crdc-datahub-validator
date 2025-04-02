@@ -89,15 +89,14 @@ class CrossSubmissionValidator:
             result, duplicate_submissions = self.mongo_dao.find_node_in_other_submissions_in_status(submission_id, self.submission[STUDY_ABBREVIATION], 
                         self.submission[DATA_COMMON_NAME], node_type, node_id, [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED])
             if result and duplicate_submissions and len(duplicate_submissions):
-                error = {"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]}# add submission id to errors
-                orig_error = create_error("Conflict Data found", f'{msg_prefix} Identical data found in other submissions')
-                error.update(orig_error)
-                
+                # error = {"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]}# add submission id to errors
+                error = create_error("S001", [msg_prefix], "conflictingSubmissions", [sub[ID] for sub in duplicate_submissions])
+                error.update({"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]})  #backward compatible.
                 errors.append(error)
                 return STATUS_ERROR, errors
         except Exception as e:
             self.log.exception(e) 
-            error = create_error("Internal error", f"{msg_prefix} metadata validation failed due to internal errors.  Please try again and contact the helpdesk if this error persists.")
+            error = create_error("M020", [], "", "")
             return STATUS_ERROR,[error]
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors

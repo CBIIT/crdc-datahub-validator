@@ -4,13 +4,17 @@ import yaml
 from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, SERVICE_TYPE_PV_PULLER,\
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
     SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE,\
-    DM_BUCKET_CONFIG_NAME, PROD_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG , DATASYNC_ROLE_ARN_ENV
+    DM_BUCKET_CONFIG_NAME, PROD_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG , DATASYNC_ROLE_ARN_ENV, CONFIG_TYPE, \
+    CONFIG_KEY, CDE_API_URL, SYNONYM_API_URL, DATASYNC_LOG_ARN_ENV, DATASYNC_LOG_ARN_CONFIG
 from bento.common.utils import get_logger
-from common.utils import clean_up_key_value
+from common.utils import clean_up_key_value, get_exception_msg, load_message_config
+from common.mongo_dao import MongoDao
 DM_BUCKET_NAME_ENV = "DM_BUCKET_NAME"
+
 class Config():
     def __init__(self):
         self.log = get_logger('Upload Config')
+        self.mongodb_dao = None
         parser = argparse.ArgumentParser(description='Upload files to AWS s3 bucket')
         parser.add_argument('-t', '--service-type', type=str, choices=["essential", "file", "metadata", "export"], help='validation type, required')
         parser.add_argument('-s', '--server', help='Mongo database host, optional, it can be acquired from env.')
@@ -65,58 +69,96 @@ class Config():
         else:
             self.data[DB] = db_name
             self.data[MONGO_DB] = f"mongodb://{db_user_id}:{db_user_password}@{db_server}:{db_port}/?authMechanism=DEFAULT"
-
+            self.mongodb_dao =  MongoDao(self.data[MONGO_DB], db_name)
+        
         models_loc= self.data.get(MODEL_FILE_DIR)
-        if models_loc is None and self.data[SERVICE_TYPE] != SERVICE_TYPE_FILE and self.data[SERVICE_TYPE] != SERVICE_TYPE_EXPORT:
+        if models_loc is None and self.data[SERVICE_TYPE] not in [SERVICE_TYPE_FILE, SERVICE_TYPE_PV_PULLER]:
             self.log.critical(f'Metadata models location is required!')
             return False
         
-        #  try to get sqs setting from env.
-        if self.data[SERVICE_TYPE] == SERVICE_TYPE_ESSENTIAL:
-            sqs = os.environ.get(LOADER_QUEUE, self.data.get(SQS_NAME))
-        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_FILE:
-            sqs = os.environ.get(FILE_QUEUE, self.data.get(SQS_NAME))
-        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_METADATA:
-            sqs = os.environ.get(METADATA_QUEUE, self.data.get(SQS_NAME))
-        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
-            sqs = os.environ.get(EXPORTER_QUEUE, self.data.get(SQS_NAME))
-        else:
-            sqs = None
+        if self.data[SERVICE_TYPE] == SERVICE_TYPE_PV_PULLER:
+            cde_url = self.data.get(CDE_API_URL)
+            if not cde_url: 
+                self.log.critical(f'CDE API url is required!')
+                return False
+            
+            synonym_url = self.data.get(SYNONYM_API_URL)
+            if not synonym_url: 
+                self.log.critical(f'Synonym API url is required!')
+                return False
         
-        # if no env set got sqs, check config/arg
+        # get env configuration from DB
+        env_vars = [TIER, LOADER_QUEUE, FILE_QUEUE, METADATA_QUEUE, EXPORTER_QUEUE, DM_BUCKET_NAME_ENV, DATASYNC_ROLE_ARN_ENV, DATASYNC_LOG_ARN_ENV]
+        try:
+            configs_in_db = self.mongodb_dao.get_configuration_by_ev_var(env_vars) 
+            if configs_in_db is None or len(configs_in_db) == 0:
+                self.log.critical(f'Can not find configured environments variables in database!')
+                return False
+
+            #  try to get sqs setting from env configured in database.
+            if not self.set_sqs(configs_in_db):
+                return False
+            
+            config_in_db = next(val[CONFIG_KEY] for val in configs_in_db if val[CONFIG_TYPE] == TIER)
+            tier =  config_in_db[TIER_CONFIG] if config_in_db and config_in_db.get(TIER_CONFIG) else self.data.get(TIER_CONFIG)
+            if not tier and self.data[SERVICE_TYPE] not in [SERVICE_TYPE_FILE, SERVICE_TYPE_PV_PULLER]:
+                self.log.critical(f'No tier is configured in both env and args!')
+                return False
+            else:
+                self.data[TIER_CONFIG] = tier
+
+            config_in_db = next(val[CONFIG_KEY] for val in configs_in_db if val[CONFIG_TYPE] == DM_BUCKET_NAME_ENV)
+            dm_bucket = config_in_db[DM_BUCKET_CONFIG_NAME] if config_in_db and config_in_db.get(DM_BUCKET_CONFIG_NAME) else self.data.get(DM_BUCKET_CONFIG_NAME)
+            if not dm_bucket and self.data[SERVICE_TYPE] in [SERVICE_TYPE_EXPORT]:
+                self.log.critical(f'No data management bucket is configured in both env and args!')
+                return False
+            else:
+                self.data[DM_BUCKET_CONFIG_NAME] = self.data[PROD_BUCKET_CONFIG_NAME] = dm_bucket
+
+            config_in_db = next(val[CONFIG_KEY] for val in configs_in_db if val[CONFIG_TYPE] == DATASYNC_ROLE_ARN_ENV)
+            datasync_role = config_in_db[DATASYNC_ROLE_ARN_CONFIG] if config_in_db and config_in_db.get(DATASYNC_ROLE_ARN_CONFIG) else self.data.get(DATASYNC_ROLE_ARN_CONFIG)
+            config_in_db = next(val[CONFIG_KEY] for val in configs_in_db if val[CONFIG_TYPE] == DATASYNC_LOG_ARN_ENV)
+            datasync_log_arn = config_in_db[DATASYNC_LOG_ARN_CONFIG] if config_in_db and config_in_db.get(DATASYNC_LOG_ARN_CONFIG) else self.data.get(DATASYNC_LOG_ARN_CONFIG)
+            if not (datasync_role or datasync_log_arn) and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
+                self.log.critical(f'No datasync role is configured in both env and args!')
+                return False
+            else:
+                self.data[DATASYNC_ROLE_ARN_CONFIG] = datasync_role
+                self.data[DATASYNC_LOG_ARN_CONFIG] = datasync_log_arn
+
+            # load configured customized message to memory
+            if self.data[SERVICE_TYPE] in [SERVICE_TYPE_METADATA, SERVICE_TYPE_FILE]:
+                message_config = load_message_config()
+                if not message_config:
+                    self.log.critical(f'Failed to load message config!')
+                    return False
+            return True
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f'Error occurred set configurations: {get_exception_msg()}')
+            return False
+    
+    def set_sqs(self, configs_in_db):
+        if self.data[SERVICE_TYPE] in [SERVICE_TYPE_PV_PULLER]: 
+            return True
+        sqs_name = None
+        if self.data[SERVICE_TYPE] == SERVICE_TYPE_ESSENTIAL:
+            sqs_name = LOADER_QUEUE
+        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_FILE:
+            sqs_name = FILE_QUEUE
+        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_METADATA:
+            sqs_name = METADATA_QUEUE
+        elif self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
+            sqs_name = EXPORTER_QUEUE
+
+        env_config = next(val[CONFIG_KEY] for val in configs_in_db if val[CONFIG_TYPE] == sqs_name)
+        # if no env saved in database for sqs, check config/arg
+        sqs = env_config.get(SQS_NAME, self.data.get(SQS_NAME)) 
+
         if not sqs and self.data[SERVICE_TYPE] not in [SERVICE_TYPE_PV_PULLER]:
             self.log.critical(f'AWS sqs name is required!')
             return False
         else:
-                self.data[SQS_NAME] = sqs
-
-        tier = os.environ.get(TIER, self.data.get(TIER_CONFIG))
-        if not tier and self.data[SERVICE_TYPE] not in [SERVICE_TYPE_FILE, SERVICE_TYPE_EXPORT]:
-            self.log.critical(f'No tier is configured in both env and args!')
-            return False
-        else:
-            self.data[TIER_CONFIG] = tier
-
-        dm_bucket = os.environ.get(DM_BUCKET_NAME_ENV, self.data.get(DM_BUCKET_CONFIG_NAME))
-        if not dm_bucket and self.data[SERVICE_TYPE] in [SERVICE_TYPE_EXPORT]:
-            self.log.critical(f'No data management bucket is configured in both env and args!')
-            return False
-        else:
-            self.data[DM_BUCKET_CONFIG_NAME] = dm_bucket
-
-        production_bucket_name = os.environ.get(DM_BUCKET_NAME_ENV, self.data.get(PROD_BUCKET_CONFIG_NAME))
-        if not production_bucket_name and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
-            self.log.critical(f'No production bucket name is configured in both env and args!')
-            return False
-        else:
-            self.data[PROD_BUCKET_CONFIG_NAME] = production_bucket_name
-
-        datasync_role = os.environ.get(DATASYNC_ROLE_ARN_ENV, self.data.get(DATASYNC_ROLE_ARN_CONFIG))
-        if not datasync_role and self.data[SERVICE_TYPE] == SERVICE_TYPE_EXPORT:
-            self.log.critical(f'No datasync role is configured in both env and args!')
-            return False
-        else:
-            self.data[DATASYNC_ROLE_ARN_CONFIG] = datasync_role
-
-        return True
+            self.data[SQS_NAME] = sqs
+            return True
 
