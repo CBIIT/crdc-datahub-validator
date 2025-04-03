@@ -1,4 +1,4 @@
-from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS, LIST_DELIMITER_PROP, DEF_MAIN_NODES
+from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS, LIST_DELIMITER_PROP, DEF_MAIN_NODES, PROPERTY_NAMES
 
 class DataModel:
     def __init__(self, model):
@@ -72,6 +72,12 @@ class DataModel:
     """
     def get_entity_type(self, node_type):
         return self.model.get(DEF_MAIN_NODES, {}).get(node_type, None)
+    
+    """
+    get configured property names of a given node's property name in the model
+    """
+    def get_configured_prop_name(self, prop_name):
+        return self.model.get(PROPERTY_NAMES, {}).get(prop_name, None)
     
     """
     get file name property
