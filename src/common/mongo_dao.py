@@ -527,7 +527,7 @@ class MongoDao:
         query = []
         for id in parent_ids:
             node_type, node_id = id.get(NODE_TYPE), id.get(NODE_ID)
-            query.append({SUBMISSION_ID: submission_id, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: node_id}}})
+            query.append({SUBMISSION_ID: submission_id, PARENTS: {"$elemMatch": {PARENT_TYPE: node_type, PARENT_ID_VAL: {"$regex": node_id}}}})
         try:
             results = list(data_collection.find({"$or": query})) if len(query) > 0 else []
             return True, results
