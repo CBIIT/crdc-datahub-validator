@@ -295,7 +295,7 @@ class YamlModelParser:
                 if not re.search(r'://', t):
                     enum.add(t)
             if len(enum) > 0:
-                return {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: enum}
+                return {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: list(enum)}
             else:
                 return None
         else:
