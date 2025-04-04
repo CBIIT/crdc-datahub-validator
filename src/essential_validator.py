@@ -103,6 +103,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             submission_meta_status = STATUS_ERROR
                         finally:
                             #5. update submission's metadataValidationStatus
+                            if batch[ERRORS] and len(batch[ERRORS]) > 1000:
+                                batch[ERRORS] = batch[ERRORS][:1000]
                             mongo_dao.update_batch(batch)
                             if validator.submission and submission_meta_status == STATUS_NEW:
                                 mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, None)
