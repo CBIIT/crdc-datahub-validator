@@ -11,7 +11,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
-    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM
+    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -108,6 +108,8 @@ class MetaDataValidator:
         self.isWarning = None
         self.searched_sts = False
         self.not_found_cde = False
+        self.study_name = None
+        self.program_names = None
 
     def validate(self, submission_id, scope):
         #1. # get data common from submission
@@ -125,6 +127,20 @@ class MetaDataValidator:
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
         self.datacommon = datacommon
+        # get study name and program name(s) from submission and/or study for name validation required in CRDCDH-2431
+        study_id = submission.get(STUDY_ID)
+        if not study_id:
+            msg = f'Invalid submission, no study id found, {submission_id}!'
+            self.log.error(msg)
+            return FAILED
+        study = self.mongo_dao.find_study_by_id(study_id)
+        if not study:
+            msg = f'Invalid submission, no study found, {submission_id}!'
+            self.log.error(msg)
+            return FAILED
+        self.study_name = study.get("studyName")
+        self.program_names = self.mongo_dao.find_organization_name_by_study_id(study_id)
+        
         model_version = submission.get(MODEL_VERSION)
         #2 get data model based on datacommon and version
         self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
@@ -322,6 +338,25 @@ class MetaDataValidator:
             if anode_definition["properties"][data_key]["required"]:
                 if data_value is None or not str(data_value).strip():
                     result[ERRORS].append(create_error("M003",[msg_prefix, data_key], data_key, data_value))
+                else:
+                    entity_type = self.model.get_entity_type(node_type)
+                    if entity_type == "Program":
+                        # validate program name and study name required in CRDCDH-2431.  Both are required properties.
+                        if data_key == self.model.get_configured_prop_name("programName"):
+                            if not self.program_names: # no program associated with the study
+                                result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
+                            else:
+                                matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
+                                if not matched_val:
+                                    result[ERRORS].append(create_error("M028", [msg_prefix, ",".join([f'"{name}"' for name in self.program_names])], data_key, data_value))
+                                else:
+                                    data_record[PROPERTIES][data_key] = matched_val
+                    elif entity_type == "Study":
+                        if data_key == self.model.get_configured_prop_name("studyName"):
+                            if data_value.lower() != self.study_name.lower():
+                                result[ERRORS].append(create_error("M029", [msg_prefix, self.study_name], data_key, data_value))
+                            else:
+                                data_record[PROPERTIES][data_key] = self.study_name
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
