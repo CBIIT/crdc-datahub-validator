@@ -11,7 +11,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
-    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID
+    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, PARENT_TYPE, PARENT_ID_VAL,PARENT_ID_NAME, STUDY_ID
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -398,12 +398,14 @@ class MetaDataValidator:
     def get_parent_nodes(self, data_record_parent_nodes):
         parent_nodes = []
         for parent_node in data_record_parent_nodes:
-            parent_type = parent_node.get("parentType")
-            parent_id_property = parent_node.get("parentIDPropName")
-            parent_id_value = parent_node.get("parentIDValue")
-            if parent_type and parent_id_value and parent_id_value is not None:
-                parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": parent_id_value})
-        exist_parent_nodes = self.mongo_dao.search_nodes_by_index(parent_nodes, self.submission[ID])
+            parent_type = parent_node.get(PARENT_TYPE)
+            parent_id_property = parent_node.get(PARENT_ID_NAME)
+            parent_id_value = parent_node.get(PARENT_ID_VAL)
+            if parent_type and parent_id_property and parent_id_value is not None:
+                ids = parent_id_value.split("|")
+                for id in ids:
+                    parent_nodes.append({"type": parent_type, "key": parent_id_property, "value": id})
+            exist_parent_nodes = self.mongo_dao.search_nodes_by_index(parent_nodes, self.submission[ID])
         parent_node_cache = []
         for node in exist_parent_nodes:
             if node.get(PROPERTIES):
@@ -432,12 +434,12 @@ class MetaDataValidator:
         data_common = data_record.get(DATA_COMMON_NAME)
         multi_parents = []
         for parent_node in data_record_parent_nodes:
-            parent_type = parent_node.get("parentType")
+            parent_type = parent_node.get(PARENT_TYPE)
             if not parent_type or parent_type not in node_keys:
                 result[ERRORS].append(create_error("M023", [msg_prefix, parent_type], node_type, node_id))
                 continue
 
-            parent_id_property = parent_node.get("parentIDPropName")
+            parent_id_property = parent_node.get(PARENT_ID_NAME)
             model_properties = self.model.get_node_props(parent_type)
 
             if not model_properties or parent_id_property not in model_properties:
@@ -456,7 +458,7 @@ class MetaDataValidator:
                 continue
 
             # collect all node_type, node_value, parentIDValue for the parent nodes
-            parent_id_value = parent_node.get("parentIDValue")
+            parent_id_value = parent_node.get(PARENT_ID_VAL)
             if parent_id_value is None or (isinstance(parent_id_value, str) and not parent_id_value.strip()):
                 result[ERRORS].append(create_error("M023", [msg_prefix, f'“{parent_id_property}" of “{parent_type}”'], node_type, node_id))
                 continue
@@ -466,11 +468,16 @@ class MetaDataValidator:
             if rel_type != "many_to_many": 
                 if parent_node not in multi_parents:
                     multi_parents = [item for item in data_record_parent_nodes if item[PARENT_TYPE] == parent_type and item[PARENT_ID_NAME] == parent_id_property ]
-                    if len(multi_parents) > 1:
-                        error_type = "One-to-one relationship conflict" if rel_type == "one_to_one" else "Many-to-one relationship conflict"
-                        parent_node_ids = [item[PARENT_ID_VAL] for item in multi_parents]
-                        result[ERRORS].append(create_error("M024" if rel_type == "one_to_one" else "M025", 
-                                    [msg_prefix, parent_type, json.dumps(parent_node_ids)], node_type, node_id))
+                    if len(multi_parents) > 1 or (len(multi_parents) == 1 and "|" in multi_parents[0][PARENT_ID_VAL]):
+                        parent_node_ids = []
+                        for item in multi_parents:
+                            if not "|" in item[PARENT_ID_VAL]:
+                                parent_node_ids.append(item[PARENT_ID_VAL])
+                            else:
+                                parent_node_ids.extend(item[PARENT_ID_VAL].split("|"))
+                        if len(parent_node_ids) > 1:
+                            result[ERRORS].append(create_error("M024" if rel_type == "one_to_one" else "M025", 
+                                        [msg_prefix, parent_type, json.dumps(parent_node_ids)], node_type, node_id))
                         
             has_parent = (parent_type, parent_id_property, parent_id_value) in parent_nodes
             if not has_parent:
@@ -483,7 +490,7 @@ class MetaDataValidator:
             if has_parent and rel_type == "one_to_one":
                 # check released and current children by current parent
                 child_node_ids = self.get_unique_child_node_ids(data_common, node_type, parent_node, self.submission_id)
-                if child_node_ids and len(child_node_ids) > 1:
+                if child_node_ids and len(child_node_ids) > 1 or (len(child_node_ids) == 1 and "|" in child_node_ids[0]):
                     result[ERRORS].append(create_error("M024", 
                                 f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.', node_type, node_id))
 
@@ -499,7 +506,7 @@ class MetaDataValidator:
         if not children:
             return None
         child_id_list = list(set([item[NODE_ID] for item in children]))
-        if len(child_id_list) > 1:
+        if len(child_id_list) > 1 or (len(child_id_list) == 1 and "|" in child_id_list[0][PARENT_ID_VAL]):
             return child_id_list
         else:
             children = self.mongo_dao.find_released_nodes_by_parent(node_type, data_common, parent_node)
