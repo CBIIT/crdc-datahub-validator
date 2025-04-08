@@ -22,6 +22,7 @@ DATA_RECORDS_STUDY_ENTITY_INDEX = 'studyID_entityType_nodeID'
 RELEASE_SEARCH_INDEX = "dataCommons_nodeType_nodeID"
 CRDCID_SEARCH_INDEX = "CRDC_ID"
 CDE_SEARCH_INDEX = 'CDECode_1_CDEVersion_1'
+SYNONYM_SEARCH_INDEX = "synonym_term_1"
 
 #Set log file prefix for bento logger
 if LOG_PREFIX not in os.environ:
@@ -53,6 +54,11 @@ def controller():
         # set release search index
         if not mongo_dao.set_search_release_index(RELEASE_SEARCH_INDEX, CRDCID_SEARCH_INDEX):
             log.error("Failed to set release search index!")
+            return 1
+        
+        # set synonym search index
+        if not mongo_dao.set_search_synonym_index(SYNONYM_SEARCH_INDEX):
+            log.error("Failed to set synonym search index!")
             return 1
         
         if configs[SERVICE_TYPE] == SERVICE_TYPE_PV_PULLER and not mongo_dao.set_search_cde_index(CDE_SEARCH_INDEX):

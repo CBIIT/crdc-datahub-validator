@@ -1,0 +1,188 @@
+name: Build Validator service
+permissions: 
+  contents: write
+  id-token: write
+
+on:
+  issues:
+    types: [opened, edited]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: Choose the environment to build
+        type: environment
+      code_branch:
+        description: Branch to build validation
+        required: false
+      code_branch_pvpuller:
+        description: Branch to build pvpuller 
+        required: false
+      trivy_test_scan_file_validation:
+        description: "Run Trivy Test Scan"
+        required: true
+        type: boolean
+        default: false
+      trivy_test_scan_essential_validation:
+        description: "Run Trivy Test Scan"
+        required: true
+        type: boolean
+        default: false
+      trivy_test_scan_metadata_validation:
+        description: "Run Trivy Test Scan"
+        required: true
+        type: boolean
+        default: false
+      trivy_test_scan_export_validation:
+        description: "Run Trivy Test Scan"
+        required: true
+        type: boolean
+        default: false
+      trivy_test_scan_pvpuller:
+        description: "Run Trivy Test Scan"
+        required: true
+        type: boolean
+        default: false
+
+
+jobs:
+  build-file-validation:
+    name: Build File Validation image
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      ECR_REPO_FILE_VALIDATION: "crdc-hub-filevalidation"
+      REGION: "us-east-1"
+      CODE_BRANCH: "${{ github.event.inputs.code_branch }}"
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+    steps:
+      - name: extract issue body
+        id: extract-issue
+        run: |
+          echo "${{ github.event.issue.body }}" 
+
+      - name: parse component selection
+        id: parse-component
+        run: |
+          BODY="${{ github.event.issue.body }}"
+          echo "$BODY" | grep -q "File Validation" && echo "BUILD_FILE_VALIDATION=true" >> $GITHUB_ENV
+          echo "$BODY" | grep -q "Essential Validation" && echo "BUILD_ESSENTIAL_VALIDATION=true" >> $GITHUB_ENV
+          echo "$BODY" | grep -q "Metadata Validation" && echo "BUILD_METADATA_VALIDATION=true" >> $GITHUB_ENV
+          echo "$BODY" | grep -q "Export Validation" && echo "BUILD_EXPORT_VALIDATION=true" >> $GITHUB_ENV
+          echo "$BODY" | grep -q "PvPuller" && echo "BUILD_PVPULLER=true" >> $GITHUB_ENV
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CODE_BRANCH }}
+          submodules: true
+
+      - name: Build File Validation Docker Image
+        id: build-image
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          FILE_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_FILE_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
+        run: |
+          if [ "$BUILD_FILE_VALIDATION" == "true" ]; then
+          echo "Building: $FILE_VALID_IMAGE_NAME"
+          docker build --no-cache -t $FILE_VALID_IMAGE_NAME -f filevalidation.dockerfile .
+          fi
+
+      - name: Run Trivy test scan for File Validation Docker Image
+        id: trivy-scan-file-valid
+        if: github.event.inputs.trivy_test_scan_file_validation == 'true'
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          FILE_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_FILE_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
+          uses: aquasecurity/trivy-action@master
+          with:
+            image-ref: '${{ env.FILE_VALID_IMAGE_NAME }}'
+            format: 'table'
+            exit-code: 1
+            severity: 'CRITICAL,HIGH'
+
+  build-essential_validation:
+    name: Build Essential Validation image
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    env:
+      ECR_REPO_ESSENTIAL_VALIDATION: "crdc-hub-essentialvalidation"
+      REGION: "us-east-1"
+      CODE_BRANCH: "${{ github.event.inputs.code_branch }}"
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+
+    steps:
+#      - name: parse-build-essential-options
+#        id: parse-build-essential
+#        run: echo "BUILD_OPTIONS=${{ github.event.inputs.build_options }}" >> $GITHUB_ENV
+
+      - name: Checkout Code Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.CODE_BRANCH }}
+          submodules: true
+
+      - name: Build Essential Validation Docker Image
+        id: build-image
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          ESSENTIAL_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_ESSENTIAL_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
+        run: |
+          echo "Building: $ESSENTIAL_VALID_IMAGE_NAME"
+          docker build --no-cache -t $ESSENTIAL_VALID_IMAGE_NAME -f essentialvalidation.dockerfile .
+      - name: Run Trivy test scan for Essential Validation Docker Image
+        id: trivy-scan-essential-valid
+        if: github.event.inputs.trivy_test_scan_essential_validation == 'true'
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+          ESSENTIAL_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_ESSENTIAL_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: '${{ env.ESSENTIAL_VALID_IMAGE_NAME }}'
+          format: 'table'
+          exit-code: 1
+          severity: 'CRITICAL,HIGH'
+
+  push-docker-images:
+    name: Push docker images
+    runs-on: ubuntu-latest
+    needs: [build-file-validation, build-essential-validation]
+    environment: ${{ inputs.environment }}
+    env:
+      ECR_REPO_FILE_VALIDATION: "crdc-hub-filevalidation"
+      REGION: "us-east-1"
+      CODE_BRANCH: "${{ github.event.inputs.code_branch }}"
+      AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
+      ECR_REPO_ESSENTIAL_VALIDATION: "crdc-hub-essentialvalidation"
+ 
+    steps:
+  
+      - name: Configure AWS Role to assume using OIDC authentication
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-region: ${{ secrets.AWS_REGION }}
+          role-to-assume: ${{ secrets.AWS_ROLE_TO_ASSUME }}
+      - name: Login to Amazon ECR
+        id: login-ecr
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com
+        run:  |
+          aws ecr get-login-password --region $REGION | docker login --username AWS --password-stdin $REGISTRY_URL
+
+      - name: Push docker Image for File validation
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
+          FILE_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_FILE_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
+        run: |
+          echo "Pushing: $FILE_VALID_IMAGE_NAME"
+          docker push $FILE_VALID_IMAGE_NAME
+
+      - name: Push docker Image for Essential validation
+        env:
+          REGISTRY_URL: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ env.REGION }}.amazonaws.com
+          ESSENTIAL_VALID_IMAGE_NAME: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.${{ secrets.AWS_REGION }}.amazonaws.com/${{ env.ECR_REPO_ESSENTIAL_VALIDATION }}:${{ env.CODE_BRANCH }}.${{ github.run_number }}
+        run: |
+          echo "Pushing: $ESSENTIAL_VALID_IMAGE_NAME"
+          docker push $ESSENTIAL_VALID_IMAGE_NAME
