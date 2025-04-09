@@ -12,7 +12,7 @@ from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, SQS_TYPE, TYPE_LOAD, STATUS_PASSED,\
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
-    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING
+    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING, DCF_PREFIX
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows
 from common.model_store import ModelFactory
 from metadata_remover import MetadataRemover
@@ -437,6 +437,21 @@ class EssentialValidator:
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
             return False
+        # check if file id property value is valid
+        if type in self.def_file_nodes:
+            ids = self.df[id_field].tolist()
+            index = 2
+            isValidId = True
+            for id in ids:
+                result, msg = self.validate_file_id(id, file_info, index)
+                if not result:
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                    isValidId = False
+                index += 1
+            if not isValidId:
+                return False
         if self.submission_intention != SUBMISSION_INTENTION_DELETE: 
             # check missing required proper 
             required_props = self.model.get_node_req_props(type)
@@ -492,6 +507,21 @@ class EssentialValidator:
                     return False
                 
         return True if len(self.batch[ERRORS]) == 0 else False
+    
+    """
+    check if id field value is valid
+    """
+    def validate_file_id(self, id, file_info, lineNum):
+        msg = None
+        # check if file id prefix based on data model OMIT_DCF_PREFIX
+        if self.model.get_omit_dcf_prefix() and id.startswith(DCF_PREFIX):
+            msg = msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID property file_id. A correct file ID should look like "e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'
+            return False, msg
+        if not self.model.get_omit_dcf_prefix() and not id.startswith(DCF_PREFIX):
+            msg = msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID property file_id. A correct file ID should look like "dg.4DFC/e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'
+            return False, msg
+        return True, msg
+        
     """
     validate many to many relationship
     """
