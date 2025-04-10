@@ -51,7 +51,7 @@ class ModelFactory:
         try:
             model_reader = YamlModelParser(file_names, dc, delimiter, version)
             model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES], DEF_MAIN_NODES: v[DEF_SEMANTICS][DEF_MAIN_NODES], 
-                                       PROPERTY_NAMES: v[DEF_SEMANTICS][PROPERTY_NAMES], OMIT_DCF_PREFIX: v[DEF_SEMANTICS].get(OMIT_DCF_PREFIX, False)})
+                                       PROPERTY_NAMES: v[DEF_SEMANTICS][PROPERTY_NAMES], OMIT_DCF_PREFIX: v.get(OMIT_DCF_PREFIX, False)})
             self.models.update({model_key(dc, version): model_reader.model})
         except Exception as e:
             self.log.exception(e)

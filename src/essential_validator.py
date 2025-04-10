@@ -438,7 +438,8 @@ class EssentialValidator:
                 self.batch[ERRORS].append(msg)
             return False
         # check if file id property value is valid
-        if type in self.def_file_nodes:
+        isFileNode = type in self.def_file_nodes
+        if isFileNode:
             ids = self.df[id_field].tolist()
             index = 2
             isValidId = True
@@ -486,7 +487,7 @@ class EssentialValidator:
                 if not result:
                     return False 
         else:
-            if type in self.def_file_nodes:
+            if isFileNode:
                 # check is file name property is empty
                 if self.def_file_name not in columns:
                     msg = f'“{file_info[FILE_NAME]}”: '
