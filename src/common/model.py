@@ -1,4 +1,4 @@
-from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS, LIST_DELIMITER_PROP, DEF_MAIN_NODES, PROPERTY_NAMES
+from common.constants import NODES_LABEL, RELATIONSHIPS, LIST_DELIMITER_PROP, DEF_MAIN_NODES, PROPERTY_NAMES, OMIT_DCF_PREFIX
 
 class DataModel:
     def __init__(self, model):
@@ -92,6 +92,12 @@ class DataModel:
     """
     def get_list_delimiter(self):
         return self.model.get(LIST_DELIMITER_PROP)
+    """
+
+    get dcf prefix
+    """
+    def get_omit_dcf_prefix(self):
+        return self.model.get(OMIT_DCF_PREFIX, False)
     
     
     
