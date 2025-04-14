@@ -4,6 +4,7 @@ import json
 import os, io, boto3
 import time
 import threading
+import io
 from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
@@ -14,7 +15,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
     SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, \
-    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES
+    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES, DATA_FILE_LOCATION, S3_PREFIX
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from common.s3_utils import S3Service
@@ -342,6 +343,8 @@ class ExportMetadata:
                              }], 
                 STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
             }
+            if data_record.get(S3_FILE_INFO):
+                crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.insert_release(crdc_record)
             if not result:
@@ -378,6 +381,8 @@ class ExportMetadata:
                 existed_crdc_record[SUBMISSION_HISTORY] = history
                 existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
                 existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
+                if data_record.get(S3_FILE_INFO):
+                    existed_crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
@@ -388,6 +393,16 @@ class ExportMetadata:
                 result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[ID])
                 if result and children and len(children) > 0: 
                     self.delete_release_children(children)
+    
+    def get_file_url(self, s3_file_info):
+        if not s3_file_info or not s3_file_info.get(FILE_NAME):
+            return None
+        bucket_name = self.submission.get(BATCH_BUCKET)
+        prefix = self.submission.get(S3_PREFIX)
+        file_name = s3_file_info.get(FILE_NAME)
+        url = os.path.join(bucket_name, prefix, "file", file_name)
+        url = "s3://" + url
+        return url
     
     def combine_parents(self, node_type, release_parents, node_parents):
         if not release_parents or len(release_parents) == 0:
