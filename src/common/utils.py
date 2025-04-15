@@ -2,6 +2,7 @@
 import sys
 import csv
 import os
+import re
 import shutil
 import json
 import requests
@@ -283,6 +284,29 @@ def is_valid_uuid(uuid_to_test, version=5):
             return is_valid_uuid(uuid_to_test, int(version)-1)    
     except ValueError:
         return False
+    
+def validate_uuid_by_rex(value):
+    """
+    Validate UUID by regular expression
+    :param value: value to be validated
+    :return: boolean
+    """
+    
+    if not value:
+        return False
+    rex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    return validate_by_rex(value, rex)
+
+def validate_by_rex(value, rex):
+    """
+    Validate value by regular expression
+    :param value: value to be validated
+    :param rex: regular expression
+    :return: boolean
+    """
+    if not value or not rex:
+        return False
+    return re.match(rex, value) is not None
     
 
 
