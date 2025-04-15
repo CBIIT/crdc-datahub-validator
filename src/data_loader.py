@@ -215,7 +215,12 @@ class DataLoader:
             val = rawData.get(relation)
             if val:
                 temp = relation.split('.')
-                parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": val})
+                if "|" in val:
+                    val_list = val.split("|")
+                    for iVal in val_list:
+                        parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": iVal.strip()})
+                else:
+                    parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": val})
                 rawData.update({relation.replace(".", "|"): val})
         return parents
     
