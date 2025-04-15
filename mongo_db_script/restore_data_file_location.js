@@ -20,7 +20,11 @@ function restoreFileLocation() {
     print("\n");
     print("----------------------");
     console.log(`${new Date()} -> Restoring data field: "dataFileLocation"`);
-    db.release.find({ "dataFileLocation": {$exists: false}, "$or": [{"props.file_name": {$exists: true, $ne: null}}, {"props.data_file_name": {$exists: true, $ne: null}}]}).forEach(doc => {
+    db.release.find(
+        { "nodeType": {"$in": ["file", "data_file", "clinical_measure_file", "cytogenomic_file","methylation_array_file", "pathology_file","radiology_file", "sequencing_file"]}, 
+            "dataFileLocation": {$exists: false}, 
+            "$or": [{"props.file_name": {$exists: true, $ne: null}}, {"props.data_file_name": {$exists: true, $ne: null}}]
+        }).forEach(doc => {
         matchedCount++;
         const fileName = (doc?.props?.file_name)?doc.props.file_name : (doc?.props?.data_file_name) ? doc?.props?.data_file_name : null;
         doc["dataFileLocation"] = getDataFileUrl(doc?.submissionID, fileName);
