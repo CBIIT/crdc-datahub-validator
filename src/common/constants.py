@@ -217,4 +217,5 @@ SYNONYM_TERM = "synonym_term"
 STUDY_COLLECTION = "approvedStudies"
 ORGANIZATION_COLLECTION = "organization"
 PROPERTY_NAMES = "property-names"
+PROPERTY_PATTERN = "pattern"
 
