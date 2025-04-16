@@ -150,7 +150,11 @@ Messages:
    severity: "Error"
    message: '{} Study "{}" has no program association. Please contact your curator about this issue.'
    description: "If an approved study doesn't have a program associated, and a program record is uploaded."
-
+  M031: 
+    title: "Invalid string pattern"
+    severity: "Error"
+    message: '"{}" does not comply to string pattern for property "{}".'
+    description: "Program name is not a valid program name."
 
   # data file validation message
   F001:
