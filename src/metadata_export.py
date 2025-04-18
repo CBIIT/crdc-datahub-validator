@@ -393,14 +393,15 @@ class ExportMetadata:
                 result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[ID])
                 if result and children and len(children) > 0: 
                     self.delete_release_children(children)
-    
+
     def get_file_url(self, s3_file_info):
         if not s3_file_info or not s3_file_info.get(FILE_NAME):
             return None
-        bucket_name = self.submission.get(BATCH_BUCKET)
-        prefix = self.submission.get(S3_PREFIX)
+        _, _, _, _, study_id = self.get_submission_info()
+        dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
+        dest_file_folder =  study_id
         file_name = s3_file_info.get(FILE_NAME)
-        url = os.path.join(bucket_name, prefix, "file", file_name)
+        url = os.path.join(dest_bucket_name, dest_file_folder, file_name)
         url = "s3://" + url
         return url
     
