@@ -516,16 +516,17 @@ class EssentialValidator:
         omit_prefix = self.model.get_omit_dcf_prefix()
         # check if is is uuid
         # check if file id prefix based on data model OMIT_DCF_PREFIX
+        low_id = id.lower()
         if omit_prefix:
             msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID property file_id. A correct file ID should look like "e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'
-            if id.startswith(DCF_PREFIX):
+            if low_id.startswith(DCF_PREFIX.lower()):
                 return False, msg
             else:
-                if not validate_uuid_by_rex(id):
+                if not validate_uuid_by_rex(low_id):
                     return False, msg
         else:
             msg = msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID property file_id. A correct file ID should look like "dg.4DFC/e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'   
-            if not id.startswith(DCF_PREFIX):
+            if not low_id.startswith(DCF_PREFIX.lower()):
                 return False, msg
             else:
                 uuid = id.split('/')[1]
