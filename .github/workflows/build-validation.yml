@@ -144,7 +144,7 @@ jobs:
           echo "Pushing: $FILE_VALID_IMAGE_NAME"
           docker push $FILE_VALID_IMAGE_NAME
 
-  build-essential_validation:
+  build-essential-validation:
     name: Build Essential Validation image
     runs-on: ubuntu-latest
     if: github.event.inputs.build_essential_validation == 'true'
@@ -424,6 +424,12 @@ jobs:
   send-slack-notification:
     name: send slack notification
     runs-on: ubuntu-latest
+    needs: [build-file-validation, build-essential-validation, build-metadata-validation, build-export-validation]
+    if: >
+      github.event.inputs.build_file_validation == 'true' ||
+      github.event.inputs.build_essential_validation == 'true' ||
+      github.event.inputs.build_metadata_validation == 'true' ||
+      github.event.inputs.build_export_validation == 'true'
     environment: ${{ inputs.environment }}
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
