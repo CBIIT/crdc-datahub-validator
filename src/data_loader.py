@@ -122,6 +122,8 @@ class DataLoader:
                             dataRecord["CRDC_ID"] = crdc_id
                         if type in file_types:
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
+                            dataRecord[NODE_ID] = self.adjust_file_id_case(node_id)
+
                         records.append(dataRecord)
                     failed_at += 1
 
@@ -144,6 +146,17 @@ class DataLoader:
 
         del file_path_list
         return returnVal, self.errors
+    """
+    adjust_file_id_case
+    """
+    def adjust_file_id_case(self, node_id):
+        lower_case_id = node_id.lower()
+        if lower_case_id.startswith(DCF_PREFIX.lower()):
+            node_id = DCF_PREFIX + lower_case_id.replace(DCF_PREFIX.lower(), "")
+        else: 
+            node_id = lower_case_id
+        return node_id
+  
     """
     process_m2m_rel
      1) check if a node with the same nodeID exists in record list. 
@@ -215,7 +228,12 @@ class DataLoader:
             val = rawData.get(relation)
             if val:
                 temp = relation.split('.')
-                parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": val})
+                if "|" in val:
+                    val_list = val.split("|")
+                    for iVal in val_list:
+                        parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": iVal.strip()})
+                else:
+                    parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": val})
                 rawData.update({relation.replace(".", "|"): val})
         return parents
     

@@ -4,6 +4,7 @@ import json
 import os, io, boto3
 import time
 import threading
+import io
 from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
@@ -14,7 +15,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
     SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, \
-    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES
+    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES, DATA_FILE_LOCATION, S3_PREFIX
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
 from common.model_store import ModelFactory
 from common.s3_utils import S3Service
@@ -215,7 +216,6 @@ class ExportMetadata:
         else:
             if CRDC_ID.lower() in row.keys():
                 del row[CRDC_ID.lower()]
-        rows.append(row)
         parents = data_record.get("parents", None)
         if parents: 
             parent_types = list(set([item["parentType"] for item in parents]))
@@ -223,18 +223,10 @@ class ExportMetadata:
                 same_type_parents = [item for item in parents if item["parentType"] == type]
                 rel_name = f'{same_type_parents[0].get("parentType")}.{same_type_parents[0].get("parentIDPropName")}'
                 if len(same_type_parents) == 1:
-                    for item in rows:
-                        item[rel_name] = same_type_parents[0].get("parentIDValue")
+                    row[rel_name] = same_type_parents[0].get("parentIDValue")
                 else:
-                    index = 0
-                    for parent in same_type_parents:
-                        if index == 0:
-                            row[rel_name] = parent.get("parentIDValue")
-                        else:
-                            m2m_row = row.copy()
-                            m2m_row[rel_name] = parent.get("parentIDValue")
-                            rows.append(m2m_row)
-                        index += 1
+                    row[rel_name] = " | ".join([parent.get("parentIDValue") for parent in same_type_parents])
+        rows.append(row)
         return rows
     
     def upload_file(self, buf, node_type):
@@ -342,6 +334,8 @@ class ExportMetadata:
                              }], 
                 STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
             }
+            if data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
+                crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.insert_release(crdc_record)
             if not result:
@@ -378,6 +372,8 @@ class ExportMetadata:
                 existed_crdc_record[SUBMISSION_HISTORY] = history
                 existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
                 existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
+                if data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
+                    existed_crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
@@ -388,6 +384,17 @@ class ExportMetadata:
                 result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[ID])
                 if result and children and len(children) > 0: 
                     self.delete_release_children(children)
+
+    def get_file_url(self, s3_file_info):
+        if not s3_file_info or not s3_file_info.get(FILE_NAME):
+            return None
+        _, _, _, _, study_id = self.get_submission_info()
+        dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
+        dest_file_folder =  study_id
+        file_name = s3_file_info.get(FILE_NAME)
+        url = os.path.join(dest_bucket_name, dest_file_folder, file_name)
+        url = "s3://" + url
+        return url
     
     def combine_parents(self, node_type, release_parents, node_parents):
         if not release_parents or len(release_parents) == 0:

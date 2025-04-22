@@ -2,6 +2,7 @@
 import sys
 import csv
 import os
+import re
 import shutil
 import json
 import requests
@@ -252,6 +253,61 @@ def dict_exists_in_list(dict_list, target_dict, keys=None):
             if d == target_dict:
                 return True
     return False
+
+def is_valid_uuid(uuid_to_test, version=5):
+    """
+    Check if uuid_to_test is a valid UUID.
+    
+     Parameters
+    ----------
+    uuid_to_test : str
+    version : {1, 2, 3, 4}
+    
+     Returns
+    -------
+    `True` if uuid_to_test is a valid UUID, otherwise `False`.
+    
+     Examples
+    --------
+    >>> is_valid_uuid('c9bf9e57-1685-4c89-bafb-ff5af830be8a')
+    True
+    >>> is_valid_uuid('c9bf9e58')
+    False
+    """
+    
+    try:
+        uuid_obj = uuid.UUID(uuid_to_test, version=version)
+        uuid_str = str(uuid_obj)
+        if uuid_str == uuid_to_test:
+            return True
+        else:
+            return is_valid_uuid(uuid_to_test, int(version)-1)    
+    except ValueError:
+        return False
+    
+def validate_uuid_by_rex(value):
+    """
+    Validate UUID by regular expression
+    :param value: value to be validated
+    :return: boolean
+    """
+    
+    if not value:
+        return False
+    rex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    return validate_by_rex(value, rex)
+
+def validate_by_rex(value, rex):
+    """
+    Validate value by regular expression
+    :param value: value to be validated
+    :param rex: regular expression
+    :return: boolean
+    """
+    if not value or not rex:
+        return False
+    return re.match(rex, value) is not None
+    
 
 
 
