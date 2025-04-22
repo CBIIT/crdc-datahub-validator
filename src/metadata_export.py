@@ -216,7 +216,6 @@ class ExportMetadata:
         else:
             if CRDC_ID.lower() in row.keys():
                 del row[CRDC_ID.lower()]
-        rows.append(row)
         parents = data_record.get("parents", None)
         if parents: 
             parent_types = list(set([item["parentType"] for item in parents]))
@@ -224,18 +223,10 @@ class ExportMetadata:
                 same_type_parents = [item for item in parents if item["parentType"] == type]
                 rel_name = f'{same_type_parents[0].get("parentType")}.{same_type_parents[0].get("parentIDPropName")}'
                 if len(same_type_parents) == 1:
-                    for item in rows:
-                        item[rel_name] = same_type_parents[0].get("parentIDValue")
+                    row[rel_name] = same_type_parents[0].get("parentIDValue")
                 else:
-                    index = 0
-                    for parent in same_type_parents:
-                        if index == 0:
-                            row[rel_name] = parent.get("parentIDValue")
-                        else:
-                            m2m_row = row.copy()
-                            m2m_row[rel_name] = parent.get("parentIDValue")
-                            rows.append(m2m_row)
-                        index += 1
+                    row[rel_name] = " | ".join([parent.get("parentIDValue") for parent in same_type_parents])
+        rows.append(row)
         return rows
     
     def upload_file(self, buf, node_type):

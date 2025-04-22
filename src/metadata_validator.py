@@ -348,7 +348,9 @@ class MetaDataValidator:
                             else:
                                 matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
                                 if not matched_val:
-                                    result[ERRORS].append(create_error("M028", [msg_prefix, ",".join([f'"{name}"' for name in self.program_names])], data_key, data_value))
+                                    msg = "Program name doesn't match pre-approved names:" + ",".join([f"'{name}'" for name in self.program_names]) if len(self.program_names) > 1 else \
+                                     "Program name doesn't match this study's associated programs - " + f"'{self.program_names[0]}'"
+                                    result[ERRORS].append(create_error("M028", [msg_prefix, msg], data_key, data_value))
                                 else:
                                     data_record[PROPERTIES][data_key] = matched_val
                     elif entity_type == "Study":
