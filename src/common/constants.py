@@ -220,4 +220,5 @@ PROPERTY_NAMES = "property-names"
 OMIT_DCF_PREFIX = "omit-DCF-prefix"
 DATA_FILE_LOCATION = "dataFileLocation"
 S3_PREFIX = "rootPath"
+PROPERTY_PATTERN = "pattern"
 

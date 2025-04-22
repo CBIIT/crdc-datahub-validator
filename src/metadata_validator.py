@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 from datetime import datetime
+import re
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
@@ -11,7 +12,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
-    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID
+    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -517,6 +518,20 @@ class MetaDataValidator:
             errors.append(create_error("M009", [msg_prefix, prop_name, type], prop_name, value))
         else:
             val = None
+            if type == PROPERTY_PATTERN:
+                pattern = prop_def.get(PROPERTY_PATTERN)
+                if pattern: 
+                    try:
+                        pattern_obj = re.compile(pattern)
+                        if not pattern_obj.match(str(value)):
+                            errors.append(create_error("M031", [msg_prefix, prop_name], prop_name, value))
+                    except Exception as e:
+                        self.log.exception(f"Failed to compile the pattern, {pattern} for the property: {prop_name}.")
+                        errors.append(create_error("M031", [msg_prefix, prop_name], prop_name, value))
+                else:
+                    errors.append(create_error("M031", [msg_prefix, prop_name], prop_name, value))
+                return errors
+            
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
             permissive_vals, msg = self.get_permissive_value(prop_def)
