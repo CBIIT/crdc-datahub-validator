@@ -154,7 +154,7 @@ Messages:
     title: "Invalid string pattern"
     severity: "Error"
     message: '"{}" does not comply to string pattern for property "{}".'
-    description: "Program name is not a valid program name."
+    description: "A string doesn't match model defined patter Regex"
 
   # data file validation message
   F001:
