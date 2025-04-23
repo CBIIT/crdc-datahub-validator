@@ -144,14 +144,14 @@ jobs:
           echo "Pushing: $FILE_VALID_IMAGE_NAME"
           docker push $FILE_VALID_IMAGE_NAME
 
-      #- name: send slack notification
-        #env:
-          #SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        #uses: act10ns/slack@87c73aef9f8838eb6feae81589a6b1487a4a9e08     # v1.6.0
-        #with:
-          #status: ${{ job.status }}
-          #steps: ${{ toJson(steps) }}
-        #if: always()
+      - name: send slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: act10ns/slack@87c73aef9f8838eb6feae81589a6b1487a4a9e08     # v1.6.0
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+        if: always()
 
   build-essential-validation:
     name: Build Essential Validation image
@@ -246,14 +246,14 @@ jobs:
           echo "Pushing: $ESSENTIAL_VALID_IMAGE_NAME"
           docker push $ESSENTIAL_VALID_IMAGE_NAME
 
-      #- name: send slack notification
-        #env:
-          #SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
-        #uses: act10ns/slack@87c73aef9f8838eb6feae81589a6b1487a4a9e08     # v1.6.0
-        #with:
-          #status: ${{ job.status }}
-          #steps: ${{ toJson(steps) }}
-        #if: always()
+      - name: send slack notification
+        env:
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+        uses: act10ns/slack@87c73aef9f8838eb6feae81589a6b1487a4a9e08     # v1.6.0
+        with:
+          status: ${{ job.status }}
+          steps: ${{ toJson(steps) }}
+        if: always()
 
   build-metadata-validation:
     name: build metadata validation
