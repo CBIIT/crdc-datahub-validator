@@ -425,7 +425,7 @@ jobs:
     name: send slack notification
     runs-on: ubuntu-latest
     needs: [build-file-validation, build-essential-validation, build-metadata-validation, build-export-validation]
-    if: >
+    if: 
       github.event.inputs.build_file_validation == 'true' ||
       github.event.inputs.build_essential_validation == 'true' ||
       github.event.inputs.build_metadata_validation == 'true' ||
