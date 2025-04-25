@@ -153,7 +153,7 @@ Messages:
   M031: 
     title: "Invalid string pattern"
     severity: "Error"
-    message: '"{}" does not comply to string pattern for property "{}".'
+    message: '{} "{}" does not comply to string pattern for property "{}".'
     description: "A string doesn't match model defined patter Regex"
 
   # data file validation message
