@@ -509,7 +509,7 @@ class MongoDao:
         db = self.client[self.db_name]
         file_collection = db[DATA_COLlECTION]
         try:
-            result = file_collection.find_one({SUBMISSION_ID: submission_id, NODE_ID: nodeID, NODE_TYPE: nodeType})
+            result = file_collection.find_one({SUBMISSION_ID: submission_id, NODE_ID: { "$regex": nodeID, "$options": "i" }, NODE_TYPE: nodeType})
             return result
         except errors.PyMongoError as pe:
             self.log.exception(pe)

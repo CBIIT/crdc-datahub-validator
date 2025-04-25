@@ -60,7 +60,9 @@ class DataLoader:
 
                 for index, row in df.iterrows():
                     type = row[TYPE]
-                    node_id = self.get_node_id(type, row)
+                    node_id = self.get_node_id(type, row)  #convert the file_id to correct format.
+                    if type in file_types:
+                        node_id = self.adjust_file_id_case(node_id)
                     exist_node = self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
                     # add logic to delete QC record if exist_node
                     if exist_node and exist_node.get(QC_RESULT_ID): 
@@ -122,8 +124,6 @@ class DataLoader:
                             dataRecord["CRDC_ID"] = crdc_id
                         if type in file_types:
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
-                            dataRecord[NODE_ID] = self.adjust_file_id_case(node_id)
-
                         records.append(dataRecord)
                     failed_at += 1
 
