@@ -524,12 +524,12 @@ class MetaDataValidator:
                     try:
                         pattern_obj = re.compile(pattern)
                         if not pattern_obj.match(str(value)):
-                            errors.append(create_error("M031", [msg_prefix, prop_name], prop_name, value))
+                            errors.append(create_error("M031", [msg_prefix, value, prop_name], prop_name, value))
                     except Exception as e:
                         self.log.exception(f"Failed to compile the pattern, {pattern} for the property: {prop_name}.")
-                        errors.append(create_error("M031", [msg_prefix, prop_name], prop_name, value))
+                        errors.append(create_error("M031", [msg_prefix, value, prop_name], prop_name, value))
                 else:
-                    errors.append(create_error("M031", [msg_prefix, prop_name], prop_name, value))
+                    errors.append(create_error("M031", [msg_prefix, value, prop_name], prop_name, value))
                 return errors
             
             minimum = prop_def.get(MIN)
