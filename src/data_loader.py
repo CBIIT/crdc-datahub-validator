@@ -85,10 +85,7 @@ class DataLoader:
                     crdc_id = self.get_crdc_id(exist_node, type, node_id, self.submission.get(STUDY_ID)) if valid_crdc_id_nodes else None
                     # file nodes
                     if valid_crdc_id_nodes and type in file_types:
-                        id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
-                        file_id_val = row.get(id_field)
-                        if file_id_val:
-                            crdc_id = file_id_val if file_id_val.startswith(DCF_PREFIX) else DCF_PREFIX + file_id_val
+                        crdc_id = node_id if node_id.startswith(DCF_PREFIX) else DCF_PREFIX + node_id
                     # principal investigator node
                     if type == PRINCIPAL_INVESTIGATOR and PRINCIPAL_INVESTIGATOR in main_node_types:
                         submission = self.mongo_dao.get_submission(self.batch[SUBMISSION_ID])
@@ -123,7 +120,9 @@ class DataLoader:
                         if crdc_id:
                             dataRecord["CRDC_ID"] = crdc_id
                         if type in file_types:
+                            id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
+                            dataRecord[PROPERTIES][id_field] = node_id
                         records.append(dataRecord)
                     failed_at += 1
 

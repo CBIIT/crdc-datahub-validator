@@ -529,7 +529,7 @@ class EssentialValidator:
             if not low_id.startswith(DCF_PREFIX.lower()):
                 return False, msg
             else:
-                uuid = id.split('/')[1]
+                uuid = low_id.split('/')[1]
                 if not validate_uuid_by_rex(uuid):
                     return False, msg
         return True, None
