@@ -69,7 +69,6 @@ class GenerateDCF:
             buf.seek(0)
             # 3) upload buffer to s3 bucket
             self.upload_file(buf)
-            
             self.log.info(f"{self.submission[ID]}: DCF manifest are exported.")
             return True
         except Exception as e:
@@ -88,8 +87,6 @@ class GenerateDCF:
     def upload_file(self, buf):
         id, root_path, bucket_name = self.submission[ID], self.submission[ROOT_PATH], self.submission[BATCH_BUCKET]   
         full_name = f"{root_path}/{EXPORT_METADATA}/release/dcf_manifest/{get_date_time()}-{id}-indexd.tsv"
-        self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
         self.release_manifest_data["metadata files"]["dcf manifest file path"] = f"dcf_manifest/{get_date_time()}-{id}-indexd.tsv"
-        
-
+        self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
         
