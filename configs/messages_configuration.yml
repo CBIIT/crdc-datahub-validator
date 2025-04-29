@@ -158,7 +158,7 @@ Messages:
   M032: 
     title: "Invalid pattern definition"
     severity: "Error"
-    message: '{} Pattern "{}" is not a valid Regular Expression. Please contact your Data Concierge to resolve this issue.'
+    message: '{} Pattern "{}" for property "{}" is not a valid Regular Expression. Please contact your Data Concierge to resolve this issue.'
     description: "Regex from a model is invalid"
 
   # data file validation message
