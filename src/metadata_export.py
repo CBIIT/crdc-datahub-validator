@@ -145,9 +145,13 @@ class ExportMetadata:
         node_types = self.model.get_node_keys()
         study = self.mongo_dao.find_study_by_id(study_id)
         if study:
-            study = {"name": study.get("studyName"), "abbreviation": study.get("studyAbbreviation"), "dbGapID": study.get("dbGaPID")}
+            study = {"name": study.get("studyName"), "abbreviation": study.get("studyAbbreviation"), "dbGaPID": study.get("dbGaPID")}
+        submitter = self.mongo_dao.find_user_by_id(self.submission.get("submitterID"))
+        if submitter:
+            submitter = {"name": submitter.get("firstName") + " " + submitter.get("lastName"), "email": submitter.get("email"), "institution": submitter.get("organization", {}).get("orgName")}
+                                                   
         self.release_manifest_data = {"submission ID": submission_id, "submission creation date": self.submission.get(CREATED_AT), 
-                                      "submission release date": get_date_time("%Y-%m-%dT%H:%M:%SZ"), "study": study,
+                                      "submission release date": get_date_time("%Y-%m-%dT%H:%M:%SZ"), "study": study, "submitter": submitter,
                                       "Concierge": {"name": self.submission.get("conciergeName"), "email": self.submission.get("conciergeEmail")},
                                       "data model version": self.submission.get("modelVersion"), "intention": self.submission.get(SUBMISSION_INTENTION),
                                       "submission type": self.submission.get(SUBMISSION_DATA_TYPE),
