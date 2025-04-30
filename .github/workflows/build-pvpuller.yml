@@ -7,7 +7,7 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Choose the environment to build
+        description: Build from Github actions
         type: environment
 #      code_branch:
 #        description: Branch to build validation
@@ -16,7 +16,7 @@ on:
         description: "Run Trivy Test Scan"
         required: true
         type: boolean
-        default: false
+        default: true
 
 
 jobs:
