@@ -527,9 +527,9 @@ class MetaDataValidator:
                             errors.append(create_error("M031", [msg_prefix, value, prop_name], prop_name, value))
                     except Exception as e:
                         self.log.exception(f"Failed to compile the pattern, {pattern} for the property: {prop_name}.")
-                        errors.append(create_error("M031", [msg_prefix, value, prop_name], prop_name, value))
+                        errors.append(create_error("M032", [msg_prefix, pattern, prop_name], prop_name, pattern))
                 else:
-                    errors.append(create_error("M031", [msg_prefix, value, prop_name], prop_name, value))
+                    errors.append(create_error("M032", [msg_prefix, pattern, prop_name], prop_name, pattern))
                 return errors
             
             minimum = prop_def.get(MIN)
