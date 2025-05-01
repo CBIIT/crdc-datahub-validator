@@ -9,7 +9,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
     BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
     SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT, PROPERTIES,\
-    STUDY_COLLECTION, ORGANIZATION_COLLECTION
+    STUDY_COLLECTION, ORGANIZATION_COLLECTION, USER_COLLECTION
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -1247,6 +1247,25 @@ class MongoDao:
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
+            return None
+        
+    """
+    find user name by id
+    :param id
+    """   
+    def find_user_by_id(self, id):
+        db = self.client[self.db_name]
+        data_collection = db[USER_COLLECTION]
+        query = {"_id": id}
+        try:
+            return data_collection.find_one(query)
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get user by {id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get user for {id}: {get_exception_msg()}")
             return None
     
 """
