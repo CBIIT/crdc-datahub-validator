@@ -149,16 +149,18 @@ class ExportMetadata:
         submitter = self.mongo_dao.find_user_by_id(self.submission.get("submitterID"))
         if submitter:
             submitter = {"name": submitter.get("firstName") + " " + submitter.get("lastName"), "email": submitter.get("email"), "institution": submitter.get("organization", {}).get("orgName")}
-                                                   
+        self.submission_type =  self.submission.get(SUBMISSION_DATA_TYPE)                                        
         self.release_manifest_data = {"submission ID": submission_id, "submission creation date": self.submission.get(CREATED_AT), 
                                       "submission release date": get_date_time("%Y-%m-%dT%H:%M:%SZ"), "study": study, "submitter": submitter,
                                       "Concierge": {"name": self.submission.get("conciergeName"), "email": self.submission.get("conciergeEmail")},
                                       "data model version": self.submission.get("modelVersion"), "intention": self.submission.get(SUBMISSION_INTENTION),
-                                      "submission type": self.submission.get(SUBMISSION_DATA_TYPE),
+                                      "submission type": self.submission_type,
                                       "metadata files": {"number of metadata files": 0, "list of metadata file names": [], "dcf manifest file path": ""},
-                                      "data files": {"list of data file names": [], "number of data files": 0},
                                       "metadata record counts": {}
                                       }
+        if self.submission_type != "Metadata Only":
+            self.release_manifest_data["data files"] = {"list of data file names": [], "number of data files": 0}
+
         threads = []
         #3 retrieve data for nodeType and export to s3 bucket
         for node_type in node_types:
@@ -214,7 +216,7 @@ class ExportMetadata:
                         self.release_manifest_data["metadata record counts"][node_type]["new"] += 1
                 else:
                     self.release_manifest_data["metadata record counts"][node_type]["delete"] += 1
-                if node_type in self.model.get_file_nodes() and r.get(S3_FILE_INFO):
+                if self.submission_type != "Metadata Only" and node_type in self.model.get_file_nodes() and r.get(S3_FILE_INFO):
                     self.release_manifest_data["data files"]["list of data file names"].append(r[S3_FILE_INFO].get(FILE_NAME))
                     self.release_manifest_data["data files"]["number of data files"] += 1
 
