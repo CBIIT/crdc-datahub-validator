@@ -150,7 +150,7 @@ class ExportMetadata:
         if submitter:
             submitter = {"name": submitter.get("firstName") + " " + submitter.get("lastName"), "email": submitter.get("email"), "institution": submitter.get("organization", {}).get("orgName")}
         self.submission_type =  self.submission.get(SUBMISSION_DATA_TYPE)                                        
-        self.release_manifest_data = {"submission ID": submission_id, "submission creation date": self.submission.get(CREATED_AT), 
+        self.release_manifest_data = {"submission ID": submission_id, "submission creation date": str(self.submission.get(CREATED_AT)), 
                                       "submission release date": get_date_time("%Y-%m-%dT%H:%M:%SZ"), "study": study, "submitter": submitter,
                                       "Concierge": {"name": self.submission.get("conciergeName"), "email": self.submission.get("conciergeEmail")},
                                       "data model version": self.submission.get("modelVersion"), "intention": self.submission.get(SUBMISSION_INTENTION),
