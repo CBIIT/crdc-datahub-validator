@@ -218,8 +218,8 @@ class ExportMetadata:
                 else:
                     self.release_manifest_data["metadata record counts"][node_type]["delete"] += 1
                 if self.submission_type != "Metadata Only" and node_type in self.model.get_file_nodes() and r.get(S3_FILE_INFO):
-                    self.release_manifest_data["data files"]["number of data files"] += 1
-                    self.release_manifest_data["data files"]["total size"] += r.get(S3_FILE_INFO).get("size")
+                    self.release_manifest_data["data files"]["count"] += 1
+                    self.release_manifest_data["data files"]["total size"] += int(r.get(S3_FILE_INFO).get("size"))
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
