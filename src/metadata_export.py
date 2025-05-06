@@ -118,6 +118,7 @@ class ExportMetadata:
         self.s3_service = S3Service()
         self.intention = submission.get(SUBMISSION_INTENTION)
         self.release_manifest_data = None
+        self.submission_type =  self.submission.get(SUBMISSION_DATA_TYPE)  
 
     def close(self):
         if self.s3_service:
@@ -149,8 +150,7 @@ class ExportMetadata:
             study = {"name": study.get("studyName"), "abbreviation": study.get("studyAbbreviation"), "dbGaPID": study.get("dbGaPID")}
         submitter = self.mongo_dao.find_user_by_id(self.submission.get("submitterID"))
         if submitter:
-            submitter = {"name": submitter.get("firstName") + " " + submitter.get("lastName"), "email": submitter.get("email"), "institution": submitter.get("organization", {}).get("orgName")}
-        self.submission_type =  self.submission.get(SUBMISSION_DATA_TYPE)                                        
+            submitter = {"name": submitter.get("firstName") + " " + submitter.get("lastName"), "email": submitter.get("email"), "institution": submitter.get("organization", {}).get("orgName")}                                      
         self.release_manifest_data = {"submission ID": submission_id, "submission creation date": convert_date_time(self.submission.get(CREATED_AT), "%Y-%m-%d %H:%M:%S"), 
                                       "submission release date": get_date_time("%Y-%m-%d %H:%M:%S"), "study": study, "submitter": submitter,
                                       "data concierge": {"name": self.submission.get("conciergeName"), "email": self.submission.get("conciergeEmail")},
@@ -159,8 +159,9 @@ class ExportMetadata:
                                       "metadata files": {"number of metadata files": 0, "metadata files": [], "dcf manifest file path": ""},
                                       "metadata record counts": {}
                                       }
-        if self.submission_type != "Metadata Only":
+        if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
             self.release_manifest_data["data files"] = {"count": 0, "total size": 0}
+
 
         threads = []
         #3 retrieve data for nodeType and export to s3 bucket
@@ -217,7 +218,7 @@ class ExportMetadata:
                         self.release_manifest_data["metadata record counts"][node_type]["new"] += 1
                 else:
                     self.release_manifest_data["metadata record counts"][node_type]["delete"] += 1
-                if self.submission_type != "Metadata Only" and node_type in self.model.get_file_nodes() and r.get(S3_FILE_INFO):
+                if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and node_type in self.model.get_file_nodes() and r.get(S3_FILE_INFO):
                     self.release_manifest_data["data files"]["count"] += 1
                     self.release_manifest_data["data files"]["total size"] += int(r.get(S3_FILE_INFO).get("size"))
 
@@ -234,7 +235,7 @@ class ExportMetadata:
                     # populate release manifest data
                     self.release_manifest_data["metadata files"]["metadata files"].append(f"{submission_id}-{node_type}.tsv")
                     self.release_manifest_data["metadata files"]["number of metadata files"] += 1
-                    if self.submission_type != "Metadata Only":
+                    if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
                         self.release_manifest_data["data files"]["total size"] = convert_file_size(self.release_manifest_data["data files"]["total size"])
                     self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are exported.")
                     return
@@ -385,7 +386,7 @@ class ExportMetadata:
                              }], 
                 STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
             }
-            if data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
+            if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
                 crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.insert_release(crdc_record)
@@ -423,7 +424,7 @@ class ExportMetadata:
                 existed_crdc_record[SUBMISSION_HISTORY] = history
                 existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
                 existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
-                if data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
+                if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
                     existed_crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.update_release(existed_crdc_record)
