@@ -13,7 +13,7 @@ from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
     SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING, DCF_PREFIX
-from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows, validate_uuid_by_rex
+from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows, validate_uuid_by_rex, get_date_time
 from common.model_store import ModelFactory
 from metadata_remover import MetadataRemover
 from data_loader import DataLoader
@@ -88,7 +88,6 @@ def essentialValidate(configs, job_queue, mongo_dao):
                                     batch[STATUS] = BATCH_STATUS_UPLOADED
                                     submission_meta_status = STATUS_NEW
                                 else:
-                                    batch[ERRORS] = errors
                                     batch[STATUS] = BATCH_STATUS_FAILED
                                     submission_meta_status = BATCH_STATUS_FAILED
                             else:
@@ -195,6 +194,8 @@ class EssentialValidator:
                 #2. validate meatadata in self.df
                 if not self.validate_data(file_info):
                     file_info[STATUS] = STATUS_ERROR
+                if len(file_info[ERRORS]) > 100:
+                    file_info[ERRORS] =  file_info[ERRORS][:100]  
             return True if len(self.batch[ERRORS]) == 0 else False
         except Exception as e:
             self.log.exception(e)
@@ -506,7 +507,7 @@ class EssentialValidator:
                         file_info[ERRORS].append(msg)
                         self.batch[ERRORS].append(msg)
                     return False
-                
+        
         return True if len(self.batch[ERRORS]) == 0 else False
     
     """

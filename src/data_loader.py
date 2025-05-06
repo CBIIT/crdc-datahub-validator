@@ -3,7 +3,7 @@ import os
 import pandas as pd
 import numpy as np
 from bento.common.utils import get_logger
-from common.utils import get_uuid_str, current_datetime, removeTailingEmptyColumnsAndRows
+from common.utils import get_uuid_str, current_datetime, removeTailingEmptyColumnsAndRows, get_date_time
 from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_ID, \
     ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
     MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, QC_RESULT_ID, BATCH_IDS, \
@@ -15,7 +15,7 @@ SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 
 PRINCIPAL_INVESTIGATOR = "principal_investigator"
-
+BATCH_SIZE = 1000
 
 # This script load matadata files to database
 # input: file info list
@@ -44,20 +44,22 @@ class DataLoader:
 
         for file in file_path_list:
             records = []
-            failed_at = 1
+            all_records = []
             file_name = os.path.basename(file)
             # 1. read file to dataframe
             if not os.path.isfile(file):
                 self.errors.append(f"File does not exist, {file}")
                 continue
             try:
+                print("Performance start read file " + get_date_time())
                 df = pd.read_csv(file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE,keep_default_na=False,na_values=[''])
                 df = (df.rename(columns=lambda x: x.strip())).apply(lambda x: x.str.strip() if x.dtype == 'object' else x) # stripe white space.
                 df = removeTailingEmptyColumnsAndRows(df)
                 df = df.replace({np.nan: None})  # replace Nan in dataframe with None
                 df = df.reset_index()  # make sure indexes pair with number of rows
                 col_names =list(df.columns)
-
+                total_rows = len(df)
+                start_index = 0
                 for index, row in df.iterrows():
                     type = row[TYPE]
                     node_id = self.get_node_id(type, row)  #convert the file_id to correct format.
@@ -123,11 +125,19 @@ class DataLoader:
                             id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
                             dataRecord[PROPERTIES][id_field] = node_id
-                        records.append(dataRecord)
-                    failed_at += 1
+
+                        if start_index < (BATCH_SIZE-1) and (total_rows - start_index) > 1:
+                            records.append(dataRecord)
+                            start_index += 1
+                        else:
+                            records.append(dataRecord)
+                            all_records.extend(records)
+                            start_index = 0
+                            records = []
 
                 # 3-1. upsert data in a tsv file into mongo DB
-                result, error = self.mongo_dao.update_data_records(records)
+                final_records = records if len(all_records) == 0 else all_records
+                result, error = self.mongo_dao.update_data_records(final_records)
                 if error:
                     self.errors.append(f'“{file_name}”: updating metadata failed - database error.  Please try again and contact the helpdesk if this error persists.')
                 returnVal = returnVal and result
