@@ -382,7 +382,7 @@ class ExportMetadata:
                              }], 
                 STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
             }
-            if self.submission_type != "Metadata Only" and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
+            if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
                 crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.insert_release(crdc_record)
@@ -420,7 +420,7 @@ class ExportMetadata:
                 existed_crdc_record[SUBMISSION_HISTORY] = history
                 existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
                 existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
-                if self.submission_type != "Metadata Only" and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
+                if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
                     existed_crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.update_release(existed_crdc_record)
