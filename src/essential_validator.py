@@ -22,6 +22,8 @@ from service.ecs_agent import set_scale_in_protection
 VISIBILITY_TIMEOUT = 20
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
+BATCH_ERROR_LIMIT = 1000
+FILE_ERROR_LIMIT = 100
 
 """
 Interface for essential validation of metadata via SQS
@@ -102,8 +104,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             submission_meta_status = STATUS_ERROR
                         finally:
                             #5. update submission's metadataValidationStatus
-                            if batch[ERRORS] and len(batch[ERRORS]) > 1000:
-                                batch[ERRORS] = batch[ERRORS][:1000]
+                            if batch[ERRORS] and len(batch[ERRORS]) > BATCH_ERROR_LIMIT:
+                                batch[ERRORS] = batch[ERRORS][:BATCH_ERROR_LIMIT]
                             mongo_dao.update_batch(batch)
                             if validator.submission and submission_meta_status == STATUS_NEW:
                                 mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, None)
@@ -194,8 +196,8 @@ class EssentialValidator:
                 #2. validate meatadata in self.df
                 if not self.validate_data(file_info):
                     file_info[STATUS] = STATUS_ERROR
-                if len(file_info[ERRORS]) > 100:
-                    file_info[ERRORS] =  file_info[ERRORS][:100]  
+                if len(file_info[ERRORS]) > FILE_ERROR_LIMIT:
+                    file_info[ERRORS] =  file_info[ERRORS][:FILE_ERROR_LIMIT]  
             return True if len(self.batch[ERRORS]) == 0 else False
         except Exception as e:
             self.log.exception(e)
@@ -450,7 +452,7 @@ class EssentialValidator:
                     self.log.error(msg)
                     isValidId = False
                     file_info[ERRORS].append(msg)
-                    if len(self.batch[ERRORS]) <= 1000:
+                    if len(self.batch[ERRORS]) <= BATCH_ERROR_LIMIT:
                         self.batch[ERRORS].append(msg)
                     else: 
                         return False
@@ -557,7 +559,7 @@ class EssentialValidator:
                     msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}”: {id}.'
                     self.log.error(msg)
                     file_info[ERRORS].append(msg)
-                    if len(self.batch[ERRORS]) <= 1000:
+                    if len(self.batch[ERRORS]) <= BATCH_ERROR_LIMIT:
                         self.batch[ERRORS].append(msg)
                 rtn_val = False  
                 break
@@ -571,7 +573,7 @@ class EssentialValidator:
                             msg = f'“{file_info[FILE_NAME]}: {index + 2}”: conflict data detected: “{prop}”: "{value}".'
                             self.log.error(msg)
                             file_info[ERRORS].append(msg)
-                            if len(self.batch[ERRORS]) <= 1000:
+                            if len(self.batch[ERRORS]) <= BATCH_ERROR_LIMIT:
                                 self.batch[ERRORS].append(msg)
                             else:
                                 return False
