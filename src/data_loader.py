@@ -51,7 +51,6 @@ class DataLoader:
                 self.errors.append(f"File does not exist, {file}")
                 continue
             try:
-                print("Performance start read file " + get_date_time())
                 df = pd.read_csv(file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE,keep_default_na=False,na_values=[''])
                 df = (df.rename(columns=lambda x: x.strip())).apply(lambda x: x.str.strip() if x.dtype == 'object' else x) # stripe white space.
                 df = removeTailingEmptyColumnsAndRows(df)
