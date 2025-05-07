@@ -448,9 +448,12 @@ class EssentialValidator:
                 result, msg = self.validate_file_id(id, file_info, index)
                 if not result:
                     self.log.error(msg)
-                    file_info[ERRORS].append(msg)
-                    self.batch[ERRORS].append(msg)
                     isValidId = False
+                    file_info[ERRORS].append(msg)
+                    if len(self.batch[ERRORS]) <= 1000:
+                        self.batch[ERRORS].append(msg)
+                    else: 
+                        return False
                 index += 1
             if not isValidId:
                 return False
@@ -471,7 +474,6 @@ class EssentialValidator:
                 self.log.error(msgs)
                 file_info[ERRORS].extend(msgs)
                 self.batch[ERRORS].extend(msgs)
-            
             # check duplicate rows with the same nodeID
             duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
             if len(duplicate_ids) > 0:
@@ -555,7 +557,8 @@ class EssentialValidator:
                     msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}”: {id}.'
                     self.log.error(msg)
                     file_info[ERRORS].append(msg)
-                    self.batch[ERRORS].append(msg)
+                    if len(self.batch[ERRORS]) <= 1000:
+                        self.batch[ERRORS].append(msg)
                 rtn_val = False  
                 break
             else:
@@ -568,7 +571,10 @@ class EssentialValidator:
                             msg = f'“{file_info[FILE_NAME]}: {index + 2}”: conflict data detected: “{prop}”: "{value}".'
                             self.log.error(msg)
                             file_info[ERRORS].append(msg)
-                            self.batch[ERRORS].append(msg)
+                            if len(self.batch[ERRORS]) <= 1000:
+                                self.batch[ERRORS].append(msg)
+                            else:
+                                return False
                         rtn_val = False
                         break
         return rtn_val
