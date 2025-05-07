@@ -16,7 +16,8 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
     SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, \
     S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES, DATA_FILE_LOCATION, S3_PREFIX
-from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
+from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list, \
+    convert_date_time, convert_file_size
 from common.model_store import ModelFactory
 from common.s3_utils import S3Service
 from dcf_manifest_generator import GenerateDCF
@@ -150,16 +151,17 @@ class ExportMetadata:
         submitter = self.mongo_dao.find_user_by_id(self.submission.get("submitterID"))
         if submitter:
             submitter = {"name": submitter.get("firstName") + " " + submitter.get("lastName"), "email": submitter.get("email"), "institution": submitter.get("organization", {}).get("orgName")}                                      
-        self.release_manifest_data = {"submission ID": submission_id, "submission creation date": str(self.submission.get(CREATED_AT)), 
-                                      "submission release date": get_date_time("%Y-%m-%dT%H:%M:%SZ"), "study": study, "submitter": submitter,
-                                      "Concierge": {"name": self.submission.get("conciergeName"), "email": self.submission.get("conciergeEmail")},
+        self.release_manifest_data = {"submission ID": submission_id, "submission creation date": convert_date_time(self.submission.get(CREATED_AT), "%Y-%m-%d %H:%M:%S"), 
+                                      "submission release date": get_date_time("%Y-%m-%d %H:%M:%S"), "study": study, "submitter": submitter,
+                                      "data concierge": {"name": self.submission.get("conciergeName"), "email": self.submission.get("conciergeEmail")},
                                       "data model version": self.submission.get("modelVersion"), "intention": self.submission.get(SUBMISSION_INTENTION),
                                       "submission type": self.submission_type,
-                                      "metadata files": {"number of metadata files": 0, "list of metadata file names": [], "dcf manifest file path": ""},
+                                      "metadata files": {"number of metadata files": 0, "metadata files": [], "dcf manifest file path": ""},
                                       "metadata record counts": {}
                                       }
         if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
-            self.release_manifest_data["data files"] = {"list of data file names": [], "number of data files": 0}
+            self.release_manifest_data["data files"] = {"count": 0, "total size": 0}
+
 
         threads = []
         #3 retrieve data for nodeType and export to s3 bucket
@@ -217,8 +219,8 @@ class ExportMetadata:
                 else:
                     self.release_manifest_data["metadata record counts"][node_type]["delete"] += 1
                 if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and node_type in self.model.get_file_nodes() and r.get(S3_FILE_INFO):
-                    self.release_manifest_data["data files"]["list of data file names"].append(r[S3_FILE_INFO].get(FILE_NAME))
-                    self.release_manifest_data["data files"]["number of data files"] += 1
+                    self.release_manifest_data["data files"]["count"] += 1
+                    self.release_manifest_data["data files"]["total size"] += int(r.get(S3_FILE_INFO).get("size"))
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
@@ -231,8 +233,10 @@ class ExportMetadata:
                     buf.seek(0)
                     self.upload_file(buf, node_type)
                     # populate release manifest data
-                    self.release_manifest_data["metadata files"]["list of metadata file names"].append(f"{submission_id}-{node_type}.tsv")
+                    self.release_manifest_data["metadata files"]["metadata files"].append(f"{submission_id}-{node_type}.tsv")
                     self.release_manifest_data["metadata files"]["number of metadata files"] += 1
+                    if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
+                        self.release_manifest_data["data files"]["total size"] = convert_file_size(self.release_manifest_data["data files"]["total size"])
                     self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are exported.")
                     return
                 except Exception as e:
@@ -275,8 +279,8 @@ class ExportMetadata:
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
 
     def upload_release_manifest(self):
-        id, root_path, bucket_name,_,_ = self.get_submission_info()
-        full_name = f"{ValidationDirectory.get_release(root_path)}/{id}-release-info.json"
+        _, root_path, bucket_name,_,_ = self.get_submission_info()
+        full_name = f"{ValidationDirectory.get_release(root_path)}/release-info.json"
         buf = io.BytesIO(json.dumps(self.release_manifest_data).encode('utf-8'))
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
         buf.close()

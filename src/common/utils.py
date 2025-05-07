@@ -8,7 +8,6 @@ import json
 import requests
 import yaml
 import boto3 
-import pandas as pd
 import numpy as np
 from bento.common.utils import get_stream_md5
 from datetime import datetime
@@ -136,6 +135,13 @@ def get_date_time(format = "%Y-%m-%dT%H%M%S"):
     get current time in format
     """  
     return datetime.strftime(datetime.now(), format)
+
+def convert_date_time(date, format = "%Y-%m-%dT%H%M%S"):
+    """
+    convert date to format
+    """
+    return datetime.strftime(date, format)
+
 """
 get current datetime
 """
@@ -307,6 +313,20 @@ def validate_by_rex(value, rex):
     if not value or not rex:
         return False
     return re.match(rex, value) is not None
+
+def convert_file_size(size_bytes):
+    """
+    Convert file size to human-readable format
+    :param size_bytes: size in bytes
+    :return: string
+    """
+    if size_bytes == 0:
+        return "0B"
+    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    i = int(np.floor(np.log(size_bytes) / np.log(1024)))
+    p = np.power(1024, i)
+    s = round(size_bytes / p, 2)
+    return "%s %s" % (s, size_name[i])
     
 
 
