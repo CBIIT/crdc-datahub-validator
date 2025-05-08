@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pandas as pd
+import csv
 import json
 import os, io, boto3
 import time
@@ -230,6 +231,9 @@ class ExportMetadata:
                 buf = None
                 try:
                     df = pd.DataFrame(rows, columns = self.sort_columns(columns, node_type))
+                    # convert python boolean to "true"/"false" in tsv
+                    # df = df.applymap(lambda x: "true" if x is True else ("false" if x is False else x))
+                    df = df.apply(lambda col: col.map(lambda x: "true" if (x is True or x == "True") else "false" if x is False or x == "False" else x))
                     buf = io.BytesIO()
                     df.to_csv(buf, sep ='\t', index=False)
                     buf.seek(0)
