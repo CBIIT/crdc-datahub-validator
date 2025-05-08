@@ -588,6 +588,8 @@ class MetaDataValidator:
                     else:
                         matched_val = next((item for item in pv_list if item == value.lower()))
                         data_record[PROPERTIES][prop_name] = "true" if matched_val in ["yes", "true"] else "false" #transform to boolean
+                else:
+                    data_record[PROPERTIES][prop_name] = "true" if value else "false"
 
             elif (type == "array" or type == "value-list"):
                 if not permissive_vals or len(permissive_vals) == 0: 
