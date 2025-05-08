@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import pandas as pd
+import csv
 import json
 import os, io, boto3
 import time
@@ -156,11 +157,12 @@ class ExportMetadata:
                                       "data concierge": {"name": self.submission.get("conciergeName"), "email": self.submission.get("conciergeEmail")},
                                       "data model version": self.submission.get("modelVersion"), "intention": self.submission.get(SUBMISSION_INTENTION),
                                       "submission type": self.submission_type,
-                                      "metadata files": {"number of metadata files": 0, "metadata files": [], "dcf manifest file path": ""},
+                                      "metadata files": {"number of metadata files": 0, "metadata files": []},
                                       "metadata record counts": {}
                                       }
         if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
             self.release_manifest_data["data files"] = {"count": 0, "total size": 0}
+            self.release_manifest_data["metadata files"]["dcf manifest file path"] = ""
 
 
         threads = []
@@ -178,8 +180,9 @@ class ExportMetadata:
             thread.join()
         
         #4 export DCF-manifest
-        DCF_manifest_exporter = GenerateDCF(self.configs, self.mongo_dao, self.submission, self.s3_service, self.release_manifest_data)
-        DCF_manifest_exporter.generate_dcf()
+        if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
+            DCF_manifest_exporter = GenerateDCF(self.configs, self.mongo_dao, self.submission, self.s3_service, self.release_manifest_data)
+            DCF_manifest_exporter.generate_dcf()
         #5 export release manifest file as release-info.json
         self.upload_release_manifest()
 
@@ -228,6 +231,8 @@ class ExportMetadata:
                 buf = None
                 try:
                     df = pd.DataFrame(rows, columns = self.sort_columns(columns, node_type))
+                    # convert python boolean to "true"/"false" in tsv
+                    df = df.apply(lambda col: col.map(lambda x: "true" if (x is True or x == "True") else "false" if x is False or x == "False" else x))
                     buf = io.BytesIO()
                     df.to_csv(buf, sep ='\t', index=False)
                     buf.seek(0)
@@ -235,8 +240,6 @@ class ExportMetadata:
                     # populate release manifest data
                     self.release_manifest_data["metadata files"]["metadata files"].append(f"{submission_id}-{node_type}.tsv")
                     self.release_manifest_data["metadata files"]["number of metadata files"] += 1
-                    if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
-                        self.release_manifest_data["data files"]["total size"] = convert_file_size(self.release_manifest_data["data files"]["total size"])
                     self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are exported.")
                     return
                 except Exception as e:
@@ -281,7 +284,9 @@ class ExportMetadata:
     def upload_release_manifest(self):
         _, root_path, bucket_name,_,_ = self.get_submission_info()
         full_name = f"{ValidationDirectory.get_release(root_path)}/release-info.json"
-        buf = io.BytesIO(json.dumps(self.release_manifest_data).encode('utf-8'))
+        if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
+            self.release_manifest_data["data files"]["total size"] = convert_file_size(self.release_manifest_data["data files"]["total size"])
+        buf = io.BytesIO(json.dumps(self.release_manifest_data, indent=4).encode('utf-8'))
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
         buf.close()
 
