@@ -12,7 +12,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
-    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN
+    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN, DELETE_COMMAND
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -272,13 +272,15 @@ class MetaDataValidator:
             if sub_intention and sub_intention in [SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE]:
                 exist_releases = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
                 if sub_intention == SUBMISSION_INTENTION_NEW_UPDATE and (exist_releases and len(exist_releases) > 0):
+                    # check if there are any differences in properties between existing ans new node
+                    if self.check_difference_in_props(data_record[PROPERTIES], exist_releases[0][PROPERTIES]):
                     # check if file node
-                    if not node_type in def_file_nodes:
-                        warnings.append(create_error("M018", [msg_prefix, node_type, f'{self.model.get_node_id(node_type)}: {data_record[NODE_ID]}'],
-                                                      NODE_ID, self.model.get_node_id(node_type)))
-                    else:
-                        warnings.append(create_error("M018", f'{msg_prefix} “{node_type}”: {{“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}"}} already exists and will be updated. Its associated data file will also be replaced if uploaded.',
-                                                      NODE_ID, self.model.get_node_id(node_type)))
+                        if not node_type in def_file_nodes:
+                            warnings.append(create_error("M018", [msg_prefix, node_type, f'{self.model.get_node_id(node_type)}: {data_record[NODE_ID]}'],
+                                                        NODE_ID, self.model.get_node_id(node_type)))
+                        else:
+                            warnings.append(create_error("M018", f'{msg_prefix} “{node_type}”: {{“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}"}} already exists and will be updated. Its associated data file will also be replaced if uploaded.',
+                                                        NODE_ID, self.model.get_node_id(node_type)))
                 elif sub_intention == SUBMISSION_INTENTION_DELETE and (not exist_releases or len(exist_releases) == 0):
                     errors.append(create_error("M019", [msg_prefix, node_type, data_record[NODE_ID]], NODE_ID, self.model.get_node_id(node_type)))
             # if there are any errors set the result to "Error"
@@ -295,6 +297,18 @@ class MetaDataValidator:
             return STATUS_ERROR,[error], None
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors, warnings
+    
+    def check_difference_in_props(self, newProps, existProps):
+        """
+        check differences in new properties between exiting properties
+        """
+        hasDifference = False
+        for key, value in newProps.items():
+            if key not in existProps.keys():
+                hasDifference = True
+            elif value not in ["", " ", None] and value != existProps[key]:
+                hasDifference = True
+        return hasDifference
     
     def validate_required_props(self, data_record, msg_prefix):
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
@@ -340,6 +354,8 @@ class MetaDataValidator:
                 if data_value is None or not str(data_value).strip():
                     result[ERRORS].append(create_error("M003",[msg_prefix, data_key], data_key, data_value))
                 else:
+                    if str(data_value).strip() == DELETE_COMMAND:
+                        result[ERRORS].append(create_error("M033", [msg_prefix, data_key], data_key, data_value))
                     entity_type = self.model.get_entity_type(node_type)
                     if entity_type == "Program":
                         # validate program name and study name required in CRDCDH-2431.  Both are required properties.

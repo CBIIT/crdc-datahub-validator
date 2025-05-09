@@ -160,7 +160,11 @@ Messages:
     severity: "Error"
     message: '{} Pattern "{}" for property "{}" is not a valid Regular Expression. Please contact your Data Concierge to resolve this issue.'
     description: "Regex from a model is invalid"
-
+  M033:
+    title: "Delete required property"
+    severity: "Error"
+    message: '{} deleting value of a required property “{}” is not allowed.'
+    description: "Try to delete value of a required property"
   # data file validation message
   F001:
    title: "Data File not found"
