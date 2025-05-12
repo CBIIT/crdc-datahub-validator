@@ -270,18 +270,18 @@ class MetaDataValidator:
             warnings = result_required.get(WARNINGS, []) +  result_prop_value.get(WARNINGS, []) + result_rel.get(WARNINGS, [])
             #check if existed nodes in release collection
             if sub_intention and sub_intention in [SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE]:
-                exist_releases = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
-                if sub_intention == SUBMISSION_INTENTION_NEW_UPDATE and (exist_releases and len(exist_releases) > 0):
-                    # check if there are any differences in properties between existing ans new node
-                    if self.check_difference_in_props(data_record[PROPERTIES], exist_releases[0][PROPERTIES]):
-                    # check if file node
+                exist_release = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
+                if sub_intention == SUBMISSION_INTENTION_NEW_UPDATE and exist_release:
+                    # check if there are any differences in properties and parents between existing and new node
+                    if self.check_difference_in_props(data_record, exist_release):
+                        # check if file node
                         if not node_type in def_file_nodes:
                             warnings.append(create_error("M018", [msg_prefix, node_type, f'{self.model.get_node_id(node_type)}: {data_record[NODE_ID]}'],
                                                         NODE_ID, self.model.get_node_id(node_type)))
                         else:
                             warnings.append(create_error("M018", f'{msg_prefix} “{node_type}”: {{“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}"}} already exists and will be updated. Its associated data file will also be replaced if uploaded.',
                                                         NODE_ID, self.model.get_node_id(node_type)))
-                elif sub_intention == SUBMISSION_INTENTION_DELETE and (not exist_releases or len(exist_releases) == 0):
+                elif sub_intention == SUBMISSION_INTENTION_DELETE and exist_release:
                     errors.append(create_error("M019", [msg_prefix, node_type, data_record[NODE_ID]], NODE_ID, self.model.get_node_id(node_type)))
             # if there are any errors set the result to "Error"
             if len(errors) > 0:
@@ -298,17 +298,34 @@ class MetaDataValidator:
         #  if there are neither errors nor warnings, return default values
         return STATUS_PASSED, errors, warnings
     
-    def check_difference_in_props(self, newProps, existProps):
+    def check_difference_in_props(self, new_node, exist_node):
         """
-        check differences in new properties between exiting properties
+        check differences in new node between exiting node
         """
-        hasDifference = False
+        # check properties between new node and exist node
+        newProps = new_node[PROPERTIES]
+        existProps = exist_node[PROPERTIES]
         for key, value in newProps.items():
             if key not in existProps.keys():
-                hasDifference = True
+                return True
             elif value not in ["", " ", None] and value != existProps[key]:
-                hasDifference = True
-        return hasDifference
+                return True
+            
+        # check any differences between new and exist parents
+        new_parents = new_node.get(PARENTS)
+        exist_parents = exist_node.get(PARENTS)  
+        
+        if (new_parents and not exist_parents) or (not new_parents and exist_parents):
+            return True
+        if new_parents and exist_parents:
+            if len(new_parents) != len(exist_parents):
+                return True
+            for new_parent in new_parents:
+                matched_parent = next((p for p in exist_parents if p.get(PARENT_TYPE) == new_parent.get(PARENT_TYPE) and 
+                                      p.get(PARENT_ID_NAME) == new_parent.get(PARENT_ID_NAME) and p.get(PARENT_ID_VAL) == new_parent.get(PARENT_ID_VAL)), None)
+                if not matched_parent:
+                    return True
+        return False
     
     def validate_required_props(self, data_record, msg_prefix):
         result = {"result": STATUS_ERROR, ERRORS: [], WARNINGS: []}
@@ -354,28 +371,29 @@ class MetaDataValidator:
                 if data_value is None or not str(data_value).strip():
                     result[ERRORS].append(create_error("M003",[msg_prefix, data_key], data_key, data_value))
                 else:
-                    if str(data_value).strip() == DELETE_COMMAND:
+                    if str(data_value).strip().lower() == DELETE_COMMAND:
                         result[ERRORS].append(create_error("M033", [msg_prefix, data_key], data_key, data_value))
-                    entity_type = self.model.get_entity_type(node_type)
-                    if entity_type == "Program":
-                        # validate program name and study name required in CRDCDH-2431.  Both are required properties.
-                        if data_key == self.model.get_configured_prop_name("programName"):
-                            if not self.program_names: # no program associated with the study
-                                result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
-                            else:
-                                matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
-                                if not matched_val:
-                                    msg = "Program name doesn't match pre-approved names:" + ",".join([f"'{name}'" for name in self.program_names]) if len(self.program_names) > 1 else \
-                                     "Program name doesn't match this study's associated programs - " + f"'{self.program_names[0]}'"
-                                    result[ERRORS].append(create_error("M028", [msg_prefix, msg], data_key, data_value))
+                    else:
+                        entity_type = self.model.get_entity_type(node_type)
+                        if entity_type == "Program":
+                            # validate program name and study name required in CRDCDH-2431.  Both are required properties.
+                            if data_key == self.model.get_configured_prop_name("programName"):
+                                if not self.program_names: # no program associated with the study
+                                    result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
                                 else:
-                                    data_record[PROPERTIES][data_key] = matched_val
-                    elif entity_type == "Study":
-                        if data_key == self.model.get_configured_prop_name("studyName"):
-                            if data_value.lower() != self.study_name.lower():
-                                result[ERRORS].append(create_error("M029", [msg_prefix, self.study_name], data_key, data_value))
-                            else:
-                                data_record[PROPERTIES][data_key] = self.study_name
+                                    matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
+                                    if not matched_val:
+                                        msg = "Program name doesn't match pre-approved names:" + ",".join([f"'{name}'" for name in self.program_names]) if len(self.program_names) > 1 else \
+                                        "Program name doesn't match this study's associated programs - " + f"'{self.program_names[0]}'"
+                                        result[ERRORS].append(create_error("M028", [msg_prefix, msg], data_key, data_value))
+                                    else:
+                                        data_record[PROPERTIES][data_key] = matched_val
+                        elif entity_type == "Study":
+                            if data_key == self.model.get_configured_prop_name("studyName"):
+                                if data_value.lower() != self.study_name.lower():
+                                    result[ERRORS].append(create_error("M029", [msg_prefix, self.study_name], data_key, data_value))
+                                else:
+                                    data_record[PROPERTIES][data_key] = self.study_name
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
