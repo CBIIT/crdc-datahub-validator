@@ -7,25 +7,25 @@ on:
   workflow_dispatch:
     inputs:
       environment:
-        description: Choose the environment to build
+        description: Build from Github Actions
         type: environment
 #      code_branch:
 #        description: Branch to build validation
 #        required: false
       build_file_validation:
-        description: build file validation docker image
+        description: build file validation
         required: true
         type: boolean
       build_essential_validation:
-        description: build essential validation docker image
+        description: build essential validation
         required: true
         type: boolean
       build_metadata_validation:
-        description: build metadata validation docker image
+        description: build metadata validation
         required: true
         type: boolean
       build_export_validation:
-        description: build export validation docker image
+        description: build export validation
         required: true
         type: boolean
       trivy_test_scan_file_validation:
@@ -256,7 +256,7 @@ jobs:
         if: always()
 
   build-metadata-validation:
-    name: build metadata validation
+    name: Build Metadata Validation
     runs-on: ubuntu-latest
     if: github.event.inputs.build_metadata_validation == 'true'
     environment: ${{ inputs.environment }}
@@ -357,7 +357,7 @@ jobs:
         if: always()
 
   build-export-validation:
-    name: build export validation
+    name: Build Export Validation
     runs-on: ubuntu-latest
     if: github.event.inputs.build_export_validation == 'true'
     environment: ${{ inputs.environment }}
@@ -461,7 +461,7 @@ jobs:
     name: send slack notification
     runs-on: ubuntu-latest
     needs: [build-file-validation, build-essential-validation, build-metadata-validation, build-export-validation]
-    if: ${{ github.event.inputs.build_file_validation == 'true' || github.event.inputs.build_essential_validation == 'true' || github.event.inputs.build_metadata_validation == 'true' || github.event.inputs.build_export_validation == 'true' }} 
+    #if: ${{ github.event.inputs.build_file_validation == 'true' || github.event.inputs.build_essential_validation == 'true' || github.event.inputs.build_metadata_validation == 'true' || github.event.inputs.build_export_validation == 'true' }} 
     environment: ${{ inputs.environment }}
     env:
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
