@@ -842,8 +842,7 @@ class MongoDao:
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
         try:
-            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
-            return result
+            return data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id})
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")
@@ -864,8 +863,7 @@ class MongoDao:
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
         try:
-            result = data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_REL_STATUS: {"$in": status}})
-            return list(result) if result else None
+            return data_collection.find_one({DATA_COMMON_NAME: data_commons, NODE_TYPE: node_type, NODE_ID: node_id, SUBMISSION_REL_STATUS: {"$in": status}})
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to find release record for {data_commons}/{node_type}/{node_id}: {get_exception_msg()}")

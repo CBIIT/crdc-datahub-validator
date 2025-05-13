@@ -224,3 +224,5 @@ PROPERTY_PATTERN = "pattern"
 
 USER_COLLECTION = "users"
 
+DELETE_COMMAND = "<delete>"
+
