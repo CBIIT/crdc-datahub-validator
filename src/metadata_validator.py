@@ -303,12 +303,12 @@ class MetaDataValidator:
         check differences in new node between exiting node
         """
         # check properties between new node and exist node
-        newProps = new_node[PROPERTIES]
-        existProps = exist_node[PROPERTIES]
-        for key, value in newProps.items():
-            if key not in existProps.keys():
+        new_props = new_node[PROPERTIES]
+        exist_props = exist_node[PROPERTIES]
+        for key, value in new_props.items():
+            if key not in exist_props.keys():
                 return True
-            elif value not in ["", " ", None] and value != existProps[key]:
+            elif value not in ["", " ", None] and value != exist_props[key]:
                 return True
             
         # check any differences between new and exist parents
