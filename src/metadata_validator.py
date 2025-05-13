@@ -300,7 +300,7 @@ class MetaDataValidator:
     
     def check_difference_in_props(self, new_node, exist_node):
         """
-        check differences in new node between existing node
+        check differences between new node and existing node
         """
         # check properties between new node and exist node
         new_props = new_node[PROPERTIES]
