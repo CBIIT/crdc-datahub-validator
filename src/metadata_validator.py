@@ -308,7 +308,7 @@ class MetaDataValidator:
         for key, value in new_props.items():
             if key not in exist_props.keys():
                 return True
-            elif value not in ["", " ", None] and value != exist_props[key]:
+            elif value not in ["", None] and value != exist_props[key]:
                 return True
             
         # check any differences between new and exist parents
