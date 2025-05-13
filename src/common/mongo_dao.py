@@ -3,12 +3,13 @@ from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
-    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, FAILED, DATA_COMMON_NAME, KEY, \
-    VALUE_PROP, ERRORS, WARNINGS, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
+    FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, DATA_COMMON_NAME, KEY, \
+    VALUE_PROP, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
     BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
-    SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT
+    SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT, PROPERTIES,\
+    STUDY_COLLECTION, ORGANIZATION_COLLECTION, USER_COLLECTION, ERRORS
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -348,7 +349,7 @@ class MongoDao:
         try:
             result = file_collection.bulk_write([
                 UpdateOne( {ID: m[ID]}, 
-                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], QC_RESULT_ID: m.get(QC_RESULT_ID)}})
+                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], QC_RESULT_ID: m.get(QC_RESULT_ID), PROPERTIES: m.get(PROPERTIES)}})
                     for m in list(data_records)
                 ])
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')
@@ -648,6 +649,26 @@ class MongoDao:
         except Exception as e:
             self.log.exception(e)
             self.log.exception(f"Failed to set search index in release collection: {get_exception_msg()}")
+            return False
+    """
+    set synonym search index, 'synonym_term'
+    """
+    def set_search_synonym_index(self, synonym_index):
+        db = self.client[self.db_name]
+        data_collection = db[SYNONYM_COLLECTION]
+        try:
+            index_dict = data_collection.index_information()
+            if not index_dict or not index_dict.get(synonym_index):
+                result = data_collection.create_index([(SYNONYM_TERM)], \
+                            name=synonym_index)
+            return True
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to set search index in synonym collection: {get_exception_msg()}")
+            return False
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to set search index in synonym collection: {get_exception_msg()}")
             return False
         
     """
@@ -1146,9 +1167,7 @@ class MongoDao:
     def find_pvs_by_synonym(self, synonym):
         db = self.client[self.db_name]
         data_collection = db[SYNONYM_COLLECTION]
-        query = {"$or": [{SYNONYM_TERM: {"$regex": synonym, "$options": "i"}}, 
-                     {PV_TERM: {"$regex": synonym, "$options": "i"}}    
-                ]}  #case-insensitive , 
+        query ={SYNONYM_TERM: {"$regex": synonym, "$options": "i"}} #case-insensitive , 
         try:
             return list(data_collection.find(query))
         except errors.PyMongoError as pe:
@@ -1189,6 +1208,64 @@ class MongoDao:
             self.log.exception(e)
             msg = f"Failed to upsert synonyms, {get_exception_msg()}"
             self.log.exception(msg)
+            return None
+        
+    """
+    find study by study_id
+    :param study_id
+    """
+    def find_study_by_id(self, study_id):
+        db = self.client[self.db_name]
+        data_collection = db[STUDY_COLLECTION]
+        query = {ID: study_id}
+        try:
+            return data_collection.find_one(query)
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get study for {study_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get study for {study_id}: {get_exception_msg()}")
+            return None
+
+    """
+    find organization name by study_id
+    :param study_id
+    """   
+    def find_organization_name_by_study_id(self, study_id):
+        db = self.client[self.db_name]
+        data_collection = db[ORGANIZATION_COLLECTION]
+        query = {"studies._id": study_id}
+        try:
+            result = list(data_collection.find(query))
+            return [item.get('name') for item in result]
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
+            return None
+        
+    """
+    find user name by id
+    :param id
+    """   
+    def find_user_by_id(self, id):
+        db = self.client[self.db_name]
+        data_collection = db[USER_COLLECTION]
+        query = {"_id": id}
+        try:
+            return data_collection.find_one(query)
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get user by {id}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get user for {id}: {get_exception_msg()}")
             return None
     
 """

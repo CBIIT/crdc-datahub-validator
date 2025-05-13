@@ -10,13 +10,14 @@ from common.utils import get_date_time, get_exception_msg, get_uuid_str
 
 # Private class
 class GenerateDCF:
-    def __init__(self, configs, mongo_dao, submission, s3_service):
+    def __init__(self, configs, mongo_dao, submission, s3_service, release_manifest_data):
         self.log = get_logger("Generate DCF manifest")
         self.config = configs
         self.mongo_dao = mongo_dao
         self.submission = submission
         self.s3_service = s3_service
         self.production_bucket_name = os.environ.get('DM_BUCKET_NAME')
+        self.release_manifest_data = release_manifest_data
 
     def close(self):
         if self.s3_service:
@@ -86,5 +87,6 @@ class GenerateDCF:
     def upload_file(self, buf):
         id, root_path, bucket_name = self.submission[ID], self.submission[ROOT_PATH], self.submission[BATCH_BUCKET]   
         full_name = f"{root_path}/{EXPORT_METADATA}/release/dcf_manifest/{get_date_time()}-{id}-indexd.tsv"
+        self.release_manifest_data["metadata files"]["dcf manifest file path"] = f"dcf_manifest/{get_date_time()}-{id}-indexd.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
         

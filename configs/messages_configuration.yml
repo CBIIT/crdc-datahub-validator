@@ -135,6 +135,31 @@ Messages:
    severity: "Error"
    message: '{} CDE for property "{}" is not available. Please try again later and contact the helpdesk if this error persists.'
    description: "CDE version doesn't exist in DB, and on-demand pull failed."
+  M028:
+   title: "Program name mismatch"
+   severity: "Error"
+   message: "{} {}"
+   description: "Program name doesn't match pre-approved name(s)."
+  M029:
+   title: "Study name mismatch"
+   severity: "Error"
+   message: "{} Study name mismatch: Study name doesn't match the Data Submission's associated study - '{}'."
+   description: "Study name doesn't match pre-approved name."
+  M030:
+   title: "Unknown program association"
+   severity: "warning"
+   message: "{} Study '{}' has no program association. Please contact your curator about this issue."
+   description: "If an approved study doesn't have a program associated, and a program record is uploaded."
+  M031: 
+    title: "Invalid string pattern"
+    severity: "Error"
+    message: '{} "{}" does not comply to string pattern for property "{}".'
+    description: "A string doesn't match model defined patter Regex"
+  M032: 
+    title: "Invalid pattern definition"
+    severity: "Error"
+    message: '{} Pattern "{}" for property "{}" is not a valid Regular Expression. Please contact your Data Concierge to resolve this issue.'
+    description: "Regex from a model is invalid"
 
   # data file validation message
   F001:

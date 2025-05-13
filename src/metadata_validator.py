@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import json
 from datetime import datetime
+import re
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger, DATE_FORMATS
 from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, WARNINGS, STATUS_ERROR, ID, FAILED, \
@@ -11,7 +12,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
-    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM
+    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -108,7 +109,8 @@ class MetaDataValidator:
         self.isWarning = None
         self.searched_sts = False
         self.not_found_cde = False
-
+        self.study_name = None
+        self.program_names = None
 
     def validate(self, submission_id, scope):
         #1. # get data common from submission
@@ -126,6 +128,20 @@ class MetaDataValidator:
         self.submission = submission
         datacommon = submission.get(DATA_COMMON_NAME)
         self.datacommon = datacommon
+        # get study name and program name(s) from submission and/or study for name validation required in CRDCDH-2431
+        study_id = submission.get(STUDY_ID)
+        if not study_id:
+            msg = f'Invalid submission, no study id found, {submission_id}!'
+            self.log.error(msg)
+            return FAILED
+        study = self.mongo_dao.find_study_by_id(study_id)
+        if not study:
+            msg = f'Invalid submission, no study found, {submission_id}!'
+            self.log.error(msg)
+            return FAILED
+        self.study_name = study.get("studyName")
+        self.program_names = self.mongo_dao.find_organization_name_by_study_id(study_id)
+        
         model_version = submission.get(MODEL_VERSION)
         #2 get data model based on datacommon and version
         self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
@@ -323,6 +339,27 @@ class MetaDataValidator:
             if anode_definition["properties"][data_key]["required"]:
                 if data_value is None or not str(data_value).strip():
                     result[ERRORS].append(create_error("M003",[msg_prefix, data_key], data_key, data_value))
+                else:
+                    entity_type = self.model.get_entity_type(node_type)
+                    if entity_type == "Program":
+                        # validate program name and study name required in CRDCDH-2431.  Both are required properties.
+                        if data_key == self.model.get_configured_prop_name("programName"):
+                            if not self.program_names: # no program associated with the study
+                                result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
+                            else:
+                                matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
+                                if not matched_val:
+                                    msg = "Program name doesn't match pre-approved names:" + ",".join([f"'{name}'" for name in self.program_names]) if len(self.program_names) > 1 else \
+                                     "Program name doesn't match this study's associated programs - " + f"'{self.program_names[0]}'"
+                                    result[ERRORS].append(create_error("M028", [msg_prefix, msg], data_key, data_value))
+                                else:
+                                    data_record[PROPERTIES][data_key] = matched_val
+                    elif entity_type == "Study":
+                        if data_key == self.model.get_configured_prop_name("studyName"):
+                            if data_value.lower() != self.study_name.lower():
+                                result[ERRORS].append(create_error("M029", [msg_prefix, self.study_name], data_key, data_value))
+                            else:
+                                data_record[PROPERTIES][data_key] = self.study_name
 
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
@@ -355,7 +392,7 @@ class MetaDataValidator:
             if not prop_def or v is None: 
                 continue
             
-            errs = self.validate_prop_value(k, v, prop_def, msg_prefix)
+            errs = self.validate_prop_value(k, v, prop_def, msg_prefix, dataRecord)
             if len(errs) > 0:
                 errors.extend(errs)
 
@@ -473,7 +510,7 @@ class MetaDataValidator:
                 child_id_list = list(set(child_id_list + [item[NODE_ID] for item in children]))
             return child_id_list
 
-    def validate_prop_value(self, prop_name, value, prop_def, msg_prefix):
+    def validate_prop_value(self, prop_name, value, prop_def, msg_prefix, data_record):
         # set default return values
         errors = []
         type = prop_def.get(TYPE)
@@ -481,6 +518,20 @@ class MetaDataValidator:
             errors.append(create_error("M009", [msg_prefix, prop_name, type], prop_name, value))
         else:
             val = None
+            if type == PROPERTY_PATTERN:
+                pattern = prop_def.get(PROPERTY_PATTERN)
+                if pattern: 
+                    try:
+                        pattern_obj = re.compile(pattern)
+                        if not pattern_obj.match(str(value)):
+                            errors.append(create_error("M031", [msg_prefix, value, prop_name], prop_name, value))
+                    except Exception as e:
+                        self.log.exception(f"Failed to compile the pattern, {pattern} for the property: {prop_name}.")
+                        errors.append(create_error("M032", [msg_prefix, pattern, prop_name], prop_name, pattern))
+                else:
+                    errors.append(create_error("M032", [msg_prefix, pattern, prop_name], prop_name, pattern))
+                return errors
+            
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
             permissive_vals, msg = self.get_permissive_value(prop_def)
@@ -488,7 +539,7 @@ class MetaDataValidator:
                 errors.append(create_error("M027", [msg_prefix, prop_name], prop_name, value))
             if type == "string":
                 val = str(value)
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
+                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
                 if not result:
                     errors.append(error)
             elif type == "integer":
@@ -530,18 +581,23 @@ class MetaDataValidator:
                     errors.append(create_error("M007",[msg_prefix, prop_name, value], prop_name, value))
 
             elif type == "boolean":
-                if not isinstance(value, bool) and value not in ["yes", "true", "no", "false"]:
-                    errors.append(create_error("M008",[msg_prefix, prop_name, value], prop_name, value))
-            
+                pv_list = ["yes", "true", "no", "false"]
+                if not isinstance(value, bool):
+                    if value.lower() not in pv_list: 
+                        errors.append(create_error("M008",[msg_prefix, prop_name, value], prop_name, value))
+                    else:
+                        matched_val = next((item for item in pv_list if item == value.lower()))
+                        data_record[PROPERTIES][prop_name] = (matched_val in ["yes", "true"]) #transform to boolean
+
             elif (type == "array" or type == "value-list"):
-                if not permissive_vals or len(permissive_vals) == 0:
+                if not permissive_vals or len(permissive_vals) == 0: 
                     return errors #skip validation by crdcdh-1723
                 val = str(value)
                 list_delimiter = self.model.get_list_delimiter()
                 arr = val.split(list_delimiter) if list_delimiter in val else [value]
                 for item in arr:
                     val = item.strip() if item and isinstance(item, str) else item
-                    result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
+                    result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
                     if not result:
                         errors.append(error)
             else:
@@ -596,24 +652,38 @@ class MetaDataValidator:
             permissive_vals = [item.strip() for item in permissive_vals]
         return permissive_vals, msg
 
+    
 """util functions"""
-def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao):
+def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao, data_record=None):
     result = True,
     error = None
     # strip white space from input value
     if value and isinstance(value, str):
         value = value.strip()
-    if permissive_vals and len(permissive_vals) > 0 and value not in permissive_vals:
-        result = False
-        error = create_error("M010", [msg_prefix, value, prop_name], prop_name, value)
-        # check synonym
-        synonyms = dao.find_pvs_by_synonym(value)
-        if not synonyms or len(synonyms) == 0:
-             return result, error 
-        suggested_pvs = [item[PV_TERM] for item in synonyms]
-        permissive_val = [item for item in permissive_vals if item in suggested_pvs]
-        if permissive_val and len(permissive_val) > 0: 
-            error["description"] += f' It is recommended to use "{permissive_val[0]}", as it is semantically equivalent to "{value}"' 
+    if permissive_vals and len(permissive_vals) > 0:
+        if isinstance(permissive_vals[0], str):
+            # find value in pv list in case-insensitive if value is string
+            matched_val = next((item for item in permissive_vals if item.lower() == value.lower()), None)
+            if not matched_val: 
+                result = False
+            else:
+                # if found, check if value in pv list in case-sensitive
+                if value not in permissive_vals and data_record is not None:
+                    # updated the value withe correct case.
+                    data_record[PROPERTIES][prop_name] = matched_val
+        else:
+            result = (value in permissive_vals)
+
+        if not result:
+            error = create_error("M010", [msg_prefix, value, prop_name], prop_name, value)
+            # check synonym
+            synonyms = dao.find_pvs_by_synonym(value)
+            if not synonyms or len(synonyms) == 0:
+                return result, error 
+            suggested_pvs = [item[PV_TERM] for item in synonyms]
+            permissive_val = [item for item in permissive_vals if item in suggested_pvs]
+            if permissive_val and len(permissive_val) > 0: 
+                error["description"] += f' It is recommended to use "{permissive_val[0]}", as it is semantically equivalent to "{value}"' 
     return result, error
 
 def check_boundary(value, min, max, msg_prefix, prop_name):

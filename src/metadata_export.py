@@ -1,9 +1,11 @@
 #!/usr/bin/env python3
 import pandas as pd
+import csv
 import json
 import os, io, boto3
 import time
 import threading
+import io
 from botocore.exceptions import ClientError
 from bento.common.sqs import VisibilityExtender
 from bento.common.utils import get_logger
@@ -14,8 +16,9 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
     SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, \
-    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES
-from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list
+    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES, DATA_FILE_LOCATION, S3_PREFIX
+from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list, \
+    convert_date_time, convert_file_size
 from common.model_store import ModelFactory
 from common.s3_utils import S3Service
 from dcf_manifest_generator import GenerateDCF
@@ -115,17 +118,18 @@ class ExportMetadata:
         self.submission = submission
         self.s3_service = S3Service()
         self.intention = submission.get(SUBMISSION_INTENTION)
+        self.release_manifest_data = None
+        self.submission_type =  self.submission.get(SUBMISSION_DATA_TYPE)  
 
     def close(self):
         if self.s3_service:
             self.s3_service.close(self.log)
 
     def export_data_to_file(self):
-        submission_id, root_path, bucket_name, _, _ = self.get_submission_info()
+        submission_id, root_path, bucket_name, datacommon, study_id = self.get_submission_info()
         if not root_path or not submission_id or not bucket_name:
             self.log(f"{submission_id}: The process of exporting metadata stopped due to incomplete data in the submission.")
 
-        datacommon = self.submission.get(DATA_COMMON_NAME)
         model_version = self.submission.get(MODEL_VERSION)
         #1 get data model based on datacommon and version
         self.model = self.model_store.get_model_by_data_common_version(datacommon, model_version)
@@ -142,6 +146,25 @@ class ExportMetadata:
             return
 
         node_types = self.model.get_node_keys()
+        study = self.mongo_dao.find_study_by_id(study_id)
+        if study:
+            study = {"name": study.get("studyName"), "abbreviation": study.get("studyAbbreviation"), "dbGaPID": study.get("dbGaPID")}
+        submitter = self.mongo_dao.find_user_by_id(self.submission.get("submitterID"))
+        if submitter:
+            submitter = {"name": submitter.get("firstName") + " " + submitter.get("lastName"), "email": submitter.get("email"), "institution": submitter.get("organization", {}).get("orgName")}                                      
+        self.release_manifest_data = {"submission ID": submission_id, "submission creation date": convert_date_time(self.submission.get(CREATED_AT), "%Y-%m-%d %H:%M:%S"), 
+                                      "submission release date": get_date_time("%Y-%m-%d %H:%M:%S"), "study": study, "submitter": submitter,
+                                      "data concierge": {"name": self.submission.get("conciergeName"), "email": self.submission.get("conciergeEmail")},
+                                      "data model version": self.submission.get("modelVersion"), "intention": self.submission.get(SUBMISSION_INTENTION),
+                                      "submission type": self.submission_type,
+                                      "metadata files": {"number of metadata files": 0, "metadata files": []},
+                                      "metadata record counts": {}
+                                      }
+        if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
+            self.release_manifest_data["data files"] = {"count": 0, "total size": 0}
+            self.release_manifest_data["metadata files"]["dcf manifest file path"] = ""
+
+
         threads = []
         #3 retrieve data for nodeType and export to s3 bucket
         for node_type in node_types:
@@ -157,8 +180,11 @@ class ExportMetadata:
             thread.join()
         
         #4 export DCF-manifest
-        DCF_manifest_exporter = GenerateDCF(self.configs, self.mongo_dao, self.submission, self.s3_service )
-        DCF_manifest_exporter.generate_dcf()
+        if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
+            DCF_manifest_exporter = GenerateDCF(self.configs, self.mongo_dao, self.submission, self.s3_service, self.release_manifest_data)
+            DCF_manifest_exporter.generate_dcf()
+        #5 export release manifest file as release-info.json
+        self.upload_release_manifest()
 
         
     def export(self, submission_id, node_type):
@@ -173,6 +199,9 @@ class ExportMetadata:
             if start_index == 0 and (not data_records or len(data_records) == 0):
                 return
             
+            if not self.release_manifest_data["metadata record counts"].get(node_type):
+                self.release_manifest_data["metadata record counts"][node_type] = {"total": 0, "new": 0, "update": 0, "delete": 0}
+
             for r in data_records:
                 # node_id = r.get(NODE_ID)
                 crdc_id = r.get(CRDC_ID) if node_type in main_nodes.keys() else None
@@ -181,6 +210,20 @@ class ExportMetadata:
                 if r.get(ORIN_FILE_NAME) != file_name:
                     columns.update(row_list[0].keys())
                     file_name = r.get(ORIN_FILE_NAME) 
+                # populate release manifest data    
+                self.release_manifest_data["metadata record counts"][node_type]["total"] += 1
+                if self.submission.get(SUBMISSION_INTENTION) == SUBMISSION_INTENTION_NEW_UPDATE:
+                    # search release to check if existing, if existing, add to update, else to new
+                    existed_crdc_record = self.mongo_dao.search_release(self.submission.get(DATA_COMMON_NAME), node_type, r.get(NODE_ID))
+                    if existed_crdc_record:
+                        self.release_manifest_data["metadata record counts"][node_type]["update"] += 1
+                    else:
+                        self.release_manifest_data["metadata record counts"][node_type]["new"] += 1
+                else:
+                    self.release_manifest_data["metadata record counts"][node_type]["delete"] += 1
+                if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and node_type in self.model.get_file_nodes() and r.get(S3_FILE_INFO):
+                    self.release_manifest_data["data files"]["count"] += 1
+                    self.release_manifest_data["data files"]["total size"] += int(r.get(S3_FILE_INFO).get("size"))
 
             count = len(data_records) 
             if count < BATCH_SIZE: 
@@ -188,10 +231,15 @@ class ExportMetadata:
                 buf = None
                 try:
                     df = pd.DataFrame(rows, columns = self.sort_columns(columns, node_type))
+                    # convert python boolean to "true"/"false" in tsv
+                    df = df.apply(lambda col: col.map(lambda x: "true" if (x is True or x == "True") else "false" if x is False or x == "False" else x))
                     buf = io.BytesIO()
                     df.to_csv(buf, sep ='\t', index=False)
                     buf.seek(0)
                     self.upload_file(buf, node_type)
+                    # populate release manifest data
+                    self.release_manifest_data["metadata files"]["metadata files"].append(f"{submission_id}-{node_type}.tsv")
+                    self.release_manifest_data["metadata files"]["number of metadata files"] += 1
                     self.log.info(f"{submission_id}: {count + start_index} {node_type} nodes are exported.")
                     return
                 except Exception as e:
@@ -215,7 +263,6 @@ class ExportMetadata:
         else:
             if CRDC_ID.lower() in row.keys():
                 del row[CRDC_ID.lower()]
-        rows.append(row)
         parents = data_record.get("parents", None)
         if parents: 
             parent_types = list(set([item["parentType"] for item in parents]))
@@ -223,24 +270,26 @@ class ExportMetadata:
                 same_type_parents = [item for item in parents if item["parentType"] == type]
                 rel_name = f'{same_type_parents[0].get("parentType")}.{same_type_parents[0].get("parentIDPropName")}'
                 if len(same_type_parents) == 1:
-                    for item in rows:
-                        item[rel_name] = same_type_parents[0].get("parentIDValue")
+                    row[rel_name] = same_type_parents[0].get("parentIDValue")
                 else:
-                    index = 0
-                    for parent in same_type_parents:
-                        if index == 0:
-                            row[rel_name] = parent.get("parentIDValue")
-                        else:
-                            m2m_row = row.copy()
-                            m2m_row[rel_name] = parent.get("parentIDValue")
-                            rows.append(m2m_row)
-                        index += 1
+                    row[rel_name] = " | ".join([parent.get("parentIDValue") for parent in same_type_parents])
+        rows.append(row)
         return rows
     
     def upload_file(self, buf, node_type):
         id, root_path, bucket_name,_,_ = self.get_submission_info()      
         full_name = f"{ValidationDirectory.get_release(root_path)}/{id}-{node_type}.tsv"
         self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
+
+    def upload_release_manifest(self):
+        _, root_path, bucket_name,_,_ = self.get_submission_info()
+        full_name = f"{ValidationDirectory.get_release(root_path)}/release-info.json"
+        if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY:
+            self.release_manifest_data["data files"]["total size"] = convert_file_size(self.release_manifest_data["data files"]["total size"])
+        buf = io.BytesIO(json.dumps(self.release_manifest_data, indent=4).encode('utf-8'))
+        self.s3_service.upload_file_to_s3(buf, bucket_name, full_name)
+        buf.close()
+
 
     def delete_data_file(self, submission_id, node_type):
         start_index = 0
@@ -342,6 +391,8 @@ class ExportMetadata:
                              }], 
                 STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
             }
+            if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
+                crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.insert_release(crdc_record)
             if not result:
@@ -378,6 +429,8 @@ class ExportMetadata:
                 existed_crdc_record[SUBMISSION_HISTORY] = history
                 existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
                 existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
+                if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
+                    existed_crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 
             result = self.mongo_dao.update_release(existed_crdc_record)
             if not result:
@@ -388,6 +441,17 @@ class ExportMetadata:
                 result, children = self.mongo_dao.get_released_nodes_by_parent_with_status(self.submission[DATA_COMMON_NAME], existed_crdc_record, [SUBMISSION_REL_STATUS_RELEASED, None], self.submission[ID])
                 if result and children and len(children) > 0: 
                     self.delete_release_children(children)
+
+    def get_file_url(self, s3_file_info):
+        if not s3_file_info or not s3_file_info.get(FILE_NAME):
+            return None
+        _, _, _, _, study_id = self.get_submission_info()
+        dest_bucket_name = self.configs.get(DM_BUCKET_CONFIG_NAME)
+        dest_file_folder =  study_id
+        file_name = s3_file_info.get(FILE_NAME)
+        url = os.path.join(dest_bucket_name, dest_file_folder, file_name)
+        url = "s3://" + url
+        return url
     
     def combine_parents(self, node_type, release_parents, node_parents):
         if not release_parents or len(release_parents) == 0:

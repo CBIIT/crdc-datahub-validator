@@ -2,7 +2,7 @@ import os
 from bento.common.utils import get_logger
 from common.model_reader import YamlModelParser
 from common.model import DataModel
-from common.constants import MODELS_DEFINITION_FILE, LIST_DELIMITER_PROP, DEF_MAIN_NODES
+from common.constants import MODELS_DEFINITION_FILE, LIST_DELIMITER_PROP, DEF_MAIN_NODES, PROPERTY_NAMES, OMIT_DCF_PREFIX
 from common.utils import download_file_to_dict, get_exception_msg
 
 
@@ -50,7 +50,8 @@ class ModelFactory:
         #process model files for the data common
         try:
             model_reader = YamlModelParser(file_names, dc, delimiter, version)
-            model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES], DEF_MAIN_NODES: v[DEF_SEMANTICS][DEF_MAIN_NODES]})
+            model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES], DEF_MAIN_NODES: v[DEF_SEMANTICS][DEF_MAIN_NODES], 
+                                       PROPERTY_NAMES: v[DEF_SEMANTICS][PROPERTY_NAMES], OMIT_DCF_PREFIX: v.get(OMIT_DCF_PREFIX, False)})
             self.models.update({model_key(dc, version): model_reader.model})
         except Exception as e:
             self.log.exception(e)

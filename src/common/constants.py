@@ -214,3 +214,13 @@ SYNONYM_COLLECTION = "synonyms"
 PV_TERM = "equivalent_term"
 SYNONYM_TERM = "synonym_term"
 
+STUDY_COLLECTION = "approvedStudies"
+ORGANIZATION_COLLECTION = "organization"
+PROPERTY_NAMES = "property-names"
+OMIT_DCF_PREFIX = "omit-DCF-prefix"
+DATA_FILE_LOCATION = "dataFileLocation"
+S3_PREFIX = "rootPath"
+PROPERTY_PATTERN = "pattern"
+
+USER_COLLECTION = "users"
+
