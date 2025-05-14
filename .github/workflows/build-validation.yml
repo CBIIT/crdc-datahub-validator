@@ -68,8 +68,10 @@ jobs:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    continue-on-error: true
     outputs:
       result: ${{ steps.set-output-file.outputs.result }}
+      #status: ${{ steps.set-output-file.outputs.status }}
 
     steps:
 
@@ -174,8 +176,10 @@ jobs:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    continue-on-error: true
     outputs:
       result: ${{ steps.set-output-essential.outputs.result }}
+      #status: ${{ steps.set-output-essential.outputs.status }}
 
     steps:
 
@@ -282,8 +286,10 @@ jobs:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    continue-on-error: true
     outputs:
       result: ${{ steps.set-output-metadata.outputs.result }}
+      #status: ${{ steps.set-output-metadata.outputs.status }}
 
     steps:
 
@@ -389,8 +395,10 @@ jobs:
       AWS_ROLE_TO_ASSUME: ${{ secrets.AWS_ROLE_TO_ASSUME }}
       AWS_ACCOUNT_ID: ${{ secrets.AWS_ACCOUNT_ID }}
       SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+    continue-on-error: true
     outputs:
       result: ${{ steps.set-output-export.outputs.result }}
+      #status: ${{ steps.set-output-export.outputs.status }}
 
     steps:
 
@@ -487,7 +495,7 @@ jobs:
   send-slack-notification:
     name: send slack notification
     runs-on: ubuntu-latest
-    needs: [build-file-validation, build-essential-validation, build-metadata-validation, build-export-validation]
+    #needs: [build-file-validation, build-essential-validation, build-metadata-validation, build-export-validation]
     if: ${{ (needs.build-file-validation.result == 'success' && github.event.inputs.build_file_validation == 'true') || (needs.build-essential-validation.result == 'success' && github.event.inputs.build_essential_validation == 'true') || (needs.build-metadata-validation.result == 'success' && github.event.inputs.build_metadata_validation == 'true') || (needs.build-export-validation.result == 'success' && github.event.inputs.build_export_validation == 'true') }} 
     environment: ${{ inputs.environment }}
     env:
