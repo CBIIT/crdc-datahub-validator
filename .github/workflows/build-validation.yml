@@ -16,38 +16,42 @@ on:
         description: build file validation
         required: true
         type: boolean
+        default: true
       build_essential_validation:
         description: build essential validation
         required: true
         type: boolean
+        default: true
       build_metadata_validation:
         description: build metadata validation
         required: true
         type: boolean
+        default: true
       build_export_validation:
         description: build export validation
         required: true
         type: boolean
+        default: true
       trivy_test_scan_file_validation:
         description: "Run Trivy Test Scan for file validation"
         required: true
         type: boolean
-        default: false
+        default: true
       trivy_test_scan_essential_validation:
         description: "Run Trivy Test Scan for essential validation"
         required: true
         type: boolean
-        default: false
+        default: true
       trivy_test_scan_metadata_validation:
         description: "Run Trivy Test Scan for metadata validation"
         required: true
         type: boolean
-        default: false
+        default: true
       trivy_test_scan_export_validation:
         description: "Run Trivy Test Scan for export validation"
         required: true
         type: boolean
-        default: false
+        default: true
 
 
 jobs:
