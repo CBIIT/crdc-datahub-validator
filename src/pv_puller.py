@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
 from common.constants import TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, CDE_FULL_NAME, ID, CREATED_AT, UPDATED_AT,\
-        SYNONYM_API_URL, CDE_PERMISSIVE_VALUES
+        CDE_PERMISSIVE_VALUES
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 from common.api_client import APIInvoker
 
@@ -133,7 +133,7 @@ def get_cde_dump_files(api_client, github_url, tier, log):
 
 def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_version):
     """
-    get permissive values by cde code and version
+    get permissive values by cde code and version in real time
     :param cde_code: cde code
     :param cde_version: cde version
     """
@@ -181,7 +181,7 @@ def get_pv_by_datacommon_version_cde(tier, data_commons, data_model_version, cde
     :param mongo_dao: Data access object for MongoDB operations.
     :returns: A dictionary containing the CDE full name, code, version, and permissive values, or None if the CDE is not found or an error occurs.
     """
-    # construct the sts dump file url based on tier, data commons, and model version
+    # construct the sts dump file url based on tier
     sts_file_url = STS_FILE_URL.format(tier)
     try:
         log.info(f"Extracting cde from {sts_file_url}")
