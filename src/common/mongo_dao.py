@@ -9,7 +9,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
     BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
     SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT, PROPERTIES,\
-    STUDY_COLLECTION, ORGANIZATION_COLLECTION, USER_COLLECTION, ERRORS
+    STUDY_COLLECTION, ORGANIZATION_COLLECTION, USER_COLLECTION, PV_CONCEPT_CODE_COLLECTION, CONCEPT_CODE, PERMISSIBLE_VALUE
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -1205,6 +1205,37 @@ class MongoDao:
         except Exception as e:
             self.log.exception(e)
             msg = f"Failed to upsert synonyms, {get_exception_msg()}"
+            self.log.exception(msg)
+            return None
+    """
+    upsert synonym records
+    :param synonym_list
+    """
+    def insert_concept_codes(self, concept_codes):
+        db = self.client[self.db_name]
+        data_collection = db[PV_CONCEPT_CODE_COLLECTION]
+        to_insert = []
+        try:
+            for item in concept_codes:
+                concept_code = {PERMISSIBLE_VALUE: item[0], CONCEPT_CODE: item[1]}
+                # check if synonym exists
+                existing_concept_code = data_collection.find_one(concept_code)
+                if existing_concept_code:
+                    continue
+                to_insert.append({ID: get_uuid_str(),  **concept_code})
+
+            if len(to_insert) == 0:
+                return 0
+            result = data_collection.insert_many(to_insert)
+            return len(result.inserted_ids)
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            msg = f"Failed to upsert concept code, {get_exception_msg()}"
+            self.log.exception(msg)
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to upsert concept code, {get_exception_msg()}"
             self.log.exception(msg)
             return None
         

@@ -13,7 +13,7 @@ FILE_DOWNLOAD_URL = "download_url"
 FILE_NAME = "name"
 FILE_TYPE = "type"
 CDE_PV_NAME = "permissibleValues"
-STS_FILE_URL = "https://raw.githubusercontent.com/CBIIT/crdc-datahub-terms/{}/{}_{}_sts.json"
+STS_FILE_URL = "https://raw.githubusercontent.com/CBIIT/crdc-datahub-terms/{}/mdb_pvs_synonyms.json"
 
 def pull_pv_lists(configs, mongo_dao):
     """
@@ -53,19 +53,14 @@ class PVPuller:
         """
         pull cde pv from CDE dump files in github and save to CDE collection in DB
         """
-        file_list = get_cde_dump_files(self.api_client, self.configs[SYNONYM_API_URL], self.configs[TIER_CONFIG], self.log)
-        if not file_list:
-            self.log.info("No CDE dump files found!")   
-            return
+        tier = self.configs.get(TIER_CONFIG)
+        sts_file_url = STS_FILE_URL.format(tier)
         cde_set = set()
         cde_records = []
-        for file in file_list:
-            self.extract_cde_from_file(file[FILE_DOWNLOAD_URL], cde_set, cde_records)
-        
+        self.extract_cde_from_file(sts_file_url, cde_set, cde_records)
         if not cde_records or len(cde_records) == 0:
             self.log.info("No cde found!")
             return
-        
         self.log.info(f"{len(cde_set)} unique CDE are retrieved!")
         result, msg = self.mongo_dao.upsert_cde(list(cde_records))
         if result: 
@@ -187,7 +182,7 @@ def get_pv_by_datacommon_version_cde(tier, data_commons, data_model_version, cde
     :returns: A dictionary containing the CDE full name, code, version, and permissive values, or None if the CDE is not found or an error occurs.
     """
     # construct the sts dump file url based on tier, data commons, and model version
-    sts_file_url = STS_FILE_URL.format(tier, data_commons.lower(), data_model_version)
+    sts_file_url = STS_FILE_URL.format(tier)
     try:
         log.info(f"Extracting cde from {sts_file_url}")
         api_client = APIInvoker({})
@@ -250,35 +245,28 @@ class SynonymPuller:
     def pull_synonyms(self):
         # init a synonym set to make sure all synonym/pv pairs are unique
         synonym_set = set()
+        concept_code_set = set()
+        tier = self.configs.get(TIER_CONFIG)
+        sts_file_url = STS_FILE_URL.format(tier)
         try: 
-        #  1) get contents in branch (tier) of the repo 
-            synonym_url = str(self.configs[SYNONYM_API_URL])
-            file_list = get_cde_dump_files(self.api_client, synonym_url, self.configs[TIER_CONFIG], self.log)
-            """ 
-            file structure:           
-                'name' = 'README.md'
-                'path' = 'README.md'
-                'sha' = '38d749509c716ac79d3ad2540a50b043c075c0be'
-                'size' = 21
-                'url' = 'https://api.github.com/repos/CBIIT/crdc-datahub-terms/contents/README.md?ref=dev2'
-                'html_url' = 'https://github.com/CBIIT/crdc-datahub-terms/blob/dev2/README.md'
-                'git_url' = 'https://api.github.com/repos/CBIIT/crdc-datahub-terms/git/blobs/38d749509c716ac79d3ad2540a50b043c075c0be'
-                'download_url' = 'https://raw.githubusercontent.com/CBIIT/crdc-datahub-terms/dev2/README.md'
-                'type' = 'file'
-            """
-            for file in file_list:
-                if not (file[FILE_TYPE] == "file" and "_sts.json" in file[FILE_NAME]):
-                    continue
-                # 2) pull synonyms from the file
-                self.get_synonyms_by_datacommon_version(file[FILE_DOWNLOAD_URL], synonym_set)
-
-        #  3) save synonyms to db
+            # 1) pull synonyms from the file
+            self.get_synonyms_by_datacommon_version(sts_file_url, synonym_set, concept_code_set)
+            # 2) save synonyms to db
             if not synonym_set or len(synonym_set) == 0:
                 self.log.info("No synonyms found!")
                 return
             self.log.info(f"{len(synonym_set)} unique synonym/pv pairs are retrieved!")
             count = self.mongo_dao.insert_synonyms(list(synonym_set))
             self.log.info(f"{count} new synonyms are inserted!")
+
+            # 3) save concept code to db
+            if not concept_code_set or len(concept_code_set) == 0:
+                self.log.info("No concept code found!")
+                return
+            self.log.info(f"{len(concept_code_set)} unique concept code/pv pairs are retrieved!")
+            count = self.mongo_dao.insert_concept_codes(list(concept_code_set))
+            self.log.info(f"{count} concept codes are inserted!")
+            
             return
 
         except Exception as e: #catch all unhandled exception
@@ -287,17 +275,17 @@ class SynonymPuller:
             self.log.exception(msg)
             return False
         
-    def get_synonyms_by_datacommon_version(self, synonym_url, synonym_set):
+    def get_synonyms_by_datacommon_version(self, synonym_url, synonym_set, concept_code_set):
         """
         get synonyms from dump file url in Github repo
         :param synonym_url
         :param synonym_set
         """
         try:
-            self.log.info(f"Pulling synonyms from {synonym_url}")
+            self.log.info(f"Pulling synonyms and concept codes from {synonym_url}")
             result = self.api_client.get_synonyms(synonym_url)
             if not result or len(result) == 0:
-                self.log.info(f"Synonyms for {synonym_url} are not found! ")
+                self.log.info(f"Synonyms and concept codes for {synonym_url} are not found! ")
                 return None
             # filter out empty synonyms
             synonyms  = [item for item in result if item.get(CDE_PV_NAME) and item.get(CDE_PV_NAME)[0].get('synonyms')] 
@@ -310,13 +298,35 @@ class SynonymPuller:
                         if synonyms:
                             for synonym in synonyms_val:
                                 if synonym:
-                                    synonym = (synonym, value)
-                                    synonym_set.add(synonym)
-
+                                    synonym_key = (synonym, value)
+                                    synonym_set.add(synonym_key)
+            # extract concept codes
+            self.get_concept_code(result, concept_code_set)
+    
         except Exception as e:
             self.log.exception(e)
             msg = f"Failed to pull synonyms from {synonym_url}, {get_exception_msg()}!"
             self.log.exception(msg)
             return None
-        
-
+    
+    def get_concept_code(self, result, concept_code_set):
+        """
+        get synonyms from dump file url in Github repo
+        :param synonym_url
+        :param synonym_set
+        """
+        self.log.info(f"Extract concept codes")
+        # filter out empty synonyms
+        concept_codes  = [item for item in result if item.get(CDE_PV_NAME) and item.get(CDE_PV_NAME)[0].get('ncit_concept_code')] 
+        for item in concept_codes:
+            pv_list = item.get(CDE_PV_NAME)
+            if pv_list:
+                for pv in pv_list:
+                    value = pv.get('value')
+                    concept_code = pv.get('ncit_concept_code')
+                    if concept_code:
+                        concept_code_key = (value, concept_code)
+                        if concept_code_key in concept_code_set:
+                            continue
+                        concept_code_set.add(concept_code_key)
+        return

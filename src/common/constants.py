@@ -226,3 +226,7 @@ USER_COLLECTION = "users"
 
 DELETE_COMMAND = "<delete>"
 
+PV_CONCEPT_CODE_COLLECTION = "pvConceptCodes"
+CONCEPT_CODE = "conceptCode"
+PERMISSIBLE_VALUE = "pv"
+
