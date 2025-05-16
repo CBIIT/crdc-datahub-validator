@@ -1208,8 +1208,8 @@ class MongoDao:
             self.log.exception(msg)
             return None
     """
-    upsert synonym records
-    :param synonym_list
+    upsert pv concept codes
+    :param concept_codes
     """
     def insert_concept_codes(self, concept_codes):
         db = self.client[self.db_name]
