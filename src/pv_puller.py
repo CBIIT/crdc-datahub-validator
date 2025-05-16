@@ -299,6 +299,8 @@ class SynonymPuller:
                             for synonym in synonyms_val:
                                 if synonym:
                                     synonym_key = (synonym, value)
+                                    if synonym_key in synonym_set:
+                                        continue
                                     synonym_set.add(synonym_key)
             # extract concept codes
             self.get_concept_code(result, concept_code_set)
