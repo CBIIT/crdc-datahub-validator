@@ -61,7 +61,10 @@ class DataLoader:
                 start_index = 0
                 for index, row in df.iterrows():
                     type = row[TYPE]
-                    node_id = self.get_node_id(type, row)  #convert the file_id to correct format.
+                    rawData = df.loc[index].to_dict()
+                    if rawData.get('index') is not None:
+                        del rawData['index'] #remove index column
+                    node_id = self.get_node_id(type, rawData)  #convert the file_id to correct format.
                     if type in file_types:
                         node_id = self.adjust_file_id_case(node_id)
                     exist_node = self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
@@ -71,11 +74,7 @@ class DataLoader:
                         exist_node[QC_RESULT_ID] = None
                         s3FileInfo = exist_node.get(S3_FILE_INFO)
                         if s3FileInfo:
-                            s3FileInfo[QC_RESULT_ID] = None
-                    # 2. construct dataRecord
-                    rawData = df.loc[index].to_dict()
-                    if rawData.get('index') is not None:
-                        del rawData['index'] #remove index column
+                            s3FileInfo[QC_RESULT_ID] = None                  
                     relation_fields = [name for name in col_names if '.' in name]
                     prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
                     batchIds = [self.batch[ID]] if not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
@@ -193,15 +192,7 @@ class DataLoader:
     get node id 
     """
     def get_record_id(self, node):
-        if node:
-            return node[ID]
-        else:
-             # check if the node type has composition id required by user story CRDCDh-2631
-            composition_key = self.model.get_composition_key(type)
-            if not composition_key:
-                return get_uuid_str()
-            else:
-
+        return node[ID] if node else get_uuid_str()
 
     """
     get node crdc id

@@ -139,6 +139,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
+                    # msg.delete()
                     if data_loader:
                         del data_loader
                     if validator:
