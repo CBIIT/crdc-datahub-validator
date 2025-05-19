@@ -3,7 +3,7 @@ import re
 from bento.common.utils import get_logger, MULTIPLIER, DEFAULT_MULTIPLIER
 from common.constants import DATA_COMMON, VERSION, MODEL_SOURCE, NAME_PROP, DESC_PROP, ID_PROPERTY, VALUE_PROP, \
     VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, TYPE, NODE_LABEL, NODE_PROPERTIES, PROP_REQUIRED, MD5, \
-    FILE_SIZE, LIST_DELIMITER_PROP, CDE_TERM, PROPERTY_PATTERN
+    FILE_SIZE, LIST_DELIMITER_PROP, CDE_TERM, PROPERTY_PATTERN, COMPOSITION_KEY
 from common.utils import download_file_to_dict, case_insensitive_get
 
 NODES = 'Nodes'
@@ -38,7 +38,7 @@ RELATION_DELIMITER = '$'
 DEFAULT_VERSION = "1.0.0"
 DEFAULT_DESC = ""
 FILE_NAME = "file_name"
-
+NODE_KEY = "Key"
 
 valid_prop_types = [
     "string", # default type
@@ -123,10 +123,15 @@ class YamlModelParser:
         :return:
         """
         properties = self._process_properties(name, desc)
+        if NODE_KEY in desc:
+            if desc[NODE_KEY]:
+                properties.update({COMPOSITION_KEY: desc["Key"]})
 
         # All nodes that has properties will be save to self.nodes
         if properties[NODE_PROPERTIES]:
             self.nodes[name] = properties
+
+        
 
     def _process_properties(self, name, desc):
         """

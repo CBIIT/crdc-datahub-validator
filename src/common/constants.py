@@ -226,3 +226,5 @@ USER_COLLECTION = "users"
 
 DELETE_COMMAND = "<delete>"
 
+COMPOSITION_KEY = "composition_key"
+

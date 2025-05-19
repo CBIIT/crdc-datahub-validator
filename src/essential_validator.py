@@ -432,7 +432,9 @@ class EssentialValidator:
             return False
         #check if id property value is empty
         nan_count = self.df.isnull().sum()[id_field]
-        if nan_count > 0: 
+        # check if the node type has composition id required by user story CRDCDh-2631
+        composition_key = self.model.get_composition_key(type)
+        if nan_count > 0 and not composition_key: 
             nan_rows = self.df[self.df[id_field].isnull()].to_dict("index")
             for key in nan_rows.keys():
                 msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  Key property “{id_field}” value is required.'

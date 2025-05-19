@@ -193,7 +193,15 @@ class DataLoader:
     get node id 
     """
     def get_record_id(self, node):
-        return node[ID] if node else get_uuid_str()
+        if node:
+            return node[ID]
+        else:
+             # check if the node type has composition id required by user story CRDCDh-2631
+            composition_key = self.model.get_composition_key(type)
+            if not composition_key:
+                return get_uuid_str()
+            else:
+
 
     """
     get node crdc id
@@ -224,8 +232,21 @@ class DataLoader:
     """
     def get_node_id(self, type, row):
         id_field = self.model.get_node_id(type)
-        return row[id_field] if id_field else None
-    
+        if id_field: 
+            if row.get(id_field) and row[id_field].strip():
+                return row[id_field].strip()
+            else:
+                # check if the node type has composition id required by user story CRDCDh-2631
+                composition_key = self.model.get_composition_key(type)
+                if composition_key:
+                    val_list = []
+                    for key in composition_key:
+                        val_list.append(str(row.get(key, "")).strip())
+                    id_val =  "_".join(val_list)
+                    row[id_field] = id_val
+                    return id_val
+        return None
+
     """
     get parents based on relationship fields that in format of
     [parent node].parentNodeID
