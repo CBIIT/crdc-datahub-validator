@@ -227,7 +227,7 @@ class DataLoader:
             if row.get(id_field) and row[id_field].strip():
                 return row[id_field].strip()
             else:
-                # check if the node type has composition id required by user story CRDCDh-2631
+                # check if the node has composition id (user story CRDCDh-2631)
                 composition_key = self.model.get_composition_key(type)
                 if composition_key:
                     val_list = []

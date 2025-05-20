@@ -433,7 +433,7 @@ class EssentialValidator:
             return False
         #check if id property value is empty
         nan_count = self.df.isnull().sum()[id_field]
-        # check if the node type has composition id required by user story CRDCDh-2631
+        # check if the node has composition id (user story CRDCDh-2631)
         composition_key = self.model.get_composition_key(type)
         if nan_count > 0 and not composition_key: 
             nan_rows = self.df[self.df[id_field].isnull()].to_dict("index")
