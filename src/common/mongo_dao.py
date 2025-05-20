@@ -1238,6 +1238,24 @@ class MongoDao:
             msg = f"Failed to upsert concept code, {get_exception_msg()}"
             self.log.exception(msg)
             return None
+    """
+    get concept code by pv
+    :param pv
+    """   
+    def get_concept_code_by_pv(self, pv):
+        db = self.client[self.db_name]
+        data_collection = db[PV_CONCEPT_CODE_COLLECTION]
+        query = {PERMISSIBLE_VALUE: pv}
+        try:
+            return data_collection.find_one(query)
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get concept code for {pv}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get concept code for {pv}: {get_exception_msg()}")
+            return None
         
     """
     find study by study_id
