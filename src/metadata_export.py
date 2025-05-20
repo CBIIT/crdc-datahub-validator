@@ -493,7 +493,7 @@ class ExportMetadata:
                 self.submission.get(DATA_COMMON_NAME), self.submission.get(STUDY_ID)]
     
     def sort_columns(self, cols, node_type):
-        columns = list(cols)
+        columns = sorted(cols)
         old_index = columns.index(TYPE)
         columns.insert(0, columns.pop(old_index))
         old_index = columns.index(self.model.get_node_id(node_type))
