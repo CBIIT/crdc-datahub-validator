@@ -189,7 +189,7 @@ class DataLoader:
             return True
     
     """
-    get node id 
+    get record id 
     """
     def get_record_id(self, node):
         return node[ID] if node else get_uuid_str()

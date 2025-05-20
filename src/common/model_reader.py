@@ -123,10 +123,10 @@ class YamlModelParser:
         :return:
         """
         properties = self._process_properties(name, desc)
+        # check if the node has composition id required by user story CRDCDh-2631
         if NODE_KEY in desc:
             if desc[NODE_KEY]:
-                properties.update({COMPOSITION_KEY: desc["Key"]})
-
+                properties.update({COMPOSITION_KEY: desc[NODE_KEY]})
         # All nodes that has properties will be save to self.nodes
         if properties[NODE_PROPERTIES]:
             self.nodes[name] = properties
