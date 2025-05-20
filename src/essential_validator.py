@@ -139,6 +139,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
+                    # msg.delete()
                     if data_loader:
                         del data_loader
                     if validator:
@@ -432,7 +433,9 @@ class EssentialValidator:
             return False
         #check if id property value is empty
         nan_count = self.df.isnull().sum()[id_field]
-        if nan_count > 0: 
+        # check if the node has composition id (user story CRDCDh-2631)
+        composition_key = self.model.get_composition_key(type)
+        if nan_count > 0 and not composition_key: 
             nan_rows = self.df[self.df[id_field].isnull()].to_dict("index")
             for key in nan_rows.keys():
                 msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  Key property “{id_field}” value is required.'
@@ -447,7 +450,7 @@ class EssentialValidator:
             index = 2
             isValidId = True
             for id in ids:
-                result, msg = self.validate_file_id(id, file_info, index)
+                result, msg = self.validate_file_id(id_field, id, file_info, index)
                 if not result:
                     self.log.error(msg)
                     isValidId = False
@@ -517,20 +520,20 @@ class EssentialValidator:
     """
     check if id field value is valid
     """
-    def validate_file_id(self, id, file_info, lineNum):
+    def validate_file_id(self, id_field, id, file_info, lineNum):
         omit_prefix = self.model.get_omit_dcf_prefix()
         # check if is is uuid
         # check if file id prefix based on data model OMIT_DCF_PREFIX
         low_id = id.lower()
         if omit_prefix:
-            msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID property file_id. A correct file ID should look like "e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'
+            msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID (property {id_field}). A correct file ID should look like "e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'
             if low_id.startswith(DCF_PREFIX.lower()):
                 return False, msg
             else:
                 if not validate_uuid_by_rex(low_id):
                     return False, msg
         else:
-            msg = msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID property file_id. A correct file ID should look like "dg.4DFC/e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'   
+            msg = msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID (property {id_field}). A correct file ID should look like "dg.4DFC/e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'   
             if not low_id.startswith(DCF_PREFIX.lower()):
                 return False, msg
             else:
