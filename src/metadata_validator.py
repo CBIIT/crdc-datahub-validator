@@ -29,7 +29,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
     try:
         model_store = ModelFactory(configs[MODEL_FILE_DIR], configs[TIER_CONFIG]) 
         # dump models to json files
-        dump_dict_to_json(model_store.models, f"models/data_model.json")
+        # dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
         log.exception(e)
         log.exception(f'Error occurred when initialize metadata validation service: {get_exception_msg()}')
