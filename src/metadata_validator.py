@@ -12,7 +12,8 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     SUBMISSION_REL_STATUS_RELEASED, VALIDATION_ID, VALIDATION_ENDED, CDE_TERM, TERM_CODE, TERM_VERSION, CDE_PERMISSIVE_VALUES, \
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
-    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN, DELETE_COMMAND, CONCEPT_CODE
+    LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN, DELETE_COMMAND, CONCEPT_CODE, \
+    GENERATED_PROPS
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -576,7 +577,10 @@ class MetaDataValidator:
                 result = self.mongo_dao.get_concept_code_by_pv(value)
                 if result and result.get(CONCEPT_CODE):
                     property_concept_code_name = f'{prop_name}_concept_code'
-                    data_record[PROPERTIES][property_concept_code_name] = result[CONCEPT_CODE]
+                    if not data_record.get(GENERATED_PROPS):
+                        data_record[GENERATED_PROPS] = {property_concept_code_name: result[CONCEPT_CODE]}
+                    else:
+                        data_record[GENERATED_PROPS].update({property_concept_code_name: result[CONCEPT_CODE]})
             if type == "string":
                 val = str(value)
                 result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
