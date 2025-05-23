@@ -5,16 +5,12 @@ from common.model import DataModel
 from common.constants import MODELS_DEFINITION_FILE, LIST_DELIMITER_PROP, DEF_MAIN_NODES, PROPERTY_NAMES, OMIT_DCF_PREFIX
 from common.utils import download_file_to_dict, get_exception_msg
 
-
 YML_FILE_EXT = ".yml"
 DEF_MODEL_FILES = "model-files"
-# DEF_MODEL_FILE = "model-file"
-# DEF_MODEL_PROP_FILE = "prop-file"
 DEF_VERSION = "current-version"
 MODE_ID_FIELDS = "id_fields"
 DEF_SEMANTICS = "semantics"
 DEF_FILE_NODES = "file-nodes"
-
 class ModelFactory:
     
     def __init__(self, model_def_loc, tier):
@@ -30,12 +26,6 @@ class ModelFactory:
             msg = f'Invalid models definition at "{models_def_file_path}"!'
             self.log.error(msg)
             raise Exception(msg)
-        self.models = {}
-        for k, v in self.models_def.items():
-            data_common = k
-            version = v[DEF_VERSION]
-            self.create_model(data_common, version)
-
     """
     create a data model dict by parsing yaml model files
     """
@@ -52,44 +42,35 @@ class ModelFactory:
             model_reader = YamlModelParser(file_names, dc, delimiter, version)
             model_reader.model.update({DEF_FILE_NODES: v[DEF_SEMANTICS][DEF_FILE_NODES], DEF_MAIN_NODES: v[DEF_SEMANTICS][DEF_MAIN_NODES], 
                                        PROPERTY_NAMES: v[DEF_SEMANTICS][PROPERTY_NAMES], OMIT_DCF_PREFIX: v.get(OMIT_DCF_PREFIX, False)})
-            self.models.update({model_key(dc, version): model_reader.model})
+            return model_reader.model
         except Exception as e:
             self.log.exception(e)
             msg = f"Failed to create data model: {data_common}/{version}!"
             self.log.exception(f"{msg} {get_exception_msg()}")
-
+            return None
     """
-    get all models
+    get current version by data common
     """
-
-    """
-    get model by data common
-    """       
-    def get_model_by_data_common(self, data_common):
+    def get_current_version_by_datacommon(self, data_common):
         dc = data_common
         v = self.models_def[dc]
         version = v[DEF_VERSION]
-        model = self.models.get(model_key(dc, version))
-        return DataModel(model)
-    
+        return version
     """
     get model by data common and version
     """       
     def get_model_by_data_common_version(self, data_common, version):
-        if version:
-            model = self.models.get(model_key(data_common, version))
-            if not model:
-                try:
-                    self.create_model(data_common, version)
-                    model = self.models.get(model_key(data_common, version))
-                except Exception as e:
-                    self.log.exception(e)
-                    msg = f"Failed to create data model: {data_common}/{version}!"
-                    self.log.exception(f"{msg} {get_exception_msg()}")
-            return DataModel(model)   
-        else:
-            return self.get_model_by_data_common(data_common)
-        
+        model = None
+        if not version:
+            version = self.get_current_version_by_datacommon(data_common)
+        try:
+            model = self.create_model(data_common, version)
+        except Exception as e:
+            self.log.exception(e)
+            msg = f"Failed to create data model: {data_common}/{version}!"
+            self.log.exception(f"{msg} {get_exception_msg()}")
+        return DataModel(model) if model else None  
+
 def model_key(data_common, version):
     return f"{data_common}_{version}"
         

@@ -36,7 +36,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
         model_store = ModelFactory(configs[MODEL_FILE_DIR], configs[TIER_CONFIG]) 
         # dump models to json files
         # dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
-        dump_dict_to_json(model_store.models, f"models/data_model.json")
+        # dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
         log.exception(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
