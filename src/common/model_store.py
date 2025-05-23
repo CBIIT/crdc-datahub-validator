@@ -5,14 +5,12 @@ from common.model import DataModel
 from common.constants import MODELS_DEFINITION_FILE, LIST_DELIMITER_PROP, DEF_MAIN_NODES, PROPERTY_NAMES, OMIT_DCF_PREFIX
 from common.utils import download_file_to_dict, get_exception_msg
 
-
 YML_FILE_EXT = ".yml"
 DEF_MODEL_FILES = "model-files"
 DEF_VERSION = "current-version"
 MODE_ID_FIELDS = "id_fields"
 DEF_SEMANTICS = "semantics"
 DEF_FILE_NODES = "file-nodes"
-
 class ModelFactory:
     
     def __init__(self, model_def_loc, tier):
