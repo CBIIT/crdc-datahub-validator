@@ -16,7 +16,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
     SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, \
-    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES, DATA_FILE_LOCATION, S3_PREFIX
+    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES, DATA_FILE_LOCATION, S3_PREFIX, GENERATED_PROPS
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list, \
     convert_date_time, convert_file_size
 from common.model_store import ModelFactory
@@ -210,6 +210,7 @@ class ExportMetadata:
                 if r.get(ORIN_FILE_NAME) != file_name:
                     columns.update(row_list[0].keys())
                     file_name = r.get(ORIN_FILE_NAME) 
+                
                 # populate release manifest data    
                 self.release_manifest_data["metadata record counts"][node_type]["total"] += 1
                 if self.submission.get(SUBMISSION_INTENTION) == SUBMISSION_INTENTION_NEW_UPDATE:
@@ -263,6 +264,10 @@ class ExportMetadata:
         else:
             if CRDC_ID.lower() in row.keys():
                 del row[CRDC_ID.lower()]
+        if data_record.get(GENERATED_PROPS):
+            generatedProps = data_record[GENERATED_PROPS]
+            for k, v in generatedProps.items():
+                row[k] = v
         parents = data_record.get("parents", None)
         if parents: 
             parent_types = list(set([item["parentType"] for item in parents]))

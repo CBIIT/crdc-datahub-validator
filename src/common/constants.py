@@ -231,4 +231,5 @@ COMPOSITION_KEY = "composition_key"
 PV_CONCEPT_CODE_COLLECTION = "pvConceptCodes"
 CONCEPT_CODE = "conceptCode"
 PERMISSIBLE_VALUE = "pv"
+GENERATED_PROPS = "generatedProps"
 
