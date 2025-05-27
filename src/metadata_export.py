@@ -439,7 +439,6 @@ class ExportMetadata:
                     }]
                 # updating existing release with new values
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
-                #existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
                 existed_crdc_record[PROPERTIES] = self.get_properties(data_record, existed_crdc_record)
                 existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED,
