@@ -50,7 +50,6 @@ BATCH_INTENTION_UPDATE = "Add/Change"
 # export
 EXPORT_METADATA = "metadata"
 EXPORT_ROOT_PATH = "rootPath"
-DELETE_VALUE = "<delete>"
 
 # file
 FILE_ID = "dataRecordID"
