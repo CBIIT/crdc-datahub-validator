@@ -765,11 +765,38 @@ class MongoDao:
     """
     update release 
     """
+    def create_update_document(self, release, del_prop_list, none_prop_list):
+        update_document = {}
+        props = release.get(PROPERTIES)
+        if props is not None:
+            for prop, value in props.items():
+                if prop not in del_prop_list:
+                    update_document[f"{PROPERTIES}.{prop}"] = value
+                if prop in none_prop_list:
+                    update_document[f"{PROPERTIES}.{prop}"] = None
+        for k, v in release.items():
+            if k != PROPERTIES:
+                update_document[k] = v
+        return update_document
+
     def update_release(self, release):
         db = self.client[self.db_name]
         data_collection = db[RELEASE_COLLECTION]
+        props = release.get(PROPERTIES)
+        del_prop_list = []
+        none_prop_list = []
+        if props is not None:
+            for prop in props.keys():
+                str_value = str(release[PROPERTIES][prop]).lower().strip()
+                if release[PROPERTIES][prop] is None or release[PROPERTIES][prop] == "":
+                    # if the property value is None or empty string, delete it
+                    del_prop_list.append(prop)
+                elif str_value == "<delete>":
+                    # if the property value is <delete>, assign None to it
+                    none_prop_list.append(prop)
+        update_document = self.create_update_document(release, del_prop_list, none_prop_list)
         try:
-            result = data_collection.replace_one({ID: release[ID]}, release)
+            result = data_collection.update_one({ID: release[ID]}, {"$set": update_document}, upsert=False)
             return True
         except errors.PyMongoError as pe:
             self.log.exception(pe)
