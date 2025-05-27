@@ -16,7 +16,7 @@ from common.constants import SQS_TYPE, SUBMISSION_ID, BATCH_BUCKET, TYPE_EXPORT_
     SUBMISSION_INTENTION_DELETE, SUBMISSION_REL_STATUS_DELETED, TYPE_COMPLETE_SUB, ORIN_FILE_NAME,\
     STUDY_ID, DM_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG, ENTITY_TYPE, SUBMISSION_HISTORY, RELEASE_AT, \
     SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_DATA_TYPE, SUBMISSION_DATA_TYPE_METADATA_ONLY, DATASYNC_LOG_ARN_CONFIG, \
-    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES, DATA_FILE_LOCATION, S3_PREFIX, GENERATED_PROPS
+    S3_FILE_INFO, FILE_NAME, RESTORE_DELETED_DATA_FILES, DATA_FILE_LOCATION, S3_PREFIX, GENERATED_PROPS, DELETE_VALUE
 from common.utils import current_datetime, get_uuid_str, dump_dict_to_json, get_exception_msg, get_date_time, dict_exists_in_list, \
     convert_date_time, convert_file_size
 from common.model_store import ModelFactory
@@ -365,6 +365,24 @@ class ExportMetadata:
 
             start_index += count 
 
+    def get_properties(self, data_record, existed_crdc_record):
+        update_props = {}
+        data_record_props = data_record.get(PROPERTIES)
+        existed_crdc_record_props = existed_crdc_record.get(PROPERTIES)
+        if data_record_props is not None and existed_crdc_record_props is not None:
+            for prop, value in data_record_props.items():
+                str_value = str(value).lower().strip()
+                if not value or str_value == "":
+                    update_props[prop] = existed_crdc_record_props[prop]
+                elif str_value == DELETE_VALUE:
+                    update_props[prop] = None
+                else:
+                    update_props[prop] = value
+            return update_props
+        else:
+            update_props = data_record_props
+            return update_props
+
     def save_release(self, data_record, node_type, node_id, crdc_id):
         if not node_type or not node_id: 
              self.log.error(f"{self.submission[ID]}: Invalid data to export: {node_type}/{node_id}/{crdc_id}!")
@@ -421,7 +439,7 @@ class ExportMetadata:
                     }]
                 # updating existing release with new values
                 existed_crdc_record[SUBMISSION_ID] = self.submission[ID]
-                existed_crdc_record[PROPERTIES] = data_record.get(PROPERTIES)
+                existed_crdc_record[PROPERTIES] = self.get_properties(data_record, existed_crdc_record)
                 existed_crdc_record[PARENTS] = self.combine_parents(node_type, existed_crdc_record[PARENTS], data_record.get(PARENTS))
                 existed_crdc_record[SUBMISSION_REL_STATUS] = SUBMISSION_REL_STATUS_RELEASED,
                 history.append({
