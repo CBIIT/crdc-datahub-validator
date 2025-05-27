@@ -372,7 +372,7 @@ class ExportMetadata:
         if data_record_props is not None and existed_crdc_record_props is not None:
             for prop, value in data_record_props.items():
                 str_value = str(value).lower().strip()
-                if value is None or str_value == "":
+                if not value or str_value == "":
                     update_props[prop] = existed_crdc_record_props[prop]
                 elif str_value == DELETE_VALUE:
                     update_props[prop] = None
