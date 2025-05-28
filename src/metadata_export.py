@@ -151,7 +151,7 @@ class ExportMetadata:
             study = {"name": study.get("studyName"), "abbreviation": study.get("studyAbbreviation"), "dbGaPID": study.get("dbGaPID")}
         submitter = self.mongo_dao.find_user_by_id(self.submission.get("submitterID"))
         if submitter:
-            submitter = {"name": submitter.get("firstName") + " " + submitter.get("lastName"), "email": submitter.get("email"), "institution": submitter.get("organization", {}).get("orgName")}                                      
+            submitter = {"name": submitter.get("firstName") + " " + submitter.get("lastName"), "email": submitter.get("email"), "institution": submitter.get("institution", {}).get("name")}                                      
         self.release_manifest_data = {"submission ID": submission_id, "submission creation date": convert_date_time(self.submission.get(CREATED_AT), "%Y-%m-%d %H:%M:%S"), 
                                       "submission release date": get_date_time("%Y-%m-%d %H:%M:%S"), "study": study, "submitter": submitter,
                                       "data concierge": {"name": self.submission.get("conciergeName"), "email": self.submission.get("conciergeEmail")},
