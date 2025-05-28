@@ -272,6 +272,9 @@ class MetaDataValidator:
             #check if existed nodes in release collection
             if sub_intention and sub_intention in [SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE]:
                 exist_release = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
+                if exist_release:
+                    #do not raise "missing required property(M003)" error when updating data
+                    errors = [e for e in errors if str(e.get("code", "")) != "M003"]
                 if sub_intention == SUBMISSION_INTENTION_NEW_UPDATE and exist_release:
                     # check if there are any differences in properties and parents between existing and new node
                     if self.check_difference_in_props(data_record, exist_release):
