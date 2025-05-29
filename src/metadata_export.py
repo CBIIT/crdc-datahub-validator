@@ -373,7 +373,9 @@ class ExportMetadata:
             for prop, value in data_record_props.items():
                 str_value = str(value).lower().strip()
                 if not value or str_value == "":
-                    update_props[prop] = existed_crdc_record_props[prop]
+                    if prop in existed_crdc_record_props.keys():
+                        #if the existed record has the property, otherwise skip the property
+                        update_props[prop] = existed_crdc_record_props[prop]
                 elif str_value == DELETE_COMMAND:
                     update_props[prop] = None
                 else:

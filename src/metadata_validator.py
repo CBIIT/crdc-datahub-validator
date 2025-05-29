@@ -13,7 +13,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
     LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN, DELETE_COMMAND, CONCEPT_CODE, \
-    GENERATED_PROPS
+    GENERATED_PROPS, DELETE_COMMAND
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -273,8 +273,8 @@ class MetaDataValidator:
             if sub_intention and sub_intention in [SUBMISSION_INTENTION_NEW_UPDATE, SUBMISSION_INTENTION_DELETE]:
                 exist_release = self.mongo_dao.search_released_node_with_status(self.submission[DATA_COMMON_NAME], node_type, data_record[NODE_ID], [SUBMISSION_REL_STATUS_RELEASED, None])
                 if exist_release:
-                    #do not raise "missing required property(M003)" error when updating data
-                    errors = [e for e in errors if str(e.get("code", "")) != "M003"]
+                    #do not raise "missing required property(M003)" and "Relationship not specified(M013)" errors when updating data
+                    errors = [e for e in errors if str(e.get("code", "")) != "M003" and str(e.get("code", "")) != "M013"]
                 if sub_intention == SUBMISSION_INTENTION_NEW_UPDATE and exist_release:
                     # check if there are any differences in properties and parents between existing and new node
                     if self.check_difference_in_props(data_record, exist_release):
@@ -712,6 +712,7 @@ def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao, data_re
     if value and isinstance(value, str):
         value = value.strip()
     if permissive_vals and len(permissive_vals) > 0:
+        permissive_vals.append(DELETE_COMMAND)
         if isinstance(permissive_vals[0], str):
             # find value in pv list in case-insensitive if value is string
             matched_val = next((item for item in permissive_vals if item.lower() == value.lower()), None)
