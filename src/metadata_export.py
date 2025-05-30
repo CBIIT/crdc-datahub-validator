@@ -365,22 +365,33 @@ class ExportMetadata:
 
             start_index += count 
 
-    def get_properties(self, data_record, existed_crdc_record):
+    def get_properties(self, data_record, existed_crdc_record = None):
         update_props = {}
         data_record_props = data_record.get(PROPERTIES)
-        existed_crdc_record_props = existed_crdc_record.get(PROPERTIES)
-        if data_record_props is not None and existed_crdc_record_props is not None:
+        if existed_crdc_record:
+            existed_crdc_record_props = existed_crdc_record.get(PROPERTIES)
+            if data_record_props is not None and existed_crdc_record_props is not None:
+                for prop, value in data_record_props.items():
+                    str_value = str(value).lower().strip()
+                    if not value or str_value == "":
+                        if prop in existed_crdc_record_props.keys():
+                            #if the existed record has the property, otherwise skip the property
+                            update_props[prop] = existed_crdc_record_props[prop]
+                    elif str_value == DELETE_COMMAND:
+                        update_props[prop] = None
+                    else:
+                        update_props[prop] = value
+                return update_props
+            else:
+                update_props = data_record_props
+                return update_props
+        else:
             for prop, value in data_record_props.items():
                 str_value = str(value).lower().strip()
-                if not value or str_value == "":
-                    update_props[prop] = existed_crdc_record_props[prop]
-                elif str_value == DELETE_COMMAND:
+                if str_value == DELETE_COMMAND:
                     update_props[prop] = None
                 else:
                     update_props[prop] = value
-            return update_props
-        else:
-            update_props = data_record_props
             return update_props
 
     def save_release(self, data_record, node_type, node_id, crdc_id):
@@ -402,7 +413,7 @@ class ExportMetadata:
                 DATA_COMMON_NAME: self.submission.get(DATA_COMMON_NAME),
                 NODE_TYPE: node_type,
                 NODE_ID: node_id,
-                PROPERTIES: data_record.get(PROPERTIES),
+                PROPERTIES: self.get_properties(data_record, None),
                 PARENTS: data_record.get(PARENTS, None),
                 CREATED_AT: current_date,
                 ENTITY_TYPE: data_record.get(ENTITY_TYPE),
