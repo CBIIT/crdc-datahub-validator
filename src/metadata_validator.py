@@ -572,18 +572,17 @@ class MetaDataValidator:
             
             minimum = prop_def.get(MIN)
             maximum = prop_def.get(MAX)
-            permissive_vals, msg, check_concept_code = self.get_permissive_value(prop_def)
+            permissive_vals, msg, check_concept_code, cde_code = self.get_permissive_value(prop_def)
             if msg and msg == CDE_NOT_FOUND:
                 errors.append(create_error("M027", [msg_prefix, prop_name], prop_name, value))
             if check_concept_code == True:
                 # get concept code by the value
-                result = self.mongo_dao.get_concept_code_by_pv(value)
+                result = self.mongo_dao.get_concept_code_by_pv(cde_code, value)
                 if result and result.get(CONCEPT_CODE):
                     property_concept_code_name = f'{prop_name}_concept_code'
                     if not data_record.get(GENERATED_PROPS):
-                        data_record[GENERATED_PROPS] = {property_concept_code_name: result[CONCEPT_CODE]}
-                    else:
-                        data_record[GENERATED_PROPS].update({property_concept_code_name: result[CONCEPT_CODE]})
+                        data_record[GENERATED_PROPS] = {}
+                    data_record[GENERATED_PROPS].update({property_concept_code_name: result[CONCEPT_CODE]})
             if type == "string":
                 val = str(value)
                 result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
@@ -659,15 +658,15 @@ class MetaDataValidator:
         permissive_vals = prop_def.get("permissible_values") 
         msg = None
         check_concept_code = False
+        cde_code = None
         if prop_def.get(CDE_TERM) and len(prop_def.get(CDE_TERM)) > 0:
             # retrieve permissible values from DB or cde site
-            cde_code = None
             cde_terms = [ct for ct in prop_def[CDE_TERM] if 'caDSR' in ct.get('Origin', '')]
             if cde_terms and len(cde_terms) > 0:
                 cde_code = cde_terms[0].get(TERM_CODE) 
                 cde_version = cde_terms[0].get(TERM_VERSION)
             if not cde_code:
-                return permissive_vals, msg, check_concept_code
+                return permissive_vals, msg, check_concept_code, cde_code
             
             cde = self.mongo_dao.get_cde_permissible_values(cde_code, cde_version)
             if cde:
@@ -701,7 +700,7 @@ class MetaDataValidator:
         # strip white space if the value is string
         if permissive_vals and len(permissive_vals) > 0 and isinstance(permissive_vals[0], str):
             permissive_vals = [item.strip() for item in permissive_vals]
-        return permissive_vals, msg, check_concept_code
+        return permissive_vals, msg, check_concept_code, cde_code
 
     
 """util functions"""
