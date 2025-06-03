@@ -232,8 +232,11 @@ class DataLoader:
                 if composition_key:
                     val_list = []
                     for key in composition_key:
-                        val_list.append(str(row.get(key, "")).strip())
+                        val = row.get(key)
+                        val = str(val).strip() if val else ""
+                        val_list.append(val)
                     id_val =  "_".join(val_list)
+                    id_val = id_val if id_val != "_" else ""
                     row[id_field] = id_val
                     return id_val
         return None
