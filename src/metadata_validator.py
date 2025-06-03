@@ -142,6 +142,9 @@ class MetaDataValidator:
             return FAILED
         self.study_name = study.get("studyName")
         self.program_names = self.mongo_dao.find_organization_name_by_study_id(study_id)
+        if self.program_names:
+            # filter out "NA" program
+            self.program_names = [program for program in self.program_names if program != "NA"]
         
         model_version = submission.get(MODEL_VERSION)
         #2 get data model based on datacommon and version
