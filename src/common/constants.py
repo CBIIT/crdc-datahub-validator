@@ -226,7 +226,7 @@ USER_COLLECTION = "users"
 
 DELETE_COMMAND = "<delete>"
 
-COMPOSITION_KEY = "composition_key"
+COMPOSITION_KEY = "CompKey"
 
 PV_CONCEPT_CODE_COLLECTION = "pvConceptCodes"
 CONCEPT_CODE = "conceptCode"
