@@ -38,7 +38,6 @@ RELATION_DELIMITER = '$'
 DEFAULT_VERSION = "1.0.0"
 DEFAULT_DESC = ""
 FILE_NAME = "file_name"
-NODE_KEY = "Key"
 
 valid_prop_types = [
     "string", # default type
@@ -124,9 +123,9 @@ class YamlModelParser:
         """
         properties = self._process_properties(name, desc)
         # check if the node has composition id (user story CRDCDh-2631)
-        if NODE_KEY in desc:
-            if desc[NODE_KEY]:
-                properties.update({COMPOSITION_KEY: desc[NODE_KEY]})
+        if COMPOSITION_KEY in desc:
+            if desc[COMPOSITION_KEY]:
+                properties.update({COMPOSITION_KEY: desc[COMPOSITION_KEY]})
         # All nodes that has properties will be save to self.nodes
         if properties[NODE_PROPERTIES]:
             self.nodes[name] = properties
