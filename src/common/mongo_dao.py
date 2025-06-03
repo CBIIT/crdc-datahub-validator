@@ -1218,7 +1218,7 @@ class MongoDao:
         to_insert = []
         try:
             for item in concept_codes:
-                concept_code = {PERMISSIBLE_VALUE: item[0], CONCEPT_CODE: item[1]}
+                concept_code = {CDE_CODE: item[0], PERMISSIBLE_VALUE: item[1], CONCEPT_CODE: item[2]}
                 # check if synonym exists
                 existing_concept_code = data_collection.find_one(concept_code)
                 if existing_concept_code:
@@ -1243,10 +1243,10 @@ class MongoDao:
     get concept code by pv
     :param pv
     """   
-    def get_concept_code_by_pv(self, pv):
+    def get_concept_code_by_pv(self, cde, pv):
         db = self.client[self.db_name]
         data_collection = db[PV_CONCEPT_CODE_COLLECTION]
-        query = {PERMISSIBLE_VALUE: pv}
+        query = {CDE_CODE: cde, PERMISSIBLE_VALUE: pv}
         try:
             return data_collection.find_one(query)
         except errors.PyMongoError as pe:

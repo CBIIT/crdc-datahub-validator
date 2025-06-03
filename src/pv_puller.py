@@ -322,12 +322,13 @@ class SynonymPuller:
         concept_codes  = [item for item in result if item.get(CDE_PV_NAME) and item.get(CDE_PV_NAME)[0].get('ncit_concept_code')] 
         for item in concept_codes:
             pv_list = item.get(CDE_PV_NAME)
+            cde_code = item.get(CDE_CODE)
             if pv_list:
                 for pv in pv_list:
                     value = pv.get('value')
                     concept_code = pv.get('ncit_concept_code')
                     if concept_code:
-                        concept_code_key = (value, concept_code)
+                        concept_code_key = (cde_code, value, concept_code)
                         if concept_code_key in concept_code_set:
                             continue
                         concept_code_set.add(concept_code_key)
