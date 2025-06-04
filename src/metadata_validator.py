@@ -142,6 +142,9 @@ class MetaDataValidator:
             return FAILED
         self.study_name = study.get("studyName")
         self.program_names = self.mongo_dao.find_organization_name_by_study_id(study_id)
+        if self.program_names:
+            # filter out "NA" program
+            self.program_names = [program for program in self.program_names if program != "NA"]
         
         model_version = submission.get(MODEL_VERSION)
         #2 get data model based on datacommon and version
@@ -383,7 +386,7 @@ class MetaDataValidator:
                             # validate program name and study name required in CRDCDH-2431.  Both are required properties.
                             if data_key == self.model.get_configured_prop_name("programName"):
                                 if not self.program_names: # no program associated with the study
-                                    result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
+                                    result[ERRORS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
                                 else:
                                     matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
                                     if not matched_val:
