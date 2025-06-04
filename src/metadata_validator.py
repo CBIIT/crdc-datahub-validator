@@ -386,7 +386,7 @@ class MetaDataValidator:
                             # validate program name and study name required in CRDCDH-2431.  Both are required properties.
                             if data_key == self.model.get_configured_prop_name("programName"):
                                 if not self.program_names: # no program associated with the study
-                                    result[WARNINGS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
+                                    result[ERRORS].append(create_error("M030", [msg_prefix, self.study_name], data_key, data_value))
                                 else:
                                     matched_val = next((name for name in self.program_names if name.lower() == data_value.lower()), None)
                                     if not matched_val:
