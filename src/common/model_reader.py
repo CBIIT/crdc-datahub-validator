@@ -284,8 +284,8 @@ class YamlModelParser:
                 if EX_MAX in prop:
                     result[MAX] = {VALUE_PROP: float(prop[EX_MAX]), VALUE_EXCLUSIVE: True}
 
-                # add term section if enum is used
-                if ALLOWED_VALUES in result and CDE_TERM in prop:
+                # add term section
+                if CDE_TERM in prop:
                     result[CDE_TERM] = prop[CDE_TERM]
         return result
 
