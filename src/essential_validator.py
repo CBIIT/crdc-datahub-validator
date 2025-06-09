@@ -435,6 +435,23 @@ class EssentialValidator:
         nan_count = self.df.isnull().sum()[id_field]
         # check if the node has composition id (user story CRDCDh-2631)
         composition_key = self.model.get_composition_key(type)
+        # validate composition key properties
+        if composition_key:
+            # loop through all rows and check if all properties in composition key (array) values are empty row by row
+            for index, row in self.df.iterrows():
+                hasVal = False
+                if not pd.isnull(row[id_field]):
+                    continue
+                for prop in composition_key:
+                    if not pd.isnull(row[prop]):
+                        hasVal = True
+                        break
+                if not hasVal:
+                    msg = f'“{file_info[FILE_NAME]}:{index + 2}”: all properties ({", ".join(composition_key)}) needed for composite ID are missing.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                    return False
         if nan_count > 0 and not composition_key: 
             nan_rows = self.df[self.df[id_field].isnull()].to_dict("index")
             for key in nan_rows.keys():
