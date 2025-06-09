@@ -80,6 +80,7 @@ FILE_SIZE_FIELD = "size-field"
 FILE_MD5_FIELD = "md5-field"
 FILE_MD5_COLLECTION = "fileMD5"
 LAST_MODIFIED = "LastModified"
+SUBFOLDER_FILE_NAME = "internal_file_name"
 
 #data model
 DATA_COMMON = "data_commons"
