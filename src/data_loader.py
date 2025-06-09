@@ -265,8 +265,9 @@ class DataLoader:
     """
     def get_file_info(self, type, prop_names, row):
         file_fields = self.file_nodes.get(type)
-        file_name = row.get(SUBFOLDER_FILE_NAME)
-        if file_name is None or file_name == "": 
+        if row.get(SUBFOLDER_FILE_NAME) is not None and row.get(SUBFOLDER_FILE_NAME) != "":
+            file_name = row.get(SUBFOLDER_FILE_NAME)
+        else: 
             file_name = row[file_fields[FILE_NAME_FIELD]] if file_fields[FILE_NAME_FIELD] in prop_names else None
         file_size = row[file_fields[FILE_SIZE_FIELD]] if file_fields[FILE_SIZE_FIELD] in prop_names else None
         file_md5 = row[file_fields[FILE_MD5_FIELD]] if file_fields[FILE_MD5_FIELD] in prop_names else None
