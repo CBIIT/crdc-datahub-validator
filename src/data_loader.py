@@ -9,7 +9,7 @@ from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_I
     MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, QC_RESULT_ID, BATCH_IDS, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
     ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, ENTITY_TYPE, STUDY_ID, \
-    DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, LATEST_BATCH_DISPLAY_ID
+    DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, LATEST_BATCH_DISPLAY_ID, SUBFOLDER_FILE_NAME
 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
@@ -76,7 +76,7 @@ class DataLoader:
                         if s3FileInfo:
                             s3FileInfo[QC_RESULT_ID] = None                  
                     relation_fields = [name for name in col_names if '.' in name]
-                    prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
+                    prop_names = [name for name in col_names if not name in [TYPE, 'index', SUBFOLDER_FILE_NAME] + relation_fields]
                     batchIds = [self.batch[ID]] if not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
                     current_date_time = current_datetime()
                     id = self.get_record_id(exist_node)
@@ -265,7 +265,13 @@ class DataLoader:
     """
     def get_file_info(self, type, prop_names, row):
         file_fields = self.file_nodes.get(type)
-        file_name = row[file_fields[FILE_NAME_FIELD]] if file_fields[FILE_NAME_FIELD] in prop_names else None
+        file_name = (
+        row[SUBFOLDER_FILE_NAME]
+        if row.get(SUBFOLDER_FILE_NAME)
+        else row[file_fields[FILE_NAME_FIELD]]
+            if file_fields[FILE_NAME_FIELD] in prop_names
+            else None
+        )
         file_size = row[file_fields[FILE_SIZE_FIELD]] if file_fields[FILE_SIZE_FIELD] in prop_names else None
         file_md5 = row[file_fields[FILE_MD5_FIELD]] if file_fields[FILE_MD5_FIELD] in prop_names else None
         current_date_time = current_datetime()
