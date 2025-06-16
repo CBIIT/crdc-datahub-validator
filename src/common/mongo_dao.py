@@ -1,4 +1,5 @@
 from pymongo import MongoClient, errors, ReplaceOne, UpdateOne, DeleteOne, DESCENDING, InsertOne
+import re
 from bento.common.utils import get_logger
 from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlECTION, ID, UPDATED_AT, \
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, \
@@ -1166,7 +1167,7 @@ class MongoDao:
     def find_pvs_by_synonym(self, synonym):
         db = self.client[self.db_name]
         data_collection = db[SYNONYM_COLLECTION]
-        query ={SYNONYM_TERM: {"$regex": synonym, "$options": "i"}} #case-insensitive , 
+        query ={SYNONYM_TERM: {"$regex": f"^{re.escape(synonym)}$", "$options": "i"}} #case-insensitive , 
         try:
             return list(data_collection.find(query))
         except errors.PyMongoError as pe:
