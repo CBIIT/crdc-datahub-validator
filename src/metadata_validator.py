@@ -579,13 +579,7 @@ class MetaDataValidator:
             if msg and msg == CDE_NOT_FOUND:
                 errors.append(create_error("M027", [msg_prefix, prop_name], prop_name, value))
             if check_concept_code == True:
-                # get concept code by the value
-                result = self.mongo_dao.get_concept_code_by_pv(cde_code, value)
-                if result and result.get(CONCEPT_CODE):
-                    property_concept_code_name = f'{prop_name}_concept_code'
-                    if not data_record.get(GENERATED_PROPS):
-                        data_record[GENERATED_PROPS] = {}
-                    data_record[GENERATED_PROPS].update({property_concept_code_name: result[CONCEPT_CODE]})
+                self.set_concept_code(data_record, prop_name, value, cde_code)
             if type == "string":
                 val = str(value)
                 result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
@@ -653,6 +647,30 @@ class MetaDataValidator:
                 errors.append(create_error("M009", [msg_prefix, prop_name, value], prop_name, value))
 
         return errors
+    
+    def set_concept_code(self, data_record, prop_name, value, cde_code):
+        """
+        set concept code for the property
+        """
+        list_delimiter = self.model.get_list_delimiter()
+        if list_delimiter in value:
+            values = value.split(list_delimiter)
+        else:
+            values = [value]
+
+        property_concept_code_name = f'{prop_name}_concept_code'
+        concept_code_values = []
+        for val in values:
+            # get concept code by the value
+            result = self.mongo_dao.get_concept_code_by_pv(cde_code, val)
+            if result and result.get(CONCEPT_CODE):
+                concept_code_values.append(result[CONCEPT_CODE])
+
+        if not data_record.get(GENERATED_PROPS):
+            data_record[GENERATED_PROPS] = {}
+
+        data_record[GENERATED_PROPS].update({property_concept_code_name: list_delimiter.join(concept_code_values)})
+  
     
     """
     get permissible values of a property
