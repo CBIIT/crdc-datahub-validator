@@ -288,7 +288,7 @@ class MetaDataValidator:
                         else:
                             warnings.append(create_error("M018", f'{msg_prefix} “{node_type}”: {{“{self.model.get_node_id(node_type)}": “{data_record[NODE_ID]}"}} already exists and will be updated. Its associated data file will also be replaced if uploaded.',
                                                         NODE_ID, self.model.get_node_id(node_type)))
-                elif sub_intention == SUBMISSION_INTENTION_DELETE and exist_release:
+                elif sub_intention == SUBMISSION_INTENTION_DELETE and not exist_release:
                     errors.append(create_error("M019", [msg_prefix, node_type, data_record[NODE_ID]], NODE_ID, self.model.get_node_id(node_type)))
             # if there are any errors set the result to "Error"
             if len(errors) > 0:
