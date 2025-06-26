@@ -662,7 +662,7 @@ class MetaDataValidator:
         concept_code_values = []
         for val in values:
             # get concept code by the value
-            result = self.mongo_dao.get_concept_code_by_pv(cde_code, val)
+            result = self.mongo_dao.get_concept_code_by_pv(cde_code, val.strip())
             if result and result.get(CONCEPT_CODE):
                 concept_code_values.append(result[CONCEPT_CODE])
 
