@@ -58,7 +58,8 @@ class DataLoader:
                 df = df.reset_index()  # make sure indexes pair with number of rows
                 col_names =list(df.columns)
                 total_rows = len(df)
-                start_index = 0
+                total_processed_count = 0
+                batch_processed_count = 0
                 for index, row in df.iterrows():
                     type = row[TYPE]
                     rawData = df.loc[index].to_dict()
@@ -124,14 +125,15 @@ class DataLoader:
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
                             dataRecord[PROPERTIES][id_field] = node_id
 
-                        if start_index < (BATCH_SIZE-1) and (total_rows - start_index) > 1:
+                        if batch_processed_count < (BATCH_SIZE - 1) and (total_rows - total_processed_count) > 1:
                             records.append(dataRecord)
-                            start_index += 1
+                            batch_processed_count += 1
                         else:
                             records.append(dataRecord)
                             all_records.extend(records)
-                            start_index = 0
+                            batch_processed_count = 0
                             records = []
+                        total_processed_count += 1
 
                 # 3-1. upsert data in a tsv file into mongo DB
                 final_records = records if len(all_records) == 0 else all_records
