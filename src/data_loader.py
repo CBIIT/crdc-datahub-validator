@@ -132,6 +132,7 @@ class DataLoader:
                             records.append(dataRecord)
                             all_records.extend(records)
                             batch_processed_count = 0
+                            records = []
                         total_processed_count += 1
 
                 # 3-1. upsert data in a tsv file into mongo DB
