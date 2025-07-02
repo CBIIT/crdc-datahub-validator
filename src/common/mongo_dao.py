@@ -946,6 +946,9 @@ class MongoDao:
         update_validation_end_at_value = validation_end_at
         try:
             validation_document = data_collection.find_one({ID: validation_id})
+            if validation_document is None:
+                self.log.error(f"No validation document found for ID: {validation_id}")
+                return False
             # for validation with both metadata and file, only update status when both validation ended
             # will use the latest end time if both metadata and file validation have been finished
             if len(validation_document[TYPE]) > 1 and update_status_value in [STATUS_ERROR, STATUS_PASSED, STATUS_WARNING]:
