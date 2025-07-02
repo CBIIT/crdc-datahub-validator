@@ -5,13 +5,13 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, DATA_COMMON_NAME, KEY, \
-    VALUE_PROP, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
+    VALUE_PROP, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
     BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
     SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT, PROPERTIES,\
     STUDY_COLLECTION, ORGANIZATION_COLLECTION, USER_COLLECTION, PV_CONCEPT_CODE_COLLECTION, CONCEPT_CODE, PERMISSIBLE_VALUE,\
-    GENERATED_PROPS
+    GENERATED_PROPS, FILE_ENDED, METADATA_ENDED, METADATA_STATUS, FILE_STATUS
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -941,9 +941,31 @@ class MongoDao:
     def update_validation_status(self, validation_id, status, validation_end_at):
         db = self.client[self.db_name]
         data_collection = db[VALIDATION_COLLECTION]
+        update_status = True
+        update_status_value = status
+        update_validation_end_at_value = validation_end_at
         try:
-            result = data_collection.update_one({ID: validation_id}, {"$set": {STATUS: status, "ended": validation_end_at}})
-            return True if result.modified_count > 0 else False
+            validation_document = data_collection.find_one({ID: validation_id})
+            # for validation with both metadata and file, only update status when both validation ended
+            # will use the latest end time if both metadata and file validation have been finished
+            if len(validation_document[TYPE]) > 1 and update_status_value in [STATUS_ERROR, STATUS_PASSED, STATUS_WARNING]:
+                metadata_ended = validation_document.get(METADATA_ENDED)
+                file_ended = validation_document.get(FILE_ENDED)
+                metadata_status = validation_document.get(METADATA_STATUS)
+                file_status = validation_document.get(FILE_STATUS)
+                if not (file_ended and metadata_ended):
+                    update_status = False
+                elif metadata_status and file_status:
+                    if STATUS_ERROR in [metadata_status, file_status]:
+                        update_status_value = STATUS_ERROR
+                    elif STATUS_WARNING in [metadata_status, file_status]:
+                        update_status_value = STATUS_WARNING
+                    update_validation_end_at_value = max(metadata_ended, file_ended)
+            if update_status:
+                result = data_collection.update_one({ID: validation_id}, {"$set": {STATUS: update_status_value, "ended": update_validation_end_at_value}})
+                return True if result.modified_count > 0 else False
+            else:
+                return True
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")

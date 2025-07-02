@@ -157,6 +157,10 @@ SUBMISSION_REL_STATUS_DELETED= "Deleted"
 VALIDATION_COLLECTION = "validation"
 VALIDATION_ID = "validationID"
 VALIDATION_ENDED= "validationEnded"
+METADATA_ENDED = "metadataEnded"
+FILE_ENDED = "fileEnded"
+METADATA_STATUS = "metadataStatus"
+FILE_STATUS = "fileStatus"
 
 #DCF Manifest
 PROD_BUCKET_CONFIG_NAME = "production_bucket_name"
