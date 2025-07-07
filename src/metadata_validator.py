@@ -13,7 +13,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
     LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN, DELETE_COMMAND, CONCEPT_CODE, \
-    GENERATED_PROPS, DELETE_COMMAND
+    GENERATED_PROPS, DELETE_COMMAND, METADATA_VALIDATION
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -69,7 +69,7 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         status = validator.validate(submission_id, scope)
                         validation_id = data[VALIDATION_ID]
                         validation_end_at = current_datetime()
-                        mongo_dao.update_validation_status(validation_id, status, validation_end_at)
+                        mongo_dao.update_validation_status(validation_id, status, validation_end_at, METADATA_VALIDATION)
                         validator.submission[VALIDATION_ENDED] = validation_end_at
                         mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None)
                     elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and submission_id:

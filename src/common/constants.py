@@ -161,6 +161,8 @@ METADATA_ENDED = "metadataEnded"
 FILE_ENDED = "fileEnded"
 METADATA_STATUS = "metadataStatus"
 FILE_STATUS = "fileStatus"
+FILE_VALIDATION = "fileValidation"
+METADATA_VALIDATION = "metadataValidation"
 
 #DCF Manifest
 PROD_BUCKET_CONFIG_NAME = "production_bucket_name"

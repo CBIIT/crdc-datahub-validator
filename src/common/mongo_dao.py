@@ -11,7 +11,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
     SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT, PROPERTIES,\
     STUDY_COLLECTION, ORGANIZATION_COLLECTION, USER_COLLECTION, PV_CONCEPT_CODE_COLLECTION, CONCEPT_CODE, PERMISSIBLE_VALUE,\
-    GENERATED_PROPS, FILE_ENDED, METADATA_ENDED, METADATA_STATUS, FILE_STATUS
+    GENERATED_PROPS, FILE_ENDED, METADATA_ENDED, METADATA_STATUS, FILE_STATUS, FILE_VALIDATION, METADATA_VALIDATION
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -938,7 +938,7 @@ class MongoDao:
     """
     update validation status
     """   
-    def update_validation_status(self, validation_id, status, validation_end_at):
+    def update_validation_status(self, validation_id, status, validation_end_at, validation_type=None):
         db = self.client[self.db_name]
         data_collection = db[VALIDATION_COLLECTION]
         update_status = True
@@ -949,6 +949,20 @@ class MongoDao:
             if validation_document is None:
                 self.log.error(f"No validation document found for ID: {validation_id}")
                 return False
+            #validation_update_dict = {STATUS: update_status_value, "ended": update_validation_end_at_value}
+            validation_update_dict = {}
+            # add the file_status or metadata_status to the update dict and document
+            if validation_type:
+                if validation_type == METADATA_VALIDATION:
+                    validation_update_dict[METADATA_ENDED] = update_validation_end_at_value
+                    validation_update_dict[METADATA_STATUS] = update_status_value
+                    validation_document[METADATA_ENDED] = update_validation_end_at_value
+                    validation_document[METADATA_STATUS] = update_status_value
+                elif validation_type == FILE_VALIDATION:
+                    validation_update_dict[FILE_ENDED] = update_validation_end_at_value
+                    validation_update_dict[FILE_STATUS] = update_status_value
+                    validation_document[FILE_ENDED] = update_validation_end_at_value
+                    validation_document[FILE_STATUS] = update_status_value
             # for validation with both metadata and file, only update status when both validation ended
             # will use the latest end time if both metadata and file validation have been finished
             if len(validation_document[TYPE]) > 1 and update_status_value in [STATUS_ERROR, STATUS_PASSED, STATUS_WARNING]:
@@ -965,10 +979,10 @@ class MongoDao:
                         update_status_value = STATUS_WARNING
                     update_validation_end_at_value = max(metadata_ended, file_ended)
             if update_status:
-                result = data_collection.update_one({ID: validation_id}, {"$set": {STATUS: update_status_value, "ended": update_validation_end_at_value}})
-                return True if result.modified_count > 0 else False
-            else:
-                return True
+                validation_update_dict[STATUS] = update_status_value
+                validation_update_dict["ended"] = update_validation_end_at_value
+            result = data_collection.update_one({ID: validation_id}, {"$set": validation_update_dict})
+            return True if result.modified_count > 0 else False
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
