@@ -12,8 +12,8 @@ from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, SQS_TYPE, TYPE_LOAD, STATUS_PASSED,\
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
-    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING
-from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows
+    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING, DCF_PREFIX
+from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows, validate_uuid_by_rex, get_date_time
 from common.model_store import ModelFactory
 from metadata_remover import MetadataRemover
 from data_loader import DataLoader
@@ -22,6 +22,8 @@ from service.ecs_agent import set_scale_in_protection
 VISIBILITY_TIMEOUT = 20
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
+BATCH_ERROR_LIMIT = 1000
+FILE_ERROR_LIMIT = 100
 
 """
 Interface for essential validation of metadata via SQS
@@ -34,7 +36,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
         model_store = ModelFactory(configs[MODEL_FILE_DIR], configs[TIER_CONFIG]) 
         # dump models to json files
         # dump_dict_to_json([model[MODEL] for model in model_store.models], f"tmp/data_models_dump.json")
-        dump_dict_to_json(model_store.models, f"models/data_model.json")
+        # dump_dict_to_json(model_store.models, f"models/data_model.json")
     except Exception as e:
         log.exception(e)
         log.exception(f'Error occurred when initialize essential validation service: {get_exception_msg()}')
@@ -88,7 +90,6 @@ def essentialValidate(configs, job_queue, mongo_dao):
                                     batch[STATUS] = BATCH_STATUS_UPLOADED
                                     submission_meta_status = STATUS_NEW
                                 else:
-                                    batch[ERRORS] = errors
                                     batch[STATUS] = BATCH_STATUS_FAILED
                                     submission_meta_status = BATCH_STATUS_FAILED
                             else:
@@ -103,6 +104,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             submission_meta_status = STATUS_ERROR
                         finally:
                             #5. update submission's metadataValidationStatus
+                            if batch[ERRORS] and len(batch[ERRORS]) > BATCH_ERROR_LIMIT:
+                                batch[ERRORS] = batch[ERRORS][:BATCH_ERROR_LIMIT]
                             mongo_dao.update_batch(batch)
                             if validator.submission and submission_meta_status == STATUS_NEW:
                                 mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, None)
@@ -136,6 +139,7 @@ def essentialValidate(configs, job_queue, mongo_dao):
                     log.critical(
                         f'Something wrong happened while processing file! Check debug log for details.')
                 finally:
+                    # msg.delete()
                     if data_loader:
                         del data_loader
                     if validator:
@@ -193,6 +197,8 @@ class EssentialValidator:
                 #2. validate meatadata in self.df
                 if not self.validate_data(file_info):
                     file_info[STATUS] = STATUS_ERROR
+                if len(file_info[ERRORS]) > FILE_ERROR_LIMIT:
+                    file_info[ERRORS] =  file_info[ERRORS][:FILE_ERROR_LIMIT]  
             return True if len(self.batch[ERRORS]) == 0 else False
         except Exception as e:
             self.log.exception(e)
@@ -390,10 +396,11 @@ class EssentialValidator:
             file_info[NODE_TYPE] = type if not pd.isnull(type) else ""
             nan_count = self.df.isnull().sum()[TYPE] #check if any rows with empty node type
             if nan_count > 0: 
-                msg = f'“{file_info[FILE_NAME]}”: “type” value is required'
-                self.log.error(msg)
-                file_info[ERRORS].append(msg)
-                self.batch[ERRORS].append(msg)
+                for index in self.df[self.df[TYPE].isnull()].index.astype(int).tolist():
+                    msg = f'“{file_info[FILE_NAME]}: line {index + 2}": “type” value is required.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
                 return False
             else:
                 node_types = self.model.get_node_keys()
@@ -427,7 +434,26 @@ class EssentialValidator:
             return False
         #check if id property value is empty
         nan_count = self.df.isnull().sum()[id_field]
-        if nan_count > 0: 
+        # check if the node has composition id (user story CRDCDh-2631)
+        composition_key = self.model.get_composition_key(type)
+        # validate composition key properties
+        if composition_key:
+            # loop through all rows and check if all properties in composition key (array) values are empty row by row
+            for index, row in self.df.iterrows():
+                hasVal = False
+                if not pd.isnull(row[id_field]):
+                    continue
+                for prop in composition_key:
+                    if not pd.isnull(row[prop]):
+                        hasVal = True
+                        break
+                if not hasVal:
+                    msg = f'“{file_info[FILE_NAME]}:{index + 2}”: all properties ({", ".join(composition_key)}) needed for composite ID are missing.'
+                    self.log.error(msg)
+                    file_info[ERRORS].append(msg)
+                    self.batch[ERRORS].append(msg)
+                    return False
+        if nan_count > 0 and not composition_key: 
             nan_rows = self.df[self.df[id_field].isnull()].to_dict("index")
             for key in nan_rows.keys():
                 msg = f'“{file_info[FILE_NAME]}:{key + 2}”:  Key property “{id_field}” value is required.'
@@ -435,6 +461,25 @@ class EssentialValidator:
                 file_info[ERRORS].append(msg)
                 self.batch[ERRORS].append(msg)
             return False
+        # check if file id property value is valid
+        isFileNode = type in self.def_file_nodes
+        if isFileNode:
+            ids = self.df[id_field].tolist()
+            index = 2
+            isValidId = True
+            for id in ids:
+                result, msg = self.validate_file_id(id_field, id, file_info, index)
+                if not result:
+                    self.log.error(msg)
+                    isValidId = False
+                    file_info[ERRORS].append(msg)
+                    if len(self.batch[ERRORS]) <= BATCH_ERROR_LIMIT:
+                        self.batch[ERRORS].append(msg)
+                    else: 
+                        return False
+                index += 1
+            if not isValidId:
+                return False
         if self.submission_intention != SUBMISSION_INTENTION_DELETE: 
             # check missing required proper 
             required_props = self.model.get_node_req_props(type)
@@ -452,7 +497,6 @@ class EssentialValidator:
                 self.log.error(msgs)
                 file_info[ERRORS].extend(msgs)
                 self.batch[ERRORS].extend(msgs)
-            
             # check duplicate rows with the same nodeID
             duplicate_ids = self.df[id_field][self.df[id_field].duplicated()].tolist() 
             if len(duplicate_ids) > 0:
@@ -469,7 +513,7 @@ class EssentialValidator:
                 if not result:
                     return False 
         else:
-            if type in self.def_file_nodes:
+            if isFileNode:
                 # check is file name property is empty
                 if self.def_file_name not in columns:
                     msg = f'“{file_info[FILE_NAME]}”: '
@@ -488,8 +532,34 @@ class EssentialValidator:
                         file_info[ERRORS].append(msg)
                         self.batch[ERRORS].append(msg)
                     return False
-                
+        
         return True if len(self.batch[ERRORS]) == 0 else False
+    
+    """
+    check if id field value is valid
+    """
+    def validate_file_id(self, id_field, id, file_info, lineNum):
+        omit_prefix = self.model.get_omit_dcf_prefix()
+        # check if is is uuid
+        # check if file id prefix based on data model OMIT_DCF_PREFIX
+        low_id = id.lower()
+        if omit_prefix:
+            msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID (property {id_field}). A correct file ID should look like "e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'
+            if low_id.startswith(DCF_PREFIX.lower()):
+                return False, msg
+            else:
+                if not validate_uuid_by_rex(low_id):
+                    return False, msg
+        else:
+            msg = msg = f'“{file_info[FILE_NAME]}:line {lineNum}”: "{id}" is not in correct format for file ID (property {id_field}). A correct file ID should look like "dg.4DFC/e041576e-3595-5c8b-b0b3-272bc7cb6aa8".'   
+            if not low_id.startswith(DCF_PREFIX.lower()):
+                return False, msg
+            else:
+                uuid = low_id.split('/')[1]
+                if not validate_uuid_by_rex(uuid):
+                    return False, msg
+        return True, None
+        
     """
     validate many to many relationship
     """
@@ -510,7 +580,8 @@ class EssentialValidator:
                     msg = f'“{file_info[FILE_NAME]}:{key + 2}”: duplicated data detected: “{id_field}”: {id}.'
                     self.log.error(msg)
                     file_info[ERRORS].append(msg)
-                    self.batch[ERRORS].append(msg)
+                    if len(self.batch[ERRORS]) <= BATCH_ERROR_LIMIT:
+                        self.batch[ERRORS].append(msg)
                 rtn_val = False  
                 break
             else:
@@ -523,7 +594,10 @@ class EssentialValidator:
                             msg = f'“{file_info[FILE_NAME]}: {index + 2}”: conflict data detected: “{prop}”: "{value}".'
                             self.log.error(msg)
                             file_info[ERRORS].append(msg)
-                            self.batch[ERRORS].append(msg)
+                            if len(self.batch[ERRORS]) <= BATCH_ERROR_LIMIT:
+                                self.batch[ERRORS].append(msg)
+                            else:
+                                return False
                         rtn_val = False
                         break
         return rtn_val

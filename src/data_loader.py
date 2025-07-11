@@ -3,19 +3,19 @@ import os
 import pandas as pd
 import numpy as np
 from bento.common.utils import get_logger
-from common.utils import get_uuid_str, current_datetime, removeTailingEmptyColumnsAndRows
+from common.utils import get_uuid_str, current_datetime, removeTailingEmptyColumnsAndRows, get_date_time
 from common.constants import TYPE, ID, SUBMISSION_ID, STATUS, STATUS_NEW, NODE_ID, \
     ERRORS, WARNINGS, CREATED_AT, UPDATED_AT, S3_FILE_INFO, FILE_NAME, \
     MD5, SIZE, PARENT_TYPE, DATA_COMMON_NAME, QC_RESULT_ID, BATCH_IDS, \
     FILE_NAME_FIELD, FILE_SIZE_FIELD, FILE_MD5_FIELD, NODE_TYPE, PARENTS, CRDC_ID, PROPERTIES, \
     ORIN_FILE_NAME, ADDITION_ERRORS, RAW_DATA, DCF_PREFIX, ID_FIELD, ORCID, ENTITY_TYPE, STUDY_ID, \
-    DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, LATEST_BATCH_DISPLAY_ID
+    DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, LATEST_BATCH_DISPLAY_ID, SUBFOLDER_FILE_NAME
 
 SEPARATOR_CHAR = '\t'
 UTF8_ENCODE ='utf8'
 
 PRINCIPAL_INVESTIGATOR = "principal_investigator"
-
+BATCH_SIZE = 1000
 
 # This script load matadata files to database
 # input: file info list
@@ -44,7 +44,7 @@ class DataLoader:
 
         for file in file_path_list:
             records = []
-            failed_at = 1
+            all_records = []
             file_name = os.path.basename(file)
             # 1. read file to dataframe
             if not os.path.isfile(file):
@@ -57,10 +57,17 @@ class DataLoader:
                 df = df.replace({np.nan: None})  # replace Nan in dataframe with None
                 df = df.reset_index()  # make sure indexes pair with number of rows
                 col_names =list(df.columns)
-
+                total_rows = len(df)
+                total_processed_count = 0
+                batch_processed_count = 0
                 for index, row in df.iterrows():
                     type = row[TYPE]
-                    node_id = self.get_node_id(type, row)
+                    rawData = df.loc[index].to_dict()
+                    if rawData.get('index') is not None:
+                        del rawData['index'] #remove index column
+                    node_id = self.get_node_id(type, rawData)  #convert the file_id to correct format.
+                    if type in file_types:
+                        node_id = self.adjust_file_id_case(node_id)
                     exist_node = self.mongo_dao.get_dataRecord_by_node(node_id, type, self.batch[SUBMISSION_ID])
                     # add logic to delete QC record if exist_node
                     if exist_node and exist_node.get(QC_RESULT_ID): 
@@ -68,13 +75,9 @@ class DataLoader:
                         exist_node[QC_RESULT_ID] = None
                         s3FileInfo = exist_node.get(S3_FILE_INFO)
                         if s3FileInfo:
-                            s3FileInfo[QC_RESULT_ID] = None
-                    # 2. construct dataRecord
-                    rawData = df.loc[index].to_dict()
-                    if rawData.get('index') is not None:
-                        del rawData['index'] #remove index column
+                            s3FileInfo[QC_RESULT_ID] = None                  
                     relation_fields = [name for name in col_names if '.' in name]
-                    prop_names = [name for name in col_names if not name in [TYPE, 'index'] + relation_fields]
+                    prop_names = [name for name in col_names if not name in [TYPE, 'index', SUBFOLDER_FILE_NAME] + relation_fields]
                     batchIds = [self.batch[ID]] if not exist_node else  exist_node[BATCH_IDS] + [self.batch[ID]]
                     current_date_time = current_datetime()
                     id = self.get_record_id(exist_node)
@@ -83,10 +86,7 @@ class DataLoader:
                     crdc_id = self.get_crdc_id(exist_node, type, node_id, self.submission.get(STUDY_ID)) if valid_crdc_id_nodes else None
                     # file nodes
                     if valid_crdc_id_nodes and type in file_types:
-                        id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
-                        file_id_val = row.get(id_field)
-                        if file_id_val:
-                            crdc_id = file_id_val if file_id_val.startswith(DCF_PREFIX) else DCF_PREFIX + file_id_val
+                        crdc_id = node_id if node_id.startswith(DCF_PREFIX) else DCF_PREFIX + node_id
                     # principal investigator node
                     if type == PRINCIPAL_INVESTIGATOR and PRINCIPAL_INVESTIGATOR in main_node_types:
                         submission = self.mongo_dao.get_submission(self.batch[SUBMISSION_ID])
@@ -121,12 +121,23 @@ class DataLoader:
                         if crdc_id:
                             dataRecord["CRDC_ID"] = crdc_id
                         if type in file_types:
+                            id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
-                        records.append(dataRecord)
-                    failed_at += 1
+                            dataRecord[PROPERTIES][id_field] = node_id
+
+                        if batch_processed_count < (BATCH_SIZE - 1) and (total_rows - total_processed_count) > 1:
+                            records.append(dataRecord)
+                            batch_processed_count += 1
+                        else:
+                            records.append(dataRecord)
+                            all_records.extend(records)
+                            batch_processed_count = 0
+                            records = []
+                        total_processed_count += 1
 
                 # 3-1. upsert data in a tsv file into mongo DB
-                result, error = self.mongo_dao.update_data_records(records)
+                final_records = records if len(all_records) == 0 else all_records
+                result, error = self.mongo_dao.update_data_records(final_records)
                 if error:
                     self.errors.append(f'“{file_name}”: updating metadata failed - database error.  Please try again and contact the helpdesk if this error persists.')
                 returnVal = returnVal and result
@@ -144,6 +155,17 @@ class DataLoader:
 
         del file_path_list
         return returnVal, self.errors
+    """
+    adjust_file_id_case
+    """
+    def adjust_file_id_case(self, node_id):
+        lower_case_id = node_id.lower()
+        if lower_case_id.startswith(DCF_PREFIX.lower()):
+            node_id = DCF_PREFIX + lower_case_id.replace(DCF_PREFIX.lower(), "")
+        else: 
+            node_id = lower_case_id
+        return node_id
+  
     """
     process_m2m_rel
      1) check if a node with the same nodeID exists in record list. 
@@ -169,7 +191,7 @@ class DataLoader:
             return True
     
     """
-    get node id 
+    get record id 
     """
     def get_record_id(self, node):
         return node[ID] if node else get_uuid_str()
@@ -203,8 +225,24 @@ class DataLoader:
     """
     def get_node_id(self, type, row):
         id_field = self.model.get_node_id(type)
-        return row[id_field] if id_field else None
-    
+        if id_field: 
+            if row.get(id_field) and row[id_field].strip():
+                return row[id_field].strip()
+            else:
+                # check if the node has composition id (user story CRDCDh-2631)
+                composition_key = self.model.get_composition_key(type)
+                if composition_key:
+                    val_list = []
+                    for key in composition_key:
+                        val = row.get(key)
+                        val = str(val).strip() if val else ""
+                        val_list.append(val)
+                    id_val =  "_".join(val_list)
+                    id_val = id_val if id_val != "_" else ""
+                    row[id_field] = id_val
+                    return id_val
+        return None
+
     """
     get parents based on relationship fields that in format of
     [parent node].parentNodeID
@@ -215,7 +253,12 @@ class DataLoader:
             val = rawData.get(relation)
             if val:
                 temp = relation.split('.')
-                parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": val})
+                if "|" in val:
+                    val_list = val.split("|")
+                    for iVal in val_list:
+                        parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": iVal.strip()})
+                else:
+                    parents.append({"parentType": temp[0], "parentIDPropName": temp[1], "parentIDValue": val})
                 rawData.update({relation.replace(".", "|"): val})
         return parents
     
@@ -224,7 +267,13 @@ class DataLoader:
     """
     def get_file_info(self, type, prop_names, row):
         file_fields = self.file_nodes.get(type)
-        file_name = row[file_fields[FILE_NAME_FIELD]] if file_fields[FILE_NAME_FIELD] in prop_names else None
+        file_name = (
+        row[SUBFOLDER_FILE_NAME]
+        if row.get(SUBFOLDER_FILE_NAME)
+        else row[file_fields[FILE_NAME_FIELD]]
+            if file_fields[FILE_NAME_FIELD] in prop_names
+            else None
+        )
         file_size = row[file_fields[FILE_SIZE_FIELD]] if file_fields[FILE_SIZE_FIELD] in prop_names else None
         file_md5 = row[file_fields[FILE_MD5_FIELD]] if file_fields[FILE_MD5_FIELD] in prop_names else None
         current_date_time = current_datetime()

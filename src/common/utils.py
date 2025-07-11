@@ -2,12 +2,12 @@
 import sys
 import csv
 import os
+import re
 import shutil
 import json
 import requests
 import yaml
 import boto3 
-import pandas as pd
 import numpy as np
 from bento.common.utils import get_stream_md5
 from datetime import datetime
@@ -135,6 +135,13 @@ def get_date_time(format = "%Y-%m-%dT%H%M%S"):
     get current time in format
     """  
     return datetime.strftime(datetime.now(), format)
+
+def convert_date_time(date, format = "%Y-%m-%dT%H%M%S"):
+    """
+    convert date to format
+    """
+    return datetime.strftime(date, format)
+
 """
 get current datetime
 """
@@ -252,6 +259,75 @@ def dict_exists_in_list(dict_list, target_dict, keys=None):
             if d == target_dict:
                 return True
     return False
+
+def is_valid_uuid(uuid_to_test, version=5):
+    """
+    Check if uuid_to_test is a valid UUID.
+    
+     Parameters
+    ----------
+    uuid_to_test : str
+    version : {1, 2, 3, 4}
+    
+     Returns
+    -------
+    `True` if uuid_to_test is a valid UUID, otherwise `False`.
+    
+     Examples
+    --------
+    >>> is_valid_uuid('c9bf9e57-1685-4c89-bafb-ff5af830be8a')
+    True
+    >>> is_valid_uuid('c9bf9e58')
+    False
+    """
+    
+    try:
+        uuid_obj = uuid.UUID(uuid_to_test, version=version)
+        uuid_str = str(uuid_obj)
+        if uuid_str == uuid_to_test:
+            return True
+        else:
+            return is_valid_uuid(uuid_to_test, int(version)-1)    
+    except ValueError:
+        return False
+    
+def validate_uuid_by_rex(value):
+    """
+    Validate UUID by regular expression
+    :param value: value to be validated
+    :return: boolean
+    """
+    
+    if not value:
+        return False
+    rex = r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+    return validate_by_rex(value, rex)
+
+def validate_by_rex(value, rex):
+    """
+    Validate value by regular expression
+    :param value: value to be validated
+    :param rex: regular expression
+    :return: boolean
+    """
+    if not value or not rex:
+        return False
+    return re.match(rex, value) is not None
+
+def convert_file_size(size_bytes):
+    """
+    Convert file size to human-readable format
+    :param size_bytes: size in bytes
+    :return: string
+    """
+    if size_bytes == 0:
+        return "0B"
+    size_name = ("B", "KB", "MB", "GB", "TB", "PB", "EB", "ZB", "YB")
+    i = int(np.floor(np.log(size_bytes) / np.log(1024)))
+    p = np.power(1024, i)
+    s = round(size_bytes / p, 2)
+    return "%s %s" % (s, size_name[i])
+    
 
 
 

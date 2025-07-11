@@ -3,7 +3,7 @@ import re
 from bento.common.utils import get_logger, MULTIPLIER, DEFAULT_MULTIPLIER
 from common.constants import DATA_COMMON, VERSION, MODEL_SOURCE, NAME_PROP, DESC_PROP, ID_PROPERTY, VALUE_PROP, \
     VALUE_EXCLUSIVE, ALLOWED_VALUES, RELATION_LABEL, TYPE, NODE_LABEL, NODE_PROPERTIES, PROP_REQUIRED, MD5, \
-    FILE_SIZE, LIST_DELIMITER_PROP, CDE_TERM
+    FILE_SIZE, LIST_DELIMITER_PROP, CDE_TERM, PROPERTY_PATTERN, COMPOSITION_KEY
 from common.utils import download_file_to_dict, case_insensitive_get
 
 NODES = 'Nodes'
@@ -39,7 +39,6 @@ DEFAULT_VERSION = "1.0.0"
 DEFAULT_DESC = ""
 FILE_NAME = "file_name"
 
-
 valid_prop_types = [
     "string", # default type
     "integer",
@@ -49,8 +48,9 @@ valid_prop_types = [
     "boolean", # true/false or yes/no
     "value-list", # value_type: value type: list
             # a string with comma ',' characters as deliminator, e.g, "value1,value2,value3", represents a value list value1,value2,value3
-    "array" # value_type: list
+    "array", # value_type: list
             # a string with asterisk '*' characters as deliminator, e.g, "value1*value2+value3", represents a array [value1, value2, value3]
+    "pattern"
 ]
 
 valid_relationship_types = ["many_to_one", "one_to_one", "many_to_many"]
@@ -122,7 +122,10 @@ class YamlModelParser:
         :return:
         """
         properties = self._process_properties(name, desc)
-
+        # check if the node has composition id (user story CRDCDh-2631)
+        if COMPOSITION_KEY in desc:
+            if desc[COMPOSITION_KEY]:
+                properties.update({COMPOSITION_KEY: desc[COMPOSITION_KEY]})
         # All nodes that has properties will be save to self.nodes
         if properties[NODE_PROPERTIES]:
             self.nodes[name] = properties
@@ -136,10 +139,6 @@ class YamlModelParser:
         """
         props = {}
         keys = []
-        # file_size_prop = None
-        # file_name_prop = None
-        # File_md5_prop = None
-
         if PROPERTIES in desc and desc[PROPERTIES] is not None:
             for prop in desc[PROPERTIES]:
                 if FILE_NAME in prop:
@@ -260,6 +259,10 @@ class YamlModelParser:
                                 result[ITEM_TYPE] = item_type[TYPE]
                         if UNITS in prop_desc:
                             result[HAS_UNIT] = True
+                    elif PROPERTY_PATTERN in prop_desc:
+                        result[TYPE] = PROPERTY_PATTERN
+                        result[PROPERTY_PATTERN] = prop_desc[PROPERTY_PATTERN]
+
                 elif isinstance(prop_desc, list):
                     enum = []
                     for t in prop_desc:
@@ -281,8 +284,8 @@ class YamlModelParser:
                 if EX_MAX in prop:
                     result[MAX] = {VALUE_PROP: float(prop[EX_MAX]), VALUE_EXCLUSIVE: True}
 
-                # add term section if enum is used
-                if ALLOWED_VALUES in result and CDE_TERM in prop:
+                # add term section
+                if CDE_TERM in prop:
                     result[CDE_TERM] = prop[CDE_TERM]
         return result
 
@@ -295,7 +298,7 @@ class YamlModelParser:
                 if not re.search(r'://', t):
                     enum.add(t)
             if len(enum) > 0:
-                return {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: enum}
+                return {TYPE: DEFAULT_TYPE, ALLOWED_VALUES: list(enum)}
             else:
                 return None
         else:

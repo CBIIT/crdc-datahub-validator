@@ -1,4 +1,4 @@
-from common.constants import IDS, NODES_LABEL, MODEL, RELATIONSHIPS, LIST_DELIMITER_PROP, DEF_MAIN_NODES
+from common.constants import NODES_LABEL, RELATIONSHIPS, LIST_DELIMITER_PROP, DEF_MAIN_NODES, PROPERTY_NAMES, OMIT_DCF_PREFIX, COMPOSITION_KEY
 
 class DataModel:
     def __init__(self, model):
@@ -74,6 +74,12 @@ class DataModel:
         return self.model.get(DEF_MAIN_NODES, {}).get(node_type, None)
     
     """
+    get configured property names of a given node's property name in the model
+    """
+    def get_configured_prop_name(self, prop_name):
+        return self.model.get(PROPERTY_NAMES, {}).get(prop_name, None)
+    
+    """
     get file name property
     """
     def get_file_name(self):
@@ -86,6 +92,22 @@ class DataModel:
     """
     def get_list_delimiter(self):
         return self.model.get(LIST_DELIMITER_PROP)
+    
+    """
+    get dcf prefix
+    """
+    def get_omit_dcf_prefix(self):
+        return self.model.get(OMIT_DCF_PREFIX, False)
+    
+    """
+    get composition key
+    """
+    def get_composition_key(self, node):
+        return self.model[NODES_LABEL][node].get(COMPOSITION_KEY, None)
+
+
+    
+
     
     
     

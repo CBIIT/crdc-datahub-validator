@@ -80,6 +80,7 @@ FILE_SIZE_FIELD = "size-field"
 FILE_MD5_FIELD = "md5-field"
 FILE_MD5_COLLECTION = "fileMD5"
 LAST_MODIFIED = "LastModified"
+SUBFOLDER_FILE_NAME = "internal_file_name"
 
 #data model
 DATA_COMMON = "data_commons"
@@ -213,4 +214,23 @@ MESSAGE_TITLE = "title"
 SYNONYM_COLLECTION = "synonyms"
 PV_TERM = "equivalent_term"
 SYNONYM_TERM = "synonym_term"
+
+STUDY_COLLECTION = "approvedStudies"
+ORGANIZATION_COLLECTION = "organization"
+PROPERTY_NAMES = "property-names"
+OMIT_DCF_PREFIX = "omit-DCF-prefix"
+DATA_FILE_LOCATION = "dataFileLocation"
+S3_PREFIX = "rootPath"
+PROPERTY_PATTERN = "pattern"
+
+USER_COLLECTION = "users"
+
+DELETE_COMMAND = "<delete>"
+
+COMPOSITION_KEY = "CompKey"
+
+PV_CONCEPT_CODE_COLLECTION = "pvConceptCodes"
+CONCEPT_CODE = "conceptCode"
+PERMISSIBLE_VALUE = "pv"
+GENERATED_PROPS = "generatedProps"
 
