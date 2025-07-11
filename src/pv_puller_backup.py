@@ -1,16 +1,14 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
-from common import api_client
 from common.constants import TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, CDE_FULL_NAME, ID, CREATED_AT, UPDATED_AT,\
         CDE_PERMISSIVE_VALUES
-from common.utils import get_exception_msg
+from common.utils import get_exception_msg, current_datetime, get_uuid_str
 from common.api_client import APIInvoker
 
 MODEL_DEFS = "models"
 CADSR_DATA_ELEMENT = "DataElement"
 CADSR_VALUE_DOMAIN = "ValueDomain"
 CADSR_DATA_ELEMENT_LONG_NAME = "longName"
-CADSR_PERMISSIVE_VALUES = "PermissibleValues"
 FILE_DOWNLOAD_URL = "download_url"
 FILE_NAME = "name"
 FILE_TYPE = "type"
@@ -53,64 +51,53 @@ class PVPuller:
         
     def pull_cde_pv(self):
         """
-        pull cde pv from STS API (CDE_API_URL) and save to db
+        pull cde pv from CDE dump files in github and save to CDE collection in DB
+        """
+        tier = self.configs.get(TIER_CONFIG)
+        sts_file_url = STS_FILE_URL.format(tier)
+        cde_set = set()
+        cde_records = []
+        self.extract_cde_from_file(sts_file_url, cde_set, cde_records)
+        if not cde_records or len(cde_records) == 0:
+            self.log.info("No cde found!")
+            return
+        self.log.info(f"{len(cde_set)} unique CDE are retrieved!")
+        result, msg = self.mongo_dao.upsert_cde(list(cde_records))
+        if result: 
+            self.log.info(f"CED PV are pulled and save successfully!")
+        else:
+            self.log.error(f"Failed to pull and save CDE PV! {msg}")
+        return
+    
+    def extract_cde_from_file(self, download_url, cde_set, cde_record):
+        """
+        extract cde from cde dump file
         """
         try:
-            cde_records = retrieveAllCDE(self.configs, self.log, self.api_client)
-            if not cde_records or len(cde_records) == 0:
-                self.log.info("No cde found!")
+            self.log.info(f"Extracting cde from {download_url}")
+            result = self.api_client.get_synonyms(download_url)
+            if not result or len(result) == 0:
+                self.log.info(f"CDE dump files in {download_url} are not found! ")
+                return None
+            cde_list  = [item for item in result if item.get(CDE_CODE) and item.get(CDE_CODE) != 'null'] 
+            if not cde_list or len(cde_list) == 0:
+                self.log.info(f"No cde found in {download_url}")
                 return
-            self.log.info(f"{len(cde_records)} unique CDE are retrieved!")
-            result, msg = self.mongo_dao.upsert_cde(list(cde_records))
-            if result: 
-                self.log.info(f"CED PV are pulled and save successfully!")
-            else:
-                self.log.error(f"Failed to pull and save CDE PV! {msg}")
-            return
+            
+            for cde in cde_list:
+                cde_code = cde.get(CDE_CODE)
+                cde_version = cde.get(CDE_VERSION) if cde.get(CDE_VERSION) and cde.get(CDE_VERSION) != 'null' else None
+                cde_key = (cde_code, cde_version)
+                if cde_key in cde_set:
+                    continue
+                cde_set.add(cde_key)
+                cde_record.append(
+                    compose_cde_record(cde)
+                )
+
         except Exception as e:
             self.log.exception(e)
-            self.log.exception(f"Failed to retrieve CDE PVs.")
-
-def retrieveAllCDE(configs, log, api_client=None):
-    """
-    extract cde from cde dump file
-    """
-    cde_set = set()
-    cde_records = []
-    sts_api_url = configs[CDE_API_URL]
-    log.info(f"Retrieving cde from {sts_api_url}...")
-    if not api_client:
-        api_client = APIInvoker(configs)
-    results = api_client.get_all_data_elements(sts_api_url)
-    if not results:
-        log.error(f"No data element found for {cde_code}/{cde_version}")
-        return None, "No CDE element found."
-    for result in results:
-        if not result.get(CADSR_DATA_ELEMENT) or not result[CADSR_DATA_ELEMENT].get(CADSR_VALUE_DOMAIN):
-            continue
-        pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CADSR_PERMISSIVE_VALUES)
-        cde_long_name = result[CADSR_DATA_ELEMENT].get(CADSR_DATA_ELEMENT_LONG_NAME)
-        cde_code = result[CADSR_DATA_ELEMENT].get("publicId")
-        cde_version = result[CADSR_DATA_ELEMENT].get("version")
-        if not pv_list or len(pv_list) == 0:
-            log.error(f"No permissive values found for {cde_code}/{cde_version}")
-            pv_list = []
-        else:
-            pv_list = [ item["value"] for item in pv_list]
-
-        unique_key = f"{cde_code}:{cde_version}"
-        if unique_key not in cde_set:
-            cde_set.add(unique_key)
-            cde_records.append(
-                compose_cde_record({
-                    CDE_FULL_NAME: cde_long_name,
-                    CDE_CODE: cde_code,
-                    CDE_VERSION: cde_version,
-                    CDE_PERMISSIVE_VALUES: pv_list,
-                })
-            )
-    log.info(f"Retrieved CDE PVs from {sts_api_url}.")
-    return cde_records
+            self.log.exception(f"Failed to extract cde from {download_url}")
 
 def extract_pv_list(cde_pv_list):
     """
@@ -128,41 +115,57 @@ def extract_pv_list(cde_pv_list):
     
     return pv_list
 
-def compose_cde_record(cde_item):
+def get_cde_dump_files(api_client, github_url, tier, log):
     """
-    compose cde record from cde dump file
+    get cde dump files from github
     """
-    cde_record = {
-        CDE_FULL_NAME: cde_item.get(CDE_FULL_NAME),
-        CDE_CODE: cde_item.get(CDE_CODE),
-        CDE_VERSION: cde_item.get(CDE_VERSION) if cde_item.get(CDE_VERSION) and cde_item.get(CDE_VERSION) != 'null' else None,
-        CDE_PERMISSIVE_VALUES: extract_pv_list(cde_item.get(CDE_PV_NAME))
-    }
-    return cde_record
+    try:        
+        file_list = api_client.list_github_files(github_url, tier)
+        file_list = [f for f in file_list if f[FILE_NAME].endswith("_sts.json")]
+        if not file_list or len(file_list) == 0:
+            log.info(f"CDE dump files for {tier} are not found! ")
+            return None
+        return file_list
+    except  Exception as e:
+        log.exception(e)
+        log.exception(f"Failed to get cde dump files from {github_url}")
+        return None
 
-def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
+def get_pv_by_code_version(configs, log, data_common, prop_name, cde_code, cde_version):
     """
     get permissive values by cde code and version in real time
     :param cde_code: cde code
     :param cde_version: cde version
     """
-    cde_records = []
-    try:
-        cde_records = retrieveAllCDE(configs, log)
-        if not cde_records or len(cde_records) == 0:
-            log.info("No cde found!")
-            return None
-        log.info(f"{len(cde_records)} unique CDE are retrieved!")
-        result, msg = mongo_dao.upsert_cde(list(cde_records))
-        if result: 
-            log.info(f"CED PV are pulled and save successfully!")
-        else:
-            log.error(f"Failed to pull and save CDE PV! {msg}")
-        return_cde = next((item for item in cde_records if item[CDE_CODE] == cde_code and item[CDE_VERSION] == cde_version), None)
-        return return_cde
-    except Exception as e:
-        log.exception(e)
-        log.exception(f"Failed to retrieve CDE PVs.")
+    msg = None
+
+    # 3) pull new cde permissive values and save to db
+    api_client = APIInvoker(configs)
+    result = api_client.get_data_element_by_cde_code(cde_code, configs[CDE_API_URL], cde_version)
+    if not result or not result.get(CADSR_DATA_ELEMENT) or not result[CADSR_DATA_ELEMENT].get(CADSR_VALUE_DOMAIN):
+        log.info(f"No data element found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
+        return None, "No CDE element found."
+    pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CDE_PERMISSIVE_VALUES)
+    cde_long_name = result[CADSR_DATA_ELEMENT].get(CADSR_DATA_ELEMENT_LONG_NAME)
+    if not pv_list or len(pv_list) == 0:
+        log.info(f"No permissive values found for {data_common}/{prop_name}:{cde_code}:{cde_version}")
+        msg = "No CDE permissive values defined for the CDE code."
+        pv_list = []
+    else:
+        contains_http = any(s for s in pv_list if "http:" in s.get("value") or "https:" in s.get("value") or "http:" in s or "https:" in s )
+        if not contains_http:
+            pv_list = [ item["value"] for item in pv_list]
+        else: 
+            pv_list = None #new requirement in CRDCDH-1723
+    return {
+        ID: get_uuid_str(),
+        CDE_FULL_NAME: cde_long_name,
+        CDE_CODE: cde_code,
+        CDE_VERSION: cde_version,
+        CDE_PERMISSIVE_VALUES: pv_list,
+        CREATED_AT: current_datetime(),
+        UPDATED_AT: current_datetime(),
+    }, msg
 
 def get_pv_by_datacommon_version_cde(tier, data_commons, data_model_version, cde_code, cde_version, log, mongo_dao):
     """
@@ -178,7 +181,6 @@ def get_pv_by_datacommon_version_cde(tier, data_commons, data_model_version, cde
     :param mongo_dao: Data access object for MongoDB operations.
     :returns: A dictionary containing the CDE full name, code, version, and permissive values, or None if the CDE is not found or an error occurs.
     """
-    
     # construct the sts dump file url based on tier
     sts_file_url = STS_FILE_URL.format(tier)
     try:
@@ -217,6 +219,18 @@ def get_pv_by_datacommon_version_cde(tier, data_commons, data_model_version, cde
         log.exception(e)
         log.exception(f"Failed to extract cde from {sts_file_url}")
         return None
+    
+def compose_cde_record(cde_item):
+    """
+    compose cde record from cde dump file
+    """
+    cde_record = {
+        CDE_FULL_NAME: cde_item.get(CDE_FULL_NAME),
+        CDE_CODE: cde_item.get(CDE_CODE),
+        CDE_VERSION: cde_item.get(CDE_VERSION) if cde_item.get(CDE_VERSION) and cde_item.get(CDE_VERSION) != 'null' else None,
+        CDE_PERMISSIVE_VALUES: extract_pv_list(cde_item.get(CDE_PV_NAME))
+    }
+    return cde_record
 
 class SynonymPuller:
     """
