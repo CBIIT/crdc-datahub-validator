@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
-from common import api_client
-from common.constants import TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, CDE_FULL_NAME, ID, CREATED_AT, UPDATED_AT,\
+from common.constants import TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, CDE_FULL_NAME, STS_API_ALL_URL, STS_API_ONE_URL, \
         CDE_PERMISSIVE_VALUES
 from common.utils import get_exception_msg
 from common.api_client import APIInvoker
@@ -75,41 +74,40 @@ def retrieveAllCDE(configs, log, api_client=None):
     """
     extract cde from cde dump file
     """
-    cde_set = set()
-    cde_records = []
-    sts_api_url = configs[CDE_API_URL]
+    sts_api_url = configs[STS_API_ALL_URL]
     log.info(f"Retrieving cde from {sts_api_url}...")
     if not api_client:
         api_client = APIInvoker(configs)
     results = api_client.get_all_data_elements(sts_api_url)
-    if not results:
-        log.error(f"No data element found for {cde_code}/{cde_version}")
-        return None, "No CDE element found."
-    for result in results:
-        if not result.get(CADSR_DATA_ELEMENT) or not result[CADSR_DATA_ELEMENT].get(CADSR_VALUE_DOMAIN):
-            continue
-        pv_list = result[CADSR_DATA_ELEMENT][CADSR_VALUE_DOMAIN].get(CADSR_PERMISSIVE_VALUES)
-        cde_long_name = result[CADSR_DATA_ELEMENT].get(CADSR_DATA_ELEMENT_LONG_NAME)
-        cde_code = result[CADSR_DATA_ELEMENT].get("publicId")
-        cde_version = result[CADSR_DATA_ELEMENT].get("version")
-        if not pv_list or len(pv_list) == 0:
-            log.error(f"No permissive values found for {cde_code}/{cde_version}")
-            pv_list = []
-        else:
-            pv_list = [ item["value"] for item in pv_list]
-
-        unique_key = f"{cde_code}:{cde_version}"
-        if unique_key not in cde_set:
-            cde_set.add(unique_key)
-            cde_records.append(
-                compose_cde_record({
-                    CDE_FULL_NAME: cde_long_name,
-                    CDE_CODE: cde_code,
-                    CDE_VERSION: cde_version,
-                    CDE_PERMISSIVE_VALUES: pv_list,
-                })
-            )
+    cde_records = process_sts_cde_pv(results, log)
     log.info(f"Retrieved CDE PVs from {sts_api_url}.")
+    return cde_records
+
+def process_sts_cde_pv(sts_results, log):
+    """
+    get cde pv from sts api
+    :param sts_api_url: sts api url
+    """
+    cde_set = set()
+    cde_records = []
+    if not sts_results or len(sts_results) == 0:
+        log.error(f"No cde/pvs retrieve from STS API.")
+        return None
+    cde_list  = [item for item in sts_results if item.get(CDE_CODE) and item.get(CDE_CODE) != 'null'] 
+    if not cde_list or len(cde_list) == 0:
+        log.error(f"No cde found in STS API results.")
+        return None 
+    for item in cde_list:
+        code = item.get(CDE_CODE)
+        version = item.get(CDE_VERSION) if item.get(CDE_VERSION) and item.get(CDE_VERSION) != 'null' else None
+        cde_key = (code, version)
+        if cde_key in cde_set:
+            continue
+        cde_set.add(cde_key)
+        cde_record = compose_cde_record(item)
+        cde_records.append(
+            cde_record
+        )
     return cde_records
 
 def extract_pv_list(cde_pv_list):
@@ -146,23 +144,40 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
     :param cde_code: cde code
     :param cde_version: cde version
     """
+    msg = None
+    if cde_code is None:
+        msg = "CDE code is required."
+        log.error(f"Invalid CDE code.")
+        return None, msg
     cde_records = []
+    api_client = APIInvoker(configs)
+    sts_api_url = configs[STS_API_ONE_URL]
+    if not sts_api_url:
+        msg = "STS API url is not configured."
+        log.error(f"Invalid STS API URL.")
+        return None, msg
+    if not cde_version:
+        sts_api_url = sts_api_url.replace("/{cde_version}", "")
+        sts_api_url = sts_api_url.format(cde_code=cde_code)
+        cde_version = None
+    else:
+        sts_api_url = sts_api_url.format(cde_code=cde_code, cde_version=cde_version)
+    log.info(f"Retrieving cde from {sts_api_url} for {cde_code}/{cde_version}...")
     try:
-        cde_records = retrieveAllCDE(configs, log)
+        results = api_client.get_all_data_elements(sts_api_url)
+        cde_records = process_sts_cde_pv(results, log)
         if not cde_records or len(cde_records) == 0:
-            log.info("No cde found!")
-            return None
+            msg = f"No CDE found for {cde_code}/{cde_version}."
+            log.info(msg)
+            return None, msg
         log.info(f"{len(cde_records)} unique CDE are retrieved!")
-        result, msg = mongo_dao.upsert_cde(list(cde_records))
-        if result: 
-            log.info(f"CED PV are pulled and save successfully!")
-        else:
-            log.error(f"Failed to pull and save CDE PV! {msg}")
-        return_cde = next((item for item in cde_records if item[CDE_CODE] == cde_code and item[CDE_VERSION] == cde_version), None)
-        return return_cde
+        cde_record = next((item for item in cde_records if item[CDE_CODE] == cde_code and item[CDE_VERSION] == cde_version), None)
+        return cde_record
     except Exception as e:
         log.exception(e)
-        log.exception(f"Failed to retrieve CDE PVs.")
+        msg = f"Failed to retrieve CDE PVs for {cde_code}/{cde_version}."
+        log.exception(msg)
+        return None, msg
 
 def get_pv_by_datacommon_version_cde(tier, data_commons, data_model_version, cde_code, cde_version, log, mongo_dao):
     """

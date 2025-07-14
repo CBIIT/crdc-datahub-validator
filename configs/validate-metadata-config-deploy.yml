@@ -3,4 +3,5 @@ Config:
     service-type: metadata
     models-loc: https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/
     cde-data-element-api: https://cadsrapi.cancer.gov/rad/NCIAPI/1.0/api/DataElement/
+    sts_api_one_url: https://sts-dev.ctos-data-team.org//cde-pvs/{cde_code}/{cde_version}?format=json
    
