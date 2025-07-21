@@ -88,12 +88,13 @@ class APIInvoker:
             "accept": "application/json"
         }
         try:
-            response = requests.get(api_uri, headers=headers)
+            # response = requests.get(api_uri, headers=headers)
+            response = requests.get(api_uri, headers=headers, verify=False)
             status = response.status_code
             # self.log.info(f"get_data_element_by_cde_code response status code: {status}.")
             if status == 200:
                 results = response.json()
-                if results.get("errors"):
+                if isinstance(results, dict) and "errors" in results:
                     self.log.error(f'Retrieve data element by cde code failed - {results.get("errors")[0].get("message")}.')
                     return None
                 else:
