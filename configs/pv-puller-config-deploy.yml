@@ -5,3 +5,4 @@ Config:
     cde-data-element-api: https://cadsrapi.cancer.gov/rad/NCIAPI/1.0/api/DataElement/
     synonym-api-url: https://api.github.com/repos/CBIIT/crdc-datahub-terms/contents
     sts_api_all_url: https://sts-dev.cancer.gov/all-pvs?format=json
+    sts_api_one_url: https://sts-dev.cancer.gov/cde-pvs/{cde_code}/{cde_version}?format=json
