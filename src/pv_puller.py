@@ -62,7 +62,9 @@ class PVPuller:
         try:
             cde_records, synonym_records, concept_codes_records = retrieveAllCDEViaAPI(self.configs, self.log, self.api_client) if resource == STS_DATA_RESOURCE_API \
                 else retrieveAllCDEViaDumpFile(self.configs, self.log, self.api_client)
-            
+            if not cde_records or len(cde_records) == 0:
+                self.log.info("No CDE found!")
+                return
             self.log.info(f"{len(cde_records)} unique CDE are retrieved!")
             result, msg = self.mongo_dao.upsert_cde(list(cde_records))
             if result: 
@@ -100,6 +102,9 @@ def retrieveAllCDEViaAPI(configs, log, api_client=None):
     if not api_client:
         api_client = APIInvoker(configs)
     results = api_client.get_all_data_elements(sts_api_url)
+    if not results or len(results) == 0:
+        log.error(f"No cde/pvs retrieve from STS API, {sts_api_url}.")
+        return None, None, None
     cde_records, synonym_set, concept_code_set= process_sts_cde_pv(results, log)
     log.info(f"Retrieved CDE PVs from {sts_api_url}.")
     return cde_records, synonym_set, concept_code_set
