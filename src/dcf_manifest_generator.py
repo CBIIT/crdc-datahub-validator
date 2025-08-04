@@ -4,7 +4,7 @@ import os, io
 from bento.common.utils import get_logger
 from common.constants import S3_FILE_INFO, ID, EXPORT_METADATA, DATA_COMMON_NAME,\
     S3_FILE_INFO, ID, SIZE, MD5, FILE_NAME, ROOT_PATH, BATCH_BUCKET, NODE_ID, PROD_BUCKET_CONFIG_NAME,\
-    DCF_PREFIX, STUDY_ID, DBGA_PID, CONTROL_ACCESS
+    DCF_PREFIX, STUDY_ID, DBGA_PID, CONTROL_ACCESS, CONSENT_CODE
 
 from common.utils import get_date_time, get_exception_msg, get_uuid_str
 
@@ -50,16 +50,16 @@ class GenerateDCF:
         url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission.get(STUDY_ID)}/'
         for r in file_nodes:
             node_id = r[NODE_ID] if r[NODE_ID].startswith(DCF_PREFIX) else DCF_PREFIX + r[NODE_ID]
+            consent_code = r.get(CONSENT_CODE, None)
             row = {
                 "guid": node_id,
                 "md5": r[S3_FILE_INFO].get(MD5),
                 "size": r[S3_FILE_INFO].get(SIZE),
-                "acl": acl,
-                "authz": authz,
+                "acl": f"{acl}.c{consent_code}" if consent_code and acl != "['*']" else acl,
+                "authz": f"{authz}.c{consent_code}" if consent_code and authz != "['/open']" else authz,
                 "urls": os.path.join(url, r[S3_FILE_INFO].get(FILE_NAME))
             }
             rows.append(row)
-
         df = None
         buf = None
         try:

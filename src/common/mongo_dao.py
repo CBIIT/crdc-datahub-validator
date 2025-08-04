@@ -1355,7 +1355,26 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to get user for {id}: {get_exception_msg()}")
             return None
-    
+
+    def find_grandparent_by_parent(self, parentType, parentIDValue, submissionID):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        query = {SUBMISSION_ID: submissionID, NODE_TYPE: parentType, NODE_ID: parentIDValue}
+        try:
+            result = data_collection.find_one(query)
+            if result.get(PARENTS) and len(result[PARENTS]) > 0:
+                # convert parent to tuple (parentType, parentIDPropName, parentIDValue)
+                return [(parent.get(PARENT_TYPE), parent.get(PARENT_ID_NAME), parent.get(PARENT_ID_VAL)) for parent in result[PARENTS]]
+            return None
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get grandparent for {parentIDValue}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get grandparent for {parentIDValue}: {get_exception_msg()}")
+            return None
+
 """
 remove _id from records for update
 """   

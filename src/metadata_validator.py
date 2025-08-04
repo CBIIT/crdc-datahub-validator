@@ -13,7 +13,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
     LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN, DELETE_COMMAND, CONCEPT_CODE, \
-    GENERATED_PROPS, DELETE_COMMAND, METADATA_VALIDATION
+    GENERATED_PROPS, DELETE_COMMAND, METADATA_VALIDATION, CONSENT_CODE_NODE_TYPE, CONSENT_CODE, CONSENT_GROUP_NUMBER
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -530,14 +530,49 @@ class MetaDataValidator:
                 if child_node_ids and len(child_node_ids) > 1:
                     result[ERRORS].append(create_error("M024", 
                                 f'"{msg_prefix}": associated node “{parent_type}”: “{parent_id_value}" has multiple nodes associated: {json.dumps(child_node_ids)}.', node_type, node_id))
-
+        # check if the node type is file  node
+        if node_type in self.model.get_file_nodes():
+            # check if the file node has parents
+            if data_record_parent_nodes and  len(data_record_parent_nodes) > 0:
+                # loop through all parents to check if the parent or grandparent or grandgrandparent's parentNodeType is "consent_group" by mongo_dao
+                consent_group_parents = set()
+                for parent_node in data_record_parent_nodes:
+                    parent_type = parent_node[PARENT_TYPE]
+                    parent_id_value = parent_node[PARENT_ID_VAL]
+                    # call get get_file_consent_code
+                    self.get_file_consent_code(parent_type, parent_id_value, consent_group_parents)
+                counts = len(consent_group_parents)
+                if counts > 1:
+                    # report error for multiple consent groups
+                    result[ERRORS].append(create_error("M034", [msg_prefix, node_type], node_type, node_id))
+                elif counts == 1:
+                    # consent group found for the file node
+                    consent_code_group_tuple = list(consent_group_parents)[0]
+                    consent_code_group = self.mongo_dao.get_dataRecord_by_node(consent_code_group_tuple[2], consent_code_group_tuple[0], self.submission_id)
+                    if consent_code_group:
+                        data_record[CONSENT_CODE] = consent_code_group.get(CONSENT_GROUP_NUMBER)
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
 
         if len(result[ERRORS]) == 0 and len(result[WARNINGS]) == 0:
             result["result"] = STATUS_PASSED
         return result
-    
+
+    def get_file_consent_code(self, parent_type, parent_id_value, consent_group_parents):
+        # find grandparent in array of tuple (parent_type, parentIDPropName, parent_id_value)
+        grandparent_nodes = self.mongo_dao.find_grandparent_by_parent(parent_type, parent_id_value, self.submission_id)
+        if grandparent_nodes and len(grandparent_nodes) > 0:
+            # check if the grandparent node is of type "consent_group"
+            consent_groups = [item for item in grandparent_nodes if item[0] == CONSENT_CODE_NODE_TYPE]
+            if consent_groups and len(consent_groups) > 0:
+                # check if the consent group is already in the list
+                consent_group_parents.update(consent_groups)
+                return
+            else:
+                for grandparent in grandparent_nodes:
+                    self.get_file_consent_code(grandparent[0], grandparent[2], consent_group_parents)
+        return
+
     def get_unique_child_node_ids(self, data_common, node_type, parent_node, submission_id):
         children = self.mongo_dao.get_nodes_by_parent_prop(node_type, parent_node, submission_id)
         if not children:
