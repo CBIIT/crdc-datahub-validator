@@ -553,6 +553,7 @@ class MetaDataValidator:
                         consent_code = consent_code_group["props"].get(CONSENT_GROUP_NUMBER)
                         if consent_code:
                             data_record[CONSENT_CODE] = consent_code
+                            
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
 
