@@ -550,7 +550,9 @@ class MetaDataValidator:
                     consent_code_group_tuple = list(consent_group_parents)[0]
                     consent_code_group = self.mongo_dao.get_dataRecord_by_node(consent_code_group_tuple[2], consent_code_group_tuple[0], self.submission_id)
                     if consent_code_group:
-                        data_record[CONSENT_CODE] = consent_code_group.get(CONSENT_GROUP_NUMBER)
+                        consent_code = consent_code_group["props"].get(CONSENT_GROUP_NUMBER)
+                        if consent_code:
+                            data_record[CONSENT_CODE] = consent_code
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
 
@@ -770,7 +772,7 @@ def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao, data_re
         permissive_vals.append(DELETE_COMMAND)
         if isinstance(permissive_vals[0], str):
             # find value in pv list in case-insensitive if value is string
-            matched_val = next((item for item in permissive_vals if item.lower() == value.lower()), None)
+            matched_val = next((item for item in permissive_vals if item.lower() == str(value).lower()), None)
             if not matched_val: 
                 result = False
             else:

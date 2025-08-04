@@ -45,18 +45,20 @@ class GenerateDCF:
             self.log.error(f'If control access is set true, dbGaPID is required!')
             return 
         dbGaPID = dbGaPID.split('.')[0] if dbGaPID else None
-        acl ="['*']" if not control_access else f"['{dbGaPID}']"
-        authz = "['/open']" if not control_access else f"['/programs/{dbGaPID}']"
+        # acl ="['*']" if not control_access else f"['{dbGaPID}']"
+        # authz = "['/open']" if not control_access else f"['/programs/{dbGaPID}']"
         url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission.get(STUDY_ID)}/'
         for r in file_nodes:
             node_id = r[NODE_ID] if r[NODE_ID].startswith(DCF_PREFIX) else DCF_PREFIX + r[NODE_ID]
             consent_code = r.get(CONSENT_CODE, None)
+            acl ="['*']" if not control_access else f"['{dbGaPID}']" if not consent_code else f"['{dbGaPID}.c{consent_code}']"
+            authz = "['/open']" if not control_access else f"['/programs/{dbGaPID}']" if not consent_code else f"['/programs/{dbGaPID}.c{consent_code}']"
             row = {
                 "guid": node_id,
                 "md5": r[S3_FILE_INFO].get(MD5),
                 "size": r[S3_FILE_INFO].get(SIZE),
-                "acl": f"{acl}.c{consent_code}" if consent_code and acl != "['*']" else acl,
-                "authz": f"{authz}.c{consent_code}" if consent_code and authz != "['/open']" else authz,
+                "acl":  acl,
+                "authz": authz,
                 "urls": os.path.join(url, r[S3_FILE_INFO].get(FILE_NAME))
             }
             rows.append(row)
