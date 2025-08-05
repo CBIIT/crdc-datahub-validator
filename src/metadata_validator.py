@@ -564,7 +564,7 @@ class MetaDataValidator:
     def get_file_consent_code(self, parent_type, parent_id_value, consent_group_parents):
         # find grandparent in array of tuple (parent_type, parentIDPropName, parent_id_value)
         grandparent_nodes = self.mongo_dao.find_grandparent_by_parent(parent_type, parent_id_value, self.submission_id)
-        if grandparent_nodes and len(grandparent_nodes) > 0:
+        if grandparent_nodes:
             # check if the grandparent node is of type "consent_group"
             consent_groups = [item for item in grandparent_nodes if item[0] == CONSENT_CODE_NODE_TYPE]
             if consent_groups and len(consent_groups) > 0:
