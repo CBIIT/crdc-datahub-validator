@@ -68,7 +68,7 @@ class PVPuller:
             self.log.info(f"{len(cde_records)} unique CDE are retrieved!")
             result, msg = self.mongo_dao.upsert_cde(list(cde_records))
             if result: 
-                self.log.info(f"CED PV are pulled and save successfully!")
+                self.log.info(f"CDE PV are pulled and save successfully!")
             else:
                 self.log.error(f"Failed to pull and save CDE PV! {msg}")
 
@@ -78,7 +78,7 @@ class PVPuller:
             self.log.info(f"{len(synonym_records)} unique synonyms are retrieved!")
             result = self.mongo_dao.insert_synonyms(list(synonym_records))
             if result is not None:
-                self.log.info(f"CED Synonyms are pulled and save successfully!")
+                self.log.info(f"CDE Synonyms are pulled and save successfully!")
 
             if not concept_codes_records or len(concept_codes_records) == 0:
                 self.log.info("No concept code found!")
@@ -86,7 +86,7 @@ class PVPuller:
             self.log.info(f"{len(concept_codes_records)} unique concept codes are retrieved!")
             result = self.mongo_dao.insert_concept_codes(list(concept_codes_records))
             if result is not None:
-                self.log.info(f"CED Concept Codes are pulled and save successfully!")
+                self.log.info(f"CDE Concept Codes are pulled and save successfully!")
             self.log.info(f"All CDE PVs, Synonyms and Concept Codes are pulled and saved successfully!")
             return
         except Exception as e:
@@ -105,7 +105,7 @@ def retrieveAllCDEViaAPI(configs, log, api_client=None):
     if not results or len(results) == 0:
         log.error(f"No cde/pvs retrieve from STS API, {sts_api_url}.")
         return None, None, None
-    cde_records, synonym_set, concept_code_set= process_sts_cde_pv(results, log)
+    cde_records, synonym_set, concept_code_set = process_sts_cde_pv(results, log)
     log.info(f"Retrieved CDE PVs from {sts_api_url}.")
     return cde_records, synonym_set, concept_code_set
 
@@ -294,159 +294,3 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
     else:
         log.error(f"Failed to pull and save CDE PV! {msg}")
     return cde_record
-
-def get_pv_by_datacommon_version_cde(tier, data_commons, data_model_version, cde_code, cde_version, log, mongo_dao):
-    """
-    extracts the CDE list by data_commons, data_model_version and finds matches based on the provided CDE code and version,
-    finally saves the CDE list into DB.
-
-    :param tier: The tier of the environment (e.g., 'dev', 'qa', 'prod').
-    :param data_commons: The name of the data commons.
-    :param data_model_version: The version of the data model.
-    :param cde_code: The code of the CDE to retrieve.
-    :param cde_version: The version of the CDE to retrieve.
-    :param log: Logger instance for logging information and errors.
-    :param mongo_dao: Data access object for MongoDB operations.
-    :returns: A dictionary containing the CDE full name, code, version, and permissive values, or None if the CDE is not found or an error occurs.
-    """
-    
-    # construct the sts dump file url based on tier
-    sts_file_url = STS_FILE_URL.format(tier)
-    try:
-        log.info(f"Extracting cde from {sts_file_url}")
-        api_client = APIInvoker({})
-        result = api_client.get_synonyms(sts_file_url)
-        if not result or len(result) == 0:
-            log.error(f"CDE dump file,{sts_file_url} is not found! ")
-            return None
-        cde_list  = [item for item in result if item.get(CDE_CODE) and item.get(CDE_CODE) != 'null'] 
-        if not cde_list or len(cde_list) == 0:
-            log.error(f"No cde found in {sts_file_url}")
-            return
-        
-        cde_set = set()
-        cde_records = []
-        return_cde = None
-        for item in cde_list:
-            code = item.get(CDE_CODE)
-            version = item.get(CDE_VERSION) if item.get(CDE_VERSION) and item.get(CDE_VERSION) != 'null' else None
-            cde_key = (code, version)
-            if cde_key in cde_set:
-                continue
-            cde_set.add(cde_key)
-            cde_record = compose_cde_record(item)
-            cde_records.append(
-                cde_record
-            )
-            if code  == cde_code and version == cde_version:
-                return_cde = cde_record
-        # save all extracted CDEs
-        mongo_dao.upsert_cde(cde_records)
-        # return matched CDE
-        return return_cde
-    except Exception as e:
-        log.exception(e)
-        log.exception(f"Failed to extract cde from {sts_file_url}")
-        return None
-
-class SynonymPuller:
-    """
-    pull synonyms from sts and save to db
-    """
-    def __init__(self, configs, mongo_dao, api_client):
-        self.log = get_logger('Synonyms puller')
-        self.mongo_dao = mongo_dao
-        self.configs = configs
-        self.api_client = api_client
-
-    def pull_synonyms(self):
-        # init a synonym set to make sure all synonym/pv pairs are unique
-        synonym_set = set()
-        concept_code_set = set()
-        tier = self.configs.get(TIER_CONFIG)
-        sts_file_url = STS_FILE_URL.format(tier)
-        try: 
-            # 1) pull synonyms from the file
-            self.get_synonyms_by_datacommon_version(sts_file_url, synonym_set, concept_code_set)
-            # 2) save synonyms to db
-            if not synonym_set or len(synonym_set) == 0:
-                self.log.info("No synonyms found!")
-                return
-            self.log.info(f"{len(synonym_set)} unique synonym/pv pairs are retrieved!")
-            count = self.mongo_dao.insert_synonyms(list(synonym_set))
-            self.log.info(f"{count} new synonyms are inserted!")
-
-            # 3) save concept code to db
-            if not concept_code_set or len(concept_code_set) == 0:
-                self.log.info("No concept code found!")
-                return
-            self.log.info(f"{len(concept_code_set)} unique concept code/pv pairs are retrieved!")
-            count = self.mongo_dao.insert_concept_codes(list(concept_code_set))
-            self.log.info(f"{count} concept codes are inserted!")
-            
-            return
-
-        except Exception as e: #catch all unhandled exception
-            self.log.exception(e)
-            msg = f"Failed to pull synonyms, {get_exception_msg()}!"
-            self.log.exception(msg)
-            return False
-        
-    def get_synonyms_by_datacommon_version(self, synonym_url, synonym_set, concept_code_set):
-        """
-        get synonyms from dump file url in Github repo
-        :param synonym_url
-        :param synonym_set
-        """
-        try:
-            self.log.info(f"Pulling synonyms and concept codes from {synonym_url}")
-            result = self.api_client.get_synonyms(synonym_url)
-            if not result or len(result) == 0:
-                self.log.info(f"Synonyms and concept codes for {synonym_url} are not found! ")
-                return None
-            # filter out empty synonyms
-            synonyms  = [item for item in result if item.get(CDE_PV_NAME) and item.get(CDE_PV_NAME)[0].get(NCIT_SYNONYMS)] 
-            for item in synonyms:
-                pv_list = item.get(CDE_PV_NAME)
-                if pv_list:
-                    for pv in pv_list:
-                        value = pv.get(NCIT_VALUE)
-                        synonyms_val = pv.get(NCIT_SYNONYMS)
-                        if synonyms:
-                            for synonym in synonyms_val:
-                                if synonym:
-                                    synonym_key = (synonym, value)
-                                    if synonym_key in synonym_set:
-                                        continue
-                                    synonym_set.add(synonym_key)
-            # extract concept codes
-            self.get_concept_code(result, concept_code_set)
-    
-        except Exception as e:
-            self.log.exception(e)
-            msg = f"Failed to pull synonyms from {synonym_url}, {get_exception_msg()}!"
-            self.log.exception(msg)
-            return None
-    
-    def get_concept_code(self, result, concept_code_set):
-        """
-        get synonyms from dump file url in Github repo
-        :param synonym_url
-        :param synonym_set
-        """
-        self.log.info(f"Extract concept codes")
-        # filter out empty synonyms
-        concept_codes  = [item for item in result if item.get(CDE_PV_NAME) and item.get(CDE_PV_NAME)[0].get('ncit_concept_code')] 
-        for item in concept_codes:
-            pv_list = item.get(CDE_PV_NAME)
-            cde_code = item.get(CDE_CODE)
-            if pv_list:
-                for pv in pv_list:
-                    value = pv.get(NCIT_VALUE)
-                    concept_code = pv.get('ncit_concept_code')
-                    if concept_code:
-                        concept_code_key = (cde_code, value, concept_code)
-                        if concept_code_key in concept_code_set:
-                            continue
-                        concept_code_set.add(concept_code_key)
-        return
