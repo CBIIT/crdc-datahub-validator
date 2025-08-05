@@ -567,7 +567,7 @@ class MetaDataValidator:
         if grandparent_nodes:
             # check if the grandparent node is of type "consent_group"
             consent_groups = [item for item in grandparent_nodes if item[0] == CONSENT_CODE_NODE_TYPE]
-            if consent_groups and len(consent_groups) > 0:
+            if consent_groups:
                 # check if the consent group is already in the list
                 consent_group_parents.update(consent_groups)
                 return
