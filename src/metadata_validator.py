@@ -533,7 +533,7 @@ class MetaDataValidator:
         # check if the node type is file  node
         if node_type in self.model.get_file_nodes():
             # check if the file node has parents
-            if data_record_parent_nodes and  len(data_record_parent_nodes) > 0:
+            if data_record_parent_nodes:
                 # loop through all parents to check if the parent or grandparent or grandgrandparent's parentNodeType is "consent_group" by mongo_dao
                 consent_group_parents = set()
                 for parent_node in data_record_parent_nodes:
