@@ -165,6 +165,12 @@ Messages:
     severity: "Error"
     message: '{} deleting value of a required property “{}” is not allowed.'
     description: "Try to delete value of a required property"
+  M034:
+    title: ""
+    severity: "Error"
+    message: '{} multiple associated consent codes for “{}” is not allowed.'
+    description: "A file has more than one consent code associated with it, which is not allowed."
+
   # data file validation message
   F001:
    title: "Data File not found"
