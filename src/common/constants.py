@@ -239,6 +239,11 @@ PV_CONCEPT_CODE_COLLECTION = "pvConceptCodes"
 CONCEPT_CODE = "conceptCode"
 PERMISSIBLE_VALUE = "pv"
 GENERATED_PROPS = "generatedProps"
+CONSENT_CODE_NODE_TYPE = "consent_group"
+CONSENT_CODE = "consentCode"
+CONSENT_GROUP_NUMBER = "consent_group_number"
+
+
 STS_API_ALL_URL = "sts_api_all_url"
 STS_API_ONE_URL = "sts_api_one_url"
 STS_RESOURCE_CONFIG_TYPE = "STS_RESOURCE"
