@@ -263,7 +263,12 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
             log.exception(e)
             msg = f"Failed to retrieve CDE PVs for {cde_code}/{cde_version}."
             log.exception(msg)
-            return None
+                return None, msg
+        except Exception as e:
+            log.exception(e)
+            msg = f"Failed to retrieve CDE PVs for {cde_code}/{cde_version}."
+            log.exception(msg)
+            return None, msg
     else:
         sts_file_url = STS_FILE_URL.format(configs[TIER_CONFIG])
         log.info(f"Retrieving cde from {sts_file_url} for {cde_code}/{cde_version}...")
