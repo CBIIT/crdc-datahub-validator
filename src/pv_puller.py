@@ -284,7 +284,18 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
     if not cde_record:
         msg = f"No CDE found for {cde_code}/{cde_version}."
         log.info(msg)
-        return None
+            return (None, msg)
+
+    if not cde_records or len(cde_records) == 0:
+        msg = f"No CDE found for {cde_code}/{cde_version}."
+        log.info(msg)
+        return (None, msg)
+    log.info(f"{len(cde_records)} unique CDE are retrieved!")
+    cde_record = next((item for item in cde_records if item[CDE_CODE] == cde_code and item[CDE_VERSION] == cde_version), None)
+    if not cde_record:
+        msg = f"No CDE found for {cde_code}/{cde_version}."
+        log.info(msg)
+        return (None, msg)
     log.info(f"Retrieved CDE for {cde_code}/{cde_version}.")
     # save cde pv to db
     result, msg = mongo_dao.upsert_cde([cde_record])
