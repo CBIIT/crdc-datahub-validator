@@ -234,7 +234,7 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
     if cde_code is None:
         msg = "CDE code is required."
         log.error(f"Invalid CDE code.")
-        return None, msg
+        return None
     cde_records = []
     api_client = APIInvoker(configs)
     resource = configs[STS_DATA_RESOURCE_CONFIG] if configs.get(STS_DATA_RESOURCE_CONFIG) else STS_DATA_RESOURCE_API
@@ -244,7 +244,7 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
         if not sts_api_url:
             msg = "STS API url is not configured."
             log.error(f"Invalid STS API URL.")
-            return None, msg
+            return None
         if not cde_version:
             sts_api_url = sts_api_url.replace("/{cde_version}", "")
             sts_api_url = sts_api_url.format(cde_code=cde_code)
@@ -263,12 +263,12 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
             log.exception(e)
             msg = f"Failed to retrieve CDE PVs for {cde_code}/{cde_version}."
             log.exception(msg)
-                return None, msg
+            return None
         except Exception as e:
             log.exception(e)
             msg = f"Failed to retrieve CDE PVs for {cde_code}/{cde_version}."
             log.exception(msg)
-            return None, msg
+            return None
     else:
         sts_file_url = STS_FILE_URL.format(configs[TIER_CONFIG])
         log.info(f"Retrieving cde from {sts_file_url} for {cde_code}/{cde_version}...")
@@ -291,21 +291,20 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
     if not cde_record:
         msg = f"No CDE found for {cde_code}/{cde_version}."
         log.info(msg)
-            return (None, msg)
-
+        return None
     if not cde_records or len(cde_records) == 0:
         msg = f"No CDE found for {cde_code}/{cde_version}."
         log.info(msg)
-        return (None, msg)
+        return None
     log.info(f"{len(cde_records)} unique CDE are retrieved!")
     cde_record = next((item for item in cde_records if item[CDE_CODE] == cde_code and item[CDE_VERSION] == cde_version), None)
     if not cde_record:
         msg = f"No CDE found for {cde_code}/{cde_version}."
         log.info(msg)
-        return (None, msg)
+        return None
     log.info(f"Retrieved CDE for {cde_code}/{cde_version}.")
     # save cde pv to db
-    result, msg = mongo_dao.upsert_cde([cde_record])
+    result, _ = mongo_dao.upsert_cde([cde_record])
     if result:
         log.info(f"CED PV are pulled and save successfully!")
     else:
