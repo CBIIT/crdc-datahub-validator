@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-from unittest import result
 from bento.common.utils import get_logger
 from common.constants import TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, CDE_FULL_NAME, STS_API_ALL_URL, STS_API_ONE_URL, \
         CDE_PERMISSIVE_VALUES, STS_DATA_RESOURCE_CONFIG, STS_DATA_RESOURCE_API, STS_DATA_RESOURCE_FILE
