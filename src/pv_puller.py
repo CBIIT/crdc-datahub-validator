@@ -166,7 +166,7 @@ def extract_pv_list(cde_pv_list):
     """
     pv_list = None
     if cde_pv_list and len(cde_pv_list) > 0 and cde_pv_list[0].get(NCIT_VALUE): 
-        pv_list = [item[NCIT_VALUE] for item in cde_pv_list] 
+        pv_list = [item.get(NCIT_VALUE) for item in cde_pv_list if item.get(NCIT_VALUE) is not None]
     if cde_pv_list and any(item.get(NCIT_VALUE) for item in cde_pv_list):
         pv_list = [item[NCIT_VALUE] for item in cde_pv_list if NCIT_VALUE in item and item[NCIT_VALUE] is not None]
         contains_http = any(s for s in pv_list if isinstance(s, str) and s.startswith(("http:", "https:")))
