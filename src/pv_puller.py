@@ -242,7 +242,7 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
         if not sts_api_url:
             msg = "STS API url is not configured."
             log.error(f"Invalid STS API URL.")
-            return None
+            return None, msg
         if not cde_version:
             sts_api_url = sts_api_url.replace("/{cde_version}", "")
             sts_api_url = sts_api_url.format(cde_code=cde_code)
