@@ -270,7 +270,7 @@ class EssentialValidator:
                 return False
             self.bucket.download_file(key, download_file)
             if os.path.isfile(download_file):
-                df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE, keep_default_na=False)
+                df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE, keep_default_na=False, na_values=[''])
                 self.df = (df.rename(columns=lambda x: x.strip())).apply(lambda x: x.str.strip() if x.dtype == 'object' else x) # stripe white space.
                 self.download_file_list.append(download_file)
             return True # if no exception
