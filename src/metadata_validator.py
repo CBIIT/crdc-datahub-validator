@@ -628,6 +628,7 @@ class MetaDataValidator:
                     val = int(value)
                 except ValueError as e:
                     errors.append(create_error("M004",[msg_prefix, prop_name, value], prop_name, value))
+                    return errors
 
                 result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                 if not result:
