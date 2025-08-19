@@ -13,10 +13,6 @@ Config:
     pwd: ****
     # db name
     db: crdc-datahub
-    #sqs configuration
-    sqs: crdcdh-queue-pgu.fifo
     models-loc:  https://raw.githubusercontent.com/CBIIT/crdc-datahub-models/
-    cde-data-element-api: https://cadsrapi.cancer.gov/rad/NCIAPI/1.0/api/DataElement/
-    tier: dev2
 
    

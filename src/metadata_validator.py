@@ -19,7 +19,7 @@ from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
 from service.ecs_agent import set_scale_in_protection
 from x_submission_validator import CrossSubmissionValidator
-from pv_puller import get_pv_by_datacommon_version_cde
+from pv_puller import get_pv_by_code_version
 
 VISIBILITY_TIMEOUT = 20
 BATCH_SIZE = 1000
@@ -735,8 +735,7 @@ class MetaDataValidator:
                         permissive_vals = None
             else:
                 if not self.searched_sts:
-                    cde = get_pv_by_datacommon_version_cde(self.config[TIER_CONFIG], self.submission[DATA_COMMON_NAME], 
-                                                            self.submission[MODEL_VERSION], cde_code, cde_version, self.log, self.mongo_dao)
+                    cde = get_pv_by_code_version(self.config, self.log, cde_code, cde_version, self.mongo_dao)
                     self.searched_sts = True
                     if cde:
                         if cde.get(CDE_PERMISSIVE_VALUES) is not None:
