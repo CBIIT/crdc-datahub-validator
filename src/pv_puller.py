@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
 from common.constants import TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, CDE_FULL_NAME, STS_API_ALL_URL, STS_API_ONE_URL, \
-        CDE_PERMISSIVE_VALUES, STS_DATA_RESOURCE_CONFIG, STS_DATA_RESOURCE_API, STS_DATA_RESOURCE_FILE
+        CDE_PERMISSIVE_VALUES, STS_DATA_RESOURCE_CONFIG, STS_DATA_RESOURCE_API, STS_DATA_RESOURCE_FILE, STS_DUMP_CONFIG
 from common.utils import get_exception_msg
 from common.api_client import APIInvoker
 
@@ -14,7 +14,6 @@ FILE_DOWNLOAD_URL = "download_url"
 FILE_NAME = "name"
 FILE_TYPE = "type"
 CDE_PV_NAME = "permissibleValues"
-STS_FILE_URL = "https://raw.githubusercontent.com/CBIIT/crdc-datahub-terms/{}/mdb_pvs_synonyms.json"
 NCIT_CDE_CONCEPT_CODE = "ncit_concept_code"
 NCIT_SYNONYMS = "synonyms"
 NCIT_VALUE = "value"
@@ -112,7 +111,7 @@ def retrieveAllCDEViaDumpFile(configs, log, api_client=None):
     """
     extract cde from cde dump file
     """
-    sts_file_url = STS_FILE_URL.format(configs[TIER_CONFIG])
+    sts_file_url = configs[STS_DUMP_CONFIG].format(configs[TIER_CONFIG])
     log.info(f"Retrieving cde from {sts_file_url}...")
     if not api_client:
         api_client = APIInvoker(configs)
@@ -270,7 +269,7 @@ def get_pv_by_code_version(configs, log, cde_code, cde_version, mongo_dao):
             log.exception(msg)
             return None
     else:
-        sts_file_url = STS_FILE_URL.format(configs[TIER_CONFIG])
+        sts_file_url = configs[STS_DUMP_CONFIG].format(configs[TIER_CONFIG])
         log.info(f"Retrieving cde from {sts_file_url} for {cde_code}/{cde_version}...")
         try:
             results = api_client.get_synonyms(sts_file_url)
