@@ -566,12 +566,12 @@ class MongoDao:
     """
     find node in other submission with the same study
     """   
-    def find_node_in_other_submissions_in_status(self, submission_id, study, data_common, node_type, nodeId, status_list):
+    def find_node_in_other_submissions_in_status(self, submission_id, studyID, data_common, node_type, nodeId, status_list):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
             submissions = None
-            other_submissions = self.find_submissions({STUDY_ABBREVIATION: study, SUBMISSION_STATUS: {"$in": status_list}, ID: {"$ne": submission_id}})
+            other_submissions = self.find_submissions({STUDY_ID: studyID, SUBMISSION_STATUS: {"$in": status_list}, ID: {"$ne": submission_id}})
             if len(other_submissions) > 0:
                 other_submission_ids = [item[ID] for item in other_submissions]
                 duplicate_nodes = list(data_collection.find({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}}))
