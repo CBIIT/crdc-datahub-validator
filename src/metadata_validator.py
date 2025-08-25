@@ -69,8 +69,9 @@ def metadataValidate(configs, job_queue, mongo_dao):
                         status = validator.validate(submission_id, scope)
                         validation_id = data[VALIDATION_ID]
                         validation_end_at = current_datetime()
-                        mongo_dao.update_validation_status(validation_id, status, validation_end_at, METADATA_VALIDATION)
-                        validator.submission[VALIDATION_ENDED] = validation_end_at
+                        update_status =mongo_dao.update_validation_status(validation_id, status, validation_end_at, METADATA_VALIDATION)
+                        if update_status:
+                            validator.submission[VALIDATION_ENDED] = validation_end_at
                         mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None)
                     elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and submission_id:
                         validator = CrossSubmissionValidator(mongo_dao)
