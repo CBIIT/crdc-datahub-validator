@@ -983,7 +983,7 @@ class MongoDao:
                 validation_update_dict[STATUS] = update_status_value
                 validation_update_dict["ended"] = update_validation_end_at_value
             result = data_collection.update_one({ID: validation_id}, {"$set": validation_update_dict})
-            return True if result.modified_count > 0 else False
+            return True if result.modified_count > 0 and update_status else False
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
