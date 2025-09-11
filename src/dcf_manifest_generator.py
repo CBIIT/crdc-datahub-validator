@@ -47,9 +47,21 @@ class GenerateDCF:
         url =  f's3://{self.config[PROD_BUCKET_CONFIG_NAME]}/{self.submission.get(STUDY_ID)}/'
         for r in file_nodes:
             node_id = r[NODE_ID] if r[NODE_ID].startswith(DCF_PREFIX) else DCF_PREFIX + r[NODE_ID]
-            consent_code = r.get(CONSENT_CODE, None)
-            acl ="['*']" if not control_access else f"['{dbGaPID}']" if not consent_code else f"['{dbGaPID}.c{consent_code}']"
-            authz = "['/open']" if not control_access else f"['/programs/{dbGaPID}']" if not consent_code else f"['/programs/{dbGaPID}.c{consent_code}']"
+            consent_code_list = r.get(CONSENT_CODE, None)
+            if not control_access:
+                acl ="['*']"
+                authz = "['/open']"
+            elif consent_code_list:
+                acl_list = []
+                authz_list = []
+                for consent_code in consent_code_list:
+                    acl_list.append(f"{dbGaPID}.c{consent_code}")
+                    authz_list.append(f'/programs/{dbGaPID}.c{consent_code}')
+                acl = str(acl_list)
+                authz = str(authz_list)
+            else:
+                acl = f"['{dbGaPID}']"
+                authz = f"['/programs/{dbGaPID}']"
             row = {
                 "guid": node_id,
                 "md5": r[S3_FILE_INFO].get(MD5),

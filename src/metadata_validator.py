@@ -540,17 +540,15 @@ class MetaDataValidator:
                     # call get get_file_consent_code
                     self.get_file_consent_code(parent_type, parent_id_value, consent_group_parents)
                 counts = len(consent_group_parents)
-                if counts > 1:
-                    # report error for multiple consent groups
-                    result[ERRORS].append(create_error("M034", [msg_prefix, node_type], node_type, node_id))
-                elif counts == 1:
-                    # consent group found for the file node
-                    consent_code_group_tuple = list(consent_group_parents)[0]
-                    consent_code_group = self.mongo_dao.get_dataRecord_by_node(consent_code_group_tuple[2], consent_code_group_tuple[0], self.submission_id)
-                    if consent_code_group:
-                        consent_code = consent_code_group["props"].get(CONSENT_GROUP_NUMBER)
-                        if consent_code:
-                            data_record[CONSENT_CODE] = consent_code
+                if counts > 0:
+                    data_record[CONSENT_CODE] = []
+                    for consent_code_group_tuple in list(consent_group_parents):
+                        #consent_code_group_tuple = list(consent_group_parents)[0]
+                        consent_code_group = self.mongo_dao.get_dataRecord_by_node(consent_code_group_tuple[2], consent_code_group_tuple[0], self.submission_id)
+                        if consent_code_group:
+                            consent_code = consent_code_group["props"].get(CONSENT_GROUP_NUMBER)
+                            if consent_code:
+                                data_record[CONSENT_CODE].append(consent_code)
                             
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
