@@ -52,13 +52,18 @@ class GenerateDCF:
                 acl ="['*']"
                 authz = "['/open']"
             elif consent_code_list:
-                acl_list = []
-                authz_list = []
-                for consent_code in consent_code_list:
-                    acl_list.append(f"{dbGaPID}.c{consent_code}")
-                    authz_list.append(f'/programs/{dbGaPID}.c{consent_code}')
-                acl = str(acl_list)
-                authz = str(authz_list)
+                acl = ""
+                authz= ""
+                for consent_code_index in range(0,len(consent_code_list)):
+                    if consent_code_index == 0:
+                        acl = "[" + f"'{dbGaPID}.c{consent_code_list[consent_code_index]}'"
+                        authz = "[" + f"'/programs/{dbGaPID}.c{consent_code_list[consent_code_index]}'"
+                    else:
+                        acl = acl + f",'{dbGaPID}.c{consent_code_list[consent_code_index]}'"
+                        authz = authz + f",'/programs/{dbGaPID}.c{consent_code_list[consent_code_index]}'"
+                    if consent_code_index == len(consent_code_list) -1:
+                        acl = acl + "]"
+                        authz = authz + "]"
             else:
                 acl = f"['{dbGaPID}']"
                 authz = f"['/programs/{dbGaPID}']"
