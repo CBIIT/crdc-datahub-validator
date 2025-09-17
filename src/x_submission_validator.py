@@ -33,7 +33,7 @@ class CrossSubmissionValidator:
                 positive conflicts.
                 
         Returns:
-            str: Validation status - either STATUS_PASSED, STATUS_ERROR, or FAILED
+            str: Validation status - either FAILED or other status constants as appropriate
             
         Behavior:
             - If data_commons is provided: Validates that it matches the submission's
