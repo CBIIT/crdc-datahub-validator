@@ -571,7 +571,16 @@ class MongoDao:
         data_collection = db[DATA_COLlECTION]
         try:
             submissions = None
-            other_submissions = self.find_submissions({STUDY_ID: studyID, SUBMISSION_STATUS: {"$in": status_list}, ID: {"$ne": submission_id}})
+            # Query submissions by both studyID and dataCommons for proper scoping
+            query = {
+                STUDY_ID: studyID, 
+                SUBMISSION_STATUS: {"$in": status_list}, 
+                ID: {"$ne": submission_id}
+            }
+            if data_common:
+                query[DATA_COMMON_NAME] = data_common
+            
+            other_submissions = self.find_submissions(query)
             if len(other_submissions) > 0:
                 other_submission_ids = [item[ID] for item in other_submissions]
                 duplicate_nodes = list(data_collection.find({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}}))

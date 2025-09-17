@@ -13,7 +13,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
     LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN, DELETE_COMMAND, CONCEPT_CODE, \
-    GENERATED_PROPS, DELETE_COMMAND, METADATA_VALIDATION, CONSENT_CODE_NODE_TYPE, CONSENT_CODE, CONSENT_GROUP_NUMBER
+    GENERATED_PROPS, DELETE_COMMAND, METADATA_VALIDATION, CONSENT_CODE_NODE_TYPE, CONSENT_CODE, CONSENT_GROUP_NUMBER, DATA_COMMONS
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -74,8 +74,9 @@ def metadataValidate(configs, job_queue, mongo_dao):
                             validator.submission[VALIDATION_ENDED] = validation_end_at
                         mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None)
                     elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and submission_id:
+                        data_commons = data.get(DATA_COMMONS)
                         validator = CrossSubmissionValidator(mongo_dao)
-                        status = validator.validate(submission_id)
+                        status = validator.validate(submission_id, data_commons)
                         if validator.submission:
                             mongo_dao.set_submission_validation_status(validator.submission, None, None, status, None)
                     else:
