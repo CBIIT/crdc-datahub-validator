@@ -364,7 +364,7 @@ class MetaDataValidator:
         for data_key, data_value in data_record[PROPERTIES].items():
             anode_keys = anode_definition.keys()
             if "properties" not in anode_keys:
-                result[ERRORS].append(create_error("Invalid data model", f'"properties" is not defined in the model.', "M026", "Error", "", ""))
+                result[ERRORS].append(create_error("M026", f'"properties" is not defined in the model.', "properties", ""))
                 continue
 
             if data_key not in anode_definition["properties"].keys():
