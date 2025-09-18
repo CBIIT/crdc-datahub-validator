@@ -15,22 +15,71 @@ class CrossSubmissionValidator:
         self.submission = None
         self.isError = None
 
-    def validate(self, submission_id):
+    def validate(self, submission_id, data_commons=None):
+        """
+        Validate cross-submission conflicts for a given submission.
+        
+        This method performs cross-validation by checking for duplicate nodes across
+        submissions within the same study and data commons scope. The validation scope
+        can be controlled via the data_commons parameter.
+        
+        Args:
+            submission_id (str): The ID of the submission to validate
+            data_commons (str, optional): The data commons to scope validation to.
+                If provided, only submissions within the same study AND data commons
+                will be considered for conflict detection. If None, falls back to
+                using the submission's dataCommons field. This parameter enables
+                proper scoping for multi-data-commons studies and reduces false
+                positive conflicts.
+                
+        Returns:
+            str: Validation status - either FAILED or other status constants as appropriate
+            
+        Behavior:
+            - If data_commons is provided: Validates that it matches the submission's
+              dataCommons field, then scopes validation to that data commons
+            - If data_commons is None: Falls back to submission's dataCommons field
+              and logs a warning about the fallback behavior
+            - If submission has no dataCommons: Returns FAILED with error message
+            - Cross-validation only compares submissions within the same study AND
+              data commons scope (when data_commons is provided)
+              
+        Example:
+            # New message format with dataCommons scoping
+            validator.validate("sub-123", "test-data-commons")
+            
+            # Backward compatibility - falls back to submission's dataCommons
+            validator.validate("sub-123", None)
+        """
         #1. # get data common from submission
         submission = self.mongo_dao.get_submission(submission_id)
         if not submission:
             msg = f'Invalid submissionID, no submission found, {submission_id}!'
             self.log.error(msg)
             return FAILED
-        if not submission.get(DATA_COMMON_NAME):
-            msg = f'Invalid submission, no datacommon found, {submission_id}!'
-            self.log.error(msg)
-            return FAILED
+        
+        # Use data_commons from message if provided, otherwise fall back to submission's dataCommons
+        if data_commons is None:
+            data_commons = submission.get(DATA_COMMON_NAME)
+            if not data_commons:
+                msg = f'Invalid submission, no datacommon found, {submission_id}!'
+                self.log.error(msg)
+                return FAILED
+            self.log.warning(f'dataCommons not provided in message, using submission dataCommons: {data_commons}')
+        else:
+            # Validate that the provided dataCommons matches the submission's dataCommons
+            submission_data_commons = submission.get(DATA_COMMON_NAME)
+            if submission_data_commons and submission_data_commons != data_commons:
+                msg = f'dataCommons mismatch: message={data_commons}, submission={submission_data_commons}'
+                self.log.error(msg)
+                return FAILED
+        
         if submission.get(STATUS) not in [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED]:
             msg = f'Invalid submission, wrong status, {submission_id}!'
             self.log.error(msg)
             return FAILED
         self.submission = submission
+        self.data_commons = data_commons
         
         #2 retrieve data batch by batch
         start_index = 0
@@ -87,7 +136,7 @@ class CrossSubmissionValidator:
         try:
             # validate cross submission
             result, duplicate_submissions = self.mongo_dao.find_node_in_other_submissions_in_status(submission_id, self.submission[STUDY_ID], 
-                        self.submission[DATA_COMMON_NAME], node_type, node_id, [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED])
+                        self.data_commons, node_type, node_id, [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED])
             if result and duplicate_submissions and len(duplicate_submissions):
                 # error = {"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]}# add submission id to errors
                 error = create_error("S001", [msg_prefix], "conflictingSubmissions", [sub[ID] for sub in duplicate_submissions])
