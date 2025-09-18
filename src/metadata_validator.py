@@ -74,9 +74,8 @@ def metadataValidate(configs, job_queue, mongo_dao):
                             validator.submission[VALIDATION_ENDED] = validation_end_at
                         mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None)
                     elif data.get(SQS_TYPE) == TYPE_CROSS_SUBMISSION and submission_id:
-                        data_commons = data.get(DATA_COMMONS)
                         validator = CrossSubmissionValidator(mongo_dao)
-                        status = validator.validate(submission_id, data_commons)
+                        status = validator.validate(submission_id)
                         if validator.submission:
                             mongo_dao.set_submission_validation_status(validator.submission, None, None, status, None)
                     else:
