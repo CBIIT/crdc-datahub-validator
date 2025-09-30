@@ -342,6 +342,10 @@ class MetaDataValidator:
         # validation start
         nodes = self.model.get_nodes()
         node_type = data_record["nodeType"]
+        # Check if node type exists in the model
+        if nodes.get(node_type, None) is None:
+            result[ERRORS].append(create_error("M035", [msg_prefix, node_type], "NodeType", ""))
+            return result
         # extract a node from the data record
         anode_definition = nodes[node_type]
         id_property_key = anode_definition["id_property"]
@@ -425,15 +429,16 @@ class MetaDataValidator:
         # set default return values
         errors = []
         props_def = self.model.get_node_props(dataRecord.get(NODE_TYPE))
-        props = dataRecord.get(PROPERTIES)
-        for k, v in props.items():
-            prop_def = props_def.get(k)
-            if not prop_def or v is None: 
-                continue
-            
-            errs = self.validate_prop_value(k, v, prop_def, msg_prefix, dataRecord)
-            if len(errs) > 0:
-                errors.extend(errs)
+        if props_def is not None:
+            props = dataRecord.get(PROPERTIES)
+            for k, v in props.items():
+                prop_def = props_def.get(k)
+                if not prop_def or v is None: 
+                    continue
+                
+                errs = self.validate_prop_value(k, v, prop_def, msg_prefix, dataRecord)
+                if len(errs) > 0:
+                    errors.extend(errs)
 
         return {VALIDATION_RESULT: STATUS_ERROR if len(errors) > 0 else STATUS_PASSED, ERRORS: errors, WARNINGS: []}
 

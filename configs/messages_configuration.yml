@@ -170,6 +170,11 @@ Messages:
     severity: "Error"
     message: '{} multiple associated consent codes for “{}” is not allowed.'
     description: "A file has more than one consent code associated with it, which is not allowed."
+  M035:
+    title: "Invalid record/node type"
+    severity: "Error"
+    message: '{} Record/node type "{}" is not defined in the model.'
+    description: "A node type is not defined in the data model."
 
   # data file validation message
   F001:
