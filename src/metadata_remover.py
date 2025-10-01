@@ -71,12 +71,6 @@ class MetadataRemover:
         """
         msg = None
         existed_nodes = None
-        
-        node_types_def = self.model.get_node_keys()
-        if node_type not in node_types_def:
-            msg = f'Node type “{node_type}” is not defined.'
-            self.log.error(msg)
-            return None
                 
         # query db to find existed nodes in current submission.  
         existed_nodes = self.mongo_dao.check_metadata_ids(node_type, node_ids, submission_id)  
