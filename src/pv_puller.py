@@ -100,7 +100,6 @@ def retrieveAllCDEViaAPI(configs, pv_models, log, api_client=None):
     """
     extract cde from cde dump file
     """
-    #add &model=CDS&model=ICDC&model=CTDC to sts api url if pv_models = [CDS, ICDC, CTDC]
     if len(pv_models) > 0:
         sts_api_url = configs[STS_API_ALL_URL] + "&" + "&".join([f"model={model}" for model in pv_models]).replace(" ","%20")
     else:
