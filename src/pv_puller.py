@@ -51,8 +51,11 @@ class PVPuller:
         self.configs = configs
         self.api_client = api_client
         self.config_model_list = self.mongo_dao.get_configuration_by_ev_var([DATA_COMMONS_LIST, HIDDEN_MODELS])
-        if len(self.config_model_list[0][KEY]) > len(self.config_model_list[1][KEY]):
-            self.pv_models = list(set(self.config_model_list[0][KEY]) - set(self.config_model_list[1][KEY]))
+        if self.config_model_list is not None:
+            if len(self.config_model_list) == 2: #if both data commons list and hidden models are configured
+                self.pv_models = [x for x in self.config_model_list[0][KEY] if x not in self.config_model_list[1][KEY]]
+            else:
+                self.pv_models = []
         else:
             self.pv_models = []
         
