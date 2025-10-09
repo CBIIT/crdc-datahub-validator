@@ -438,7 +438,6 @@ class EssentialValidator:
         composition_key = self.model.get_composition_key(type)
         # validate composition key properties
         if composition_key:
-
             # loop through all rows and check if all properties in composition key (array) values are empty row by row
             for index, row in self.df.iterrows():
                 hasVal = False
