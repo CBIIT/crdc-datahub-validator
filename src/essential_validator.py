@@ -438,6 +438,13 @@ class EssentialValidator:
         composition_key = self.model.get_composition_key(type)
         # validate composition key properties
         if composition_key:
+            # raise an error if any composite key required columns are missing
+            if not all(prop in columns for prop in composition_key):
+                msg = f'“{file_info[FILE_NAME]}”: Columns {json.dumps(composition_key)} are required to generate composite ID.'
+                self.log.error(msg)
+                file_info[ERRORS].append(msg)
+                self.batch[ERRORS].append(msg)
+                return False
             # loop through all rows and check if all properties in composition key (array) values are empty row by row
             for index, row in self.df.iterrows():
                 hasVal = False
