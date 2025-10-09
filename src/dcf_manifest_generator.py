@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 import pandas as pd
-import os, io
+import os, io, json
 from bento.common.utils import get_logger
 from common.constants import S3_FILE_INFO, ID, EXPORT_METADATA, S3_FILE_INFO, ID, SIZE, MD5, FILE_NAME, ROOT_PATH, BATCH_BUCKET, NODE_ID, PROD_BUCKET_CONFIG_NAME,\
     DCF_PREFIX, STUDY_ID, DBGA_PID, CONTROL_ACCESS, CONSENT_CODE
@@ -9,6 +9,7 @@ from common.utils import get_date_time, get_exception_msg, get_uuid_str
 
 # Private class
 class GenerateDCF:
+    OPEN_DATA_CONSENT_CODE = "-1"
     def __init__(self, configs, mongo_dao, submission, s3_service, release_manifest_data):
         self.log = get_logger("Generate DCF manifest")
         self.config = configs
@@ -52,21 +53,21 @@ class GenerateDCF:
                 acl ="['*']"
                 authz = "['/open']"
             elif consent_code_list:
-                acl = ""
-                authz= ""
-                for consent_code_index in range(0,len(consent_code_list)):
-                    if consent_code_index == 0:
-                        acl = "[" + f"'{dbGaPID}.c{consent_code_list[consent_code_index]}'"
-                        authz = "[" + f"'/programs/{dbGaPID}.c{consent_code_list[consent_code_index]}'"
+                acl_list = []
+                authz_list = []
+                for consent_code in consent_code_list:
+                    if consent_code == self.OPEN_DATA_CONSENT_CODE:
+                        acl_list.append("*")
+                        authz_list.append("/open")
                     else:
-                        acl = acl + f",'{dbGaPID}.c{consent_code_list[consent_code_index]}'"
-                        authz = authz + f",'/programs/{dbGaPID}.c{consent_code_list[consent_code_index]}'"
-                    if consent_code_index == len(consent_code_list) -1:
-                        acl = acl + "]"
-                        authz = authz + "]"
+                        acl_list.append(f"{dbGaPID}.c{consent_code}")
+                        authz_list.append(f"/programs/{dbGaPID}.c{consent_code}")
+                acl = json.dumps(acl_list)
+                authz = json.dumps(authz_list)
+                
             else:
-                acl = f"['{dbGaPID}']"
-                authz = f"['/programs/{dbGaPID}']"
+                acl = f'["{dbGaPID}"]'
+                authz = f'["/programs/{dbGaPID}"]'
             row = {
                 "guid": node_id,
                 "md5": r[S3_FILE_INFO].get(MD5),
