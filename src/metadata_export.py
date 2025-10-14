@@ -207,8 +207,13 @@ class ExportMetadata:
                 crdc_id = r.get(CRDC_ID) if node_type in main_nodes.keys() else None
                 row_list = self.convert_2_row(r, node_type, crdc_id)
                 rows.extend(row_list)
+                for row_dict in row_list:
+                    if row_dict:
+                        new_keys = set(row_dict.keys()) - columns
+                        if new_keys:
+                            columns.update(new_keys)
                 if r.get(ORIN_FILE_NAME) != file_name:
-                    columns.update(row_list[0].keys())
+                    #columns.update(row_list[0].keys())
                     file_name = r.get(ORIN_FILE_NAME) 
                 
                 # populate release manifest data    
