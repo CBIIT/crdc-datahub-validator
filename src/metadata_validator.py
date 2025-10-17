@@ -552,7 +552,7 @@ class MetaDataValidator:
                         consent_code_group = self.mongo_dao.get_dataRecord_by_node(consent_code_group_tuple[2], consent_code_group_tuple[0], self.submission_id)
                         # if can not find conset_code_group, try to find in release collection
                         if not consent_code_group:
-                            consent_code_group = self.mongo_dao.get_release_by_node(consent_code_group_tuple[2], consent_code_group_tuple[0], self.submission[STUDY_ID])
+                            consent_code_group = self.mongo_dao.search_release(self.datacommon, consent_code_group_tuple[0], consent_code_group_tuple[2])
                         if consent_code_group:
                             consent_code = consent_code_group["props"].get(CONSENT_GROUP_NUMBER)
                             if consent_code:
@@ -573,7 +573,7 @@ class MetaDataValidator:
 
     def get_file_consent_code(self, parent_type, parent_id_value, consent_group_parents):
         # find grandparent in array of tuple (parent_type, parentIDPropName, parent_id_value)
-        grandparent_nodes = self.mongo_dao.find_grandparent_by_parent(parent_type, parent_id_value, self.submission_id, self.submission[STUDY_ID])
+        grandparent_nodes = self.mongo_dao.find_grandparent_by_parent(parent_type, parent_id_value, self.submission_id, self.datacommon)
         if grandparent_nodes:
             # check if the grandparent node is of type "consent_group"
             consent_groups = [item for item in grandparent_nodes if item[0] == CONSENT_CODE_NODE_TYPE]

@@ -522,23 +522,7 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None   
-    """
-    retrieve release by nodeID
-    """
-    def get_release_by_node(self, nodeID, nodeType, studyID):
-        db = self.client[self.db_name]
-        file_collection = db[RELEASE]
-        try:
-            result = file_collection.find_one({STUDY_ID: studyID, NODE_ID: nodeID, NODE_TYPE: nodeType})
-            return result
-        except errors.PyMongoError as pe:
-            self.log.exception(pe)
-            self.log.exception(f"{studyID}: Failed to retrieve release record, {get_exception_msg()}")
-            return None
-        except Exception as e:
-            self.log.exception(e)
-            self.log.exception(f"{studyID}: Failed to retrieve release record, {get_exception_msg()}")
-            return None   
+
     """
     find child node by type and id
     """
@@ -1383,12 +1367,12 @@ class MongoDao:
             self.log.exception(f"Failed to get user for {id}: {get_exception_msg()}")
             return None
 
-    def find_grandparent_by_parent(self, parentType, parentIDValue, submissionID, studyID):
+    def find_grandparent_by_parent(self, parentType, parentIDValue, submissionID, dataCommon):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         query = {SUBMISSION_ID: submissionID, NODE_TYPE: parentType, NODE_ID: parentIDValue}
         data_collection_release = db[RELEASE]
-        query_release = {STUDY_ID: studyID, NODE_TYPE: parentType, NODE_ID: parentIDValue}
+        query_release = {DATA_COMMON_NAME: dataCommon, NODE_TYPE: parentType, NODE_ID: parentIDValue}
         try:
             result = data_collection.find_one(query)
             if result is not None:
