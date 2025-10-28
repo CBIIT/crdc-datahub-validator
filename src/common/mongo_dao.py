@@ -12,7 +12,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT, PROPERTIES,\
     STUDY_COLLECTION, ORGANIZATION_COLLECTION, USER_COLLECTION, PV_CONCEPT_CODE_COLLECTION, CONCEPT_CODE, PERMISSIBLE_VALUE,\
     GENERATED_PROPS, FILE_ENDED, METADATA_ENDED, METADATA_STATUS, FILE_STATUS, FILE_VALIDATION, METADATA_VALIDATION,\
-    CONSENT_CODE
+    CONSENT_CODE, RELEASE
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -522,6 +522,7 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None   
+
     """
     find child node by type and id
     """
@@ -1366,15 +1367,23 @@ class MongoDao:
             self.log.exception(f"Failed to get user for {id}: {get_exception_msg()}")
             return None
 
-    def find_grandparent_by_parent(self, parentType, parentIDValue, submissionID):
+    def find_grandparent_by_parent(self, parentType, parentIDValue, submissionID, dataCommon):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         query = {SUBMISSION_ID: submissionID, NODE_TYPE: parentType, NODE_ID: parentIDValue}
+        data_collection_release = db[RELEASE]
+        query_release = {DATA_COMMON_NAME: dataCommon, NODE_TYPE: parentType, NODE_ID: parentIDValue}
         try:
             result = data_collection.find_one(query)
-            if result.get(PARENTS) and len(result[PARENTS]) > 0:
-                # convert parent to tuple (parentType, parentIDPropName, parentIDValue)
-                return [(parent.get(PARENT_TYPE), parent.get(PARENT_ID_NAME), parent.get(PARENT_ID_VAL)) for parent in result[PARENTS]]
+            if result is not None:
+                if result.get(PARENTS) and len(result[PARENTS]) > 0:
+                    # convert parent to tuple (parentType, parentIDPropName, parentIDValue)
+                    return [(parent.get(PARENT_TYPE), parent.get(PARENT_ID_NAME), parent.get(PARENT_ID_VAL)) for parent in result[PARENTS]]
+            # if the parent can not be found in the same submission
+            result_release = data_collection_release.find_one(query_release)
+            if result_release is not None:
+                if result_release.get(PARENTS) and len(result_release[PARENTS]) > 0:
+                    return [(parent_release.get(PARENT_TYPE), parent_release.get(PARENT_ID_NAME), parent_release.get(PARENT_ID_VAL)) for parent_release in result_release[PARENTS]]
             return None
         except errors.PyMongoError as pe:
             self.log.exception(pe)

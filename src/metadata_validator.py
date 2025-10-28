@@ -13,7 +13,7 @@ from common.constants import SQS_NAME, SQS_TYPE, SCOPE, SUBMISSION_ID, ERRORS, W
     QC_RESULT_ID, BATCH_IDS, VALIDATION_TYPE_METADATA, S3_FILE_INFO, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, QC_ORIGIN, \
     QC_ORIGIN_METADATA_VALIDATE_SERVICE, QC_ORIGIN_FILE_VALIDATE_SERVICE, DISPLAY_ID, UPLOADED_DATE, LATEST_BATCH_ID, SUBMITTED_ID, \
     LATEST_BATCH_DISPLAY_ID, QC_VALIDATION_TYPE, DATA_RECORD_ID, PV_TERM, STUDY_ID, PROPERTY_PATTERN, DELETE_COMMAND, CONCEPT_CODE, \
-    GENERATED_PROPS, DELETE_COMMAND, METADATA_VALIDATION, CONSENT_CODE_NODE_TYPE, CONSENT_CODE, CONSENT_GROUP_NUMBER, DATA_COMMONS
+    GENERATED_PROPS, DELETE_COMMAND, METADATA_VALIDATION, CONSENT_CODE_NODE_TYPE, CONSENT_CODE, CONSENT_GROUP_NUMBER, DATA_COMMONS, STUDY_ID
 from common.utils import current_datetime, get_exception_msg, dump_dict_to_json, create_error, get_uuid_str
 from common.model_store import ModelFactory
 from common.model_reader import valid_prop_types
@@ -550,10 +550,19 @@ class MetaDataValidator:
                     for consent_code_group_tuple in list(consent_group_parents):
                         #consent_code_group_tuple = list(consent_group_parents)[0]
                         consent_code_group = self.mongo_dao.get_dataRecord_by_node(consent_code_group_tuple[2], consent_code_group_tuple[0], self.submission_id)
+                        # if can not find conset_code_group, try to find in release collection
+                        if not consent_code_group:
+                            consent_code_group = self.mongo_dao.search_release(self.datacommon, consent_code_group_tuple[0], consent_code_group_tuple[2])
                         if consent_code_group:
                             consent_code = consent_code_group["props"].get(CONSENT_GROUP_NUMBER)
                             if consent_code:
                                 data_record[CONSENT_CODE].append(consent_code)
+                    OPEN_DATA_CONSENT_CODE = "-1"
+                    #if consent_code -1 and other consent code appears at the same time, report error
+                    if len(data_record[CONSENT_CODE]) > 1 and OPEN_DATA_CONSENT_CODE in data_record[CONSENT_CODE] and set(data_record[CONSENT_CODE]) != {"-1"}:
+                        data_record[CONSENT_CODE] = []
+                        result[ERRORS].append(create_error("M036", [msg_prefix], node_type, node_id))
+                        
                             
         if len(result[WARNINGS]) > 0:
             result["result"] = STATUS_WARNING
@@ -564,7 +573,7 @@ class MetaDataValidator:
 
     def get_file_consent_code(self, parent_type, parent_id_value, consent_group_parents):
         # find grandparent in array of tuple (parent_type, parentIDPropName, parent_id_value)
-        grandparent_nodes = self.mongo_dao.find_grandparent_by_parent(parent_type, parent_id_value, self.submission_id)
+        grandparent_nodes = self.mongo_dao.find_grandparent_by_parent(parent_type, parent_id_value, self.submission_id, self.datacommon)
         if grandparent_nodes:
             # check if the grandparent node is of type "consent_group"
             consent_groups = [item for item in grandparent_nodes if item[0] == CONSENT_CODE_NODE_TYPE]

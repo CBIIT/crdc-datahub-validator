@@ -444,6 +444,13 @@ class EssentialValidator:
                 if not pd.isnull(row[id_field]):
                     continue
                 for prop in composition_key:
+                    # raise error if any columns required by the composite key is not present
+                    if prop not in columns:
+                        msg = f'“{file_info[FILE_NAME]}”: Column "{prop}" is required to generate composite ID.'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                        return False
                     if not pd.isnull(row[prop]):
                         hasVal = True
                         break
