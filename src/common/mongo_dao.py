@@ -5,13 +5,14 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     SUBMISSION_ID, NODE_ID, NODE_TYPE, S3_FILE_INFO, STATUS, FILE_ERRORS, STATUS_NEW, \
     PARENT_TYPE, PARENT_ID_VAL, PARENTS, FILE_VALIDATION_STATUS, METADATA_VALIDATION_STATUS, TYPE, \
     FILE_MD5_COLLECTION, FILE_NAME, CRDC_ID, RELEASE_COLLECTION, DATA_COMMON_NAME, KEY, \
-    VALUE_PROP, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, PARENT_ID_NAME, \
+    VALUE_PROP, VALIDATED_AT, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, PARENT_ID_NAME, \
     SUBMISSION_REL_STATUS, SUBMISSION_REL_STATUS_DELETED, STUDY_ABBREVIATION, SUBMISSION_STATUS, STUDY_ID, \
     CROSS_SUBMISSION_VALIDATION_STATUS, ADDITION_ERRORS, VALIDATION_COLLECTION, VALIDATION_ENDED, CONFIG_COLLECTION, \
     BATCH_BUCKET, CDE_COLLECTION, CDE_CODE, CDE_VERSION, ENTITY_TYPE, QC_COLLECTION, QC_RESULT_ID, CONFIG_TYPE, \
     SYNONYM_COLLECTION, PV_TERM, SYNONYM_TERM, CDE_FULL_NAME, CDE_PERMISSIVE_VALUES, CREATED_AT, PROPERTIES,\
     STUDY_COLLECTION, ORGANIZATION_COLLECTION, USER_COLLECTION, PV_CONCEPT_CODE_COLLECTION, CONCEPT_CODE, PERMISSIBLE_VALUE,\
-    GENERATED_PROPS
+    GENERATED_PROPS, FILE_ENDED, METADATA_ENDED, METADATA_STATUS, FILE_STATUS, FILE_VALIDATION, METADATA_VALIDATION,\
+    CONSENT_CODE, RELEASE
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
 
 MAX_SIZE = 10000
@@ -351,7 +352,7 @@ class MongoDao:
         try:
             result = file_collection.bulk_write([
                 UpdateOne( {ID: m[ID]}, 
-                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], QC_RESULT_ID: m.get(QC_RESULT_ID), PROPERTIES: m.get(PROPERTIES), GENERATED_PROPS: m.get(GENERATED_PROPS)}})
+                    {"$set": {STATUS: m[STATUS], UPDATED_AT: m[UPDATED_AT], VALIDATED_AT: m[UPDATED_AT], QC_RESULT_ID: m.get(QC_RESULT_ID), PROPERTIES: m.get(PROPERTIES), GENERATED_PROPS: m.get(GENERATED_PROPS), CONSENT_CODE: m.get(CONSENT_CODE)}})
                     for m in list(data_records)
                 ])
             self.log.info(f'Total {result.modified_count} dataRecords are updated!')
@@ -521,6 +522,7 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"{submission_id}: Failed to retrieve data record, {get_exception_msg()}")
             return None   
+
     """
     find child node by type and id
     """
@@ -565,12 +567,21 @@ class MongoDao:
     """
     find node in other submission with the same study
     """   
-    def find_node_in_other_submissions_in_status(self, submission_id, study, data_common, node_type, nodeId, status_list):
+    def find_node_in_other_submissions_in_status(self, submission_id, studyID, data_common, node_type, nodeId, status_list):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
             submissions = None
-            other_submissions = self.find_submissions({STUDY_ABBREVIATION: study, SUBMISSION_STATUS: {"$in": status_list}, ID: {"$ne": submission_id}})
+            # Query submissions by both studyID and dataCommons for proper scoping
+            query = {
+                STUDY_ID: studyID, 
+                SUBMISSION_STATUS: {"$in": status_list}, 
+                ID: {"$ne": submission_id}
+            }
+            if data_common:
+                query[DATA_COMMON_NAME] = data_common
+            
+            other_submissions = self.find_submissions(query)
             if len(other_submissions) > 0:
                 other_submission_ids = [item[ID] for item in other_submissions]
                 duplicate_nodes = list(data_collection.find({DATA_COMMON_NAME: data_common, NODE_TYPE: node_type, NODE_ID: nodeId, SUBMISSION_ID: {"$in": other_submission_ids}}))
@@ -938,12 +949,51 @@ class MongoDao:
     """
     update validation status
     """   
-    def update_validation_status(self, validation_id, status, validation_end_at):
+    def update_validation_status(self, validation_id, status, validation_end_at, validation_type=None):
         db = self.client[self.db_name]
         data_collection = db[VALIDATION_COLLECTION]
+        update_status = True
+        update_status_value = status
+        update_validation_end_at_value = validation_end_at
         try:
-            result = data_collection.update_one({ID: validation_id}, {"$set": {STATUS: status, "ended": validation_end_at}})
-            return True if result.modified_count > 0 else False
+            validation_document = data_collection.find_one({ID: validation_id})
+            if validation_document is None:
+                self.log.error(f"No validation document found for ID: {validation_id}")
+                return False
+            #validation_update_dict = {STATUS: update_status_value, "ended": update_validation_end_at_value}
+            validation_update_dict = {}
+            # add the file_status or metadata_status to the update dict and document
+            if validation_type:
+                if validation_type == METADATA_VALIDATION:
+                    validation_update_dict[METADATA_ENDED] = update_validation_end_at_value
+                    validation_update_dict[METADATA_STATUS] = update_status_value
+                    validation_document[METADATA_ENDED] = update_validation_end_at_value
+                    validation_document[METADATA_STATUS] = update_status_value
+                elif validation_type == FILE_VALIDATION:
+                    validation_update_dict[FILE_ENDED] = update_validation_end_at_value
+                    validation_update_dict[FILE_STATUS] = update_status_value
+                    validation_document[FILE_ENDED] = update_validation_end_at_value
+                    validation_document[FILE_STATUS] = update_status_value
+            # for validation with both metadata and file, only update status when both validation ended
+            # will use the latest end time if both metadata and file validation have been finished
+            if len(validation_document[TYPE]) > 1 and update_status_value in [STATUS_ERROR, STATUS_PASSED, STATUS_WARNING]:
+                metadata_ended = validation_document.get(METADATA_ENDED)
+                file_ended = validation_document.get(FILE_ENDED)
+                metadata_status = validation_document.get(METADATA_STATUS)
+                file_status = validation_document.get(FILE_STATUS)
+                if not (file_ended and metadata_ended):
+                    update_status = False
+                elif metadata_status and file_status:
+                    if STATUS_ERROR in [metadata_status, file_status]:
+                        update_status_value = STATUS_ERROR
+                    elif STATUS_WARNING in [metadata_status, file_status]:
+                        update_status_value = STATUS_WARNING
+                    update_validation_end_at_value = max(metadata_ended, file_ended)
+            if update_status:
+                validation_update_dict[STATUS] = update_status_value
+                validation_update_dict["ended"] = update_validation_end_at_value
+            result = data_collection.update_one({ID: validation_id}, {"$set": validation_update_dict})
+            return True if result.modified_count > 0 and update_status else False
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to update validation status for {validation_id}: {get_exception_msg()}")
@@ -1316,7 +1366,34 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to get user for {id}: {get_exception_msg()}")
             return None
-    
+
+    def find_grandparent_by_parent(self, parentType, parentIDValue, submissionID, dataCommon):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        query = {SUBMISSION_ID: submissionID, NODE_TYPE: parentType, NODE_ID: parentIDValue}
+        data_collection_release = db[RELEASE]
+        query_release = {DATA_COMMON_NAME: dataCommon, NODE_TYPE: parentType, NODE_ID: parentIDValue}
+        try:
+            result = data_collection.find_one(query)
+            if result is not None:
+                if result.get(PARENTS) and len(result[PARENTS]) > 0:
+                    # convert parent to tuple (parentType, parentIDPropName, parentIDValue)
+                    return [(parent.get(PARENT_TYPE), parent.get(PARENT_ID_NAME), parent.get(PARENT_ID_VAL)) for parent in result[PARENTS]]
+            # if the parent can not be found in the same submission
+            result_release = data_collection_release.find_one(query_release)
+            if result_release is not None:
+                if result_release.get(PARENTS) and len(result_release[PARENTS]) > 0:
+                    return [(parent_release.get(PARENT_TYPE), parent_release.get(PARENT_ID_NAME), parent_release.get(PARENT_ID_VAL)) for parent_release in result_release[PARENTS]]
+            return None
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"Failed to get grandparent for {parentIDValue}: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"Failed to get grandparent for {parentIDValue}: {get_exception_msg()}")
+            return None
+
 """
 remove _id from records for update
 """   

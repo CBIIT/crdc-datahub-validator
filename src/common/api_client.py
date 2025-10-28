@@ -78,6 +78,36 @@ class APIInvoker:
             self.log.exception(f'Retrieve data element by cde code failed - internal error. Please try again and contact the helpdesk if this error persists.')
             return None
         
+    def get_all_data_elements(self, api_uri):
+        """
+        Retrieve data elements
+        :param api_uri: api uri
+        :return: data elements
+        """
+        headers = {
+            "accept": "application/json"
+        }
+        try:
+            # response = requests.get(api_uri, headers=headers)
+            response = requests.get(api_uri, headers=headers, verify=False)
+            status = response.status_code
+            # self.log.info(f"get_data_element_by_cde_code response status code: {status}.")
+            if status == 200:
+                results = response.json()
+                if isinstance(results, dict) and "errors" in results:
+                    self.log.error(f'Retrieve data element by cde code failed - {results.get("errors")[0].get("message")}.')
+                    return None
+                else:
+                    return results
+            else:
+                self.log.error(f'Retrieve data element by cde code failed (code: {status}) - internal error. Please try again and contact the helpdesk if this error persists.')
+                return None
+
+        except Exception as e:
+            self.log.debug(e)
+            self.log.exception(f'Retrieve data element by cde code failed - internal error. Please try again and contact the helpdesk if this error persists.')
+            return None
+        
     def list_github_files(self, url, branch, token=None):
         headers = {}
         if token:

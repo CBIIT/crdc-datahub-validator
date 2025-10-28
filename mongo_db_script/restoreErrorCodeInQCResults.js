@@ -34,6 +34,8 @@ function getCodeByTitle(title, description = null) {
         "One-to-one relationship conflict": "M024",
         "Many-to-one relationship conflict": "M025",
         "Invalid data model": "M026",
+        "Invalid record/node type": "M035",
+        "Incompatible consent codes": "M036",
         "Data File not found": "F001",
         "Data file not found": "F001",
         "File records not found": "F002",

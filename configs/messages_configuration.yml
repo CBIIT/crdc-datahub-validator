@@ -165,6 +165,22 @@ Messages:
     severity: "Error"
     message: '{} deleting value of a required property “{}” is not allowed.'
     description: "Try to delete value of a required property"
+  M034:
+    title: ""
+    severity: "Error"
+    message: '{} multiple associated consent codes for “{}” is not allowed.'
+    description: "A file has more than one consent code associated with it, which is not allowed."
+  M035:
+    title: "Invalid record/node type"
+    severity: "Error"
+    message: '{} Record/node type "{}" is not defined in the model.'
+    description: "A node type is not defined in the data model."
+  M036:
+    title: "Incompatible consent codes"
+    severity: "Error"
+    message: "{} A file cannot be both controlled access and open (consent code -1)"
+    description: "A file has both controlled access and open (consent code -1) consent codes associated with it."
+
   # data file validation message
   F001:
    title: "Data File not found"

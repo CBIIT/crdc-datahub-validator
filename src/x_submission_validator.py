@@ -2,7 +2,7 @@
 import json
 from bento.common.utils import get_logger
 from common.constants import  ADDITION_ERRORS, STATUS_ERROR, FAILED, STATUS_PASSED, STATUS, UPDATED_AT, DATA_COMMON_NAME, \
-    NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ABBREVIATION, ID, SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED
+    NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ID, ID, SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED
 from common.utils import current_datetime, create_error
 
 BATCH_SIZE = 1000
@@ -16,21 +16,48 @@ class CrossSubmissionValidator:
         self.isError = None
 
     def validate(self, submission_id):
-        #1. # get data common from submission
+        """
+        Validate cross-submission conflicts for a given submission.
+        
+        This method performs cross-validation by checking for duplicate nodes across
+        submissions within the same study and data commons scope. The validation is
+        automatically scoped to the submission's dataCommons field.
+        
+        Args:
+            submission_id (str): The ID of the submission to validate
+                
+        Returns:
+            str: Validation status - either FAILED or other status constants as appropriate
+            
+        Behavior:
+            - Uses the submission's dataCommons field to scope validation
+            - If submission has no dataCommons: Returns FAILED with error message
+            - Cross-validation only compares submissions within the same study AND
+              data commons scope
+              
+        Example:
+            validator.validate("sub-123")
+        """
+        #1. get data common from submission
         submission = self.mongo_dao.get_submission(submission_id)
         if not submission:
             msg = f'Invalid submissionID, no submission found, {submission_id}!'
             self.log.error(msg)
             return FAILED
-        if not submission.get(DATA_COMMON_NAME):
-            msg = f'Invalid submission, no datacommon found, {submission_id}!'
+        
+        # Get data commons from submission
+        data_commons = submission.get(DATA_COMMON_NAME)
+        if not data_commons:
+            msg = f'Invalid submission, no dataCommons found, {submission_id}!'
             self.log.error(msg)
             return FAILED
+        
         if submission.get(STATUS) not in [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED]:
             msg = f'Invalid submission, wrong status, {submission_id}!'
             self.log.error(msg)
             return FAILED
         self.submission = submission
+        self.data_commons = data_commons
         
         #2 retrieve data batch by batch
         start_index = 0
@@ -86,8 +113,8 @@ class CrossSubmissionValidator:
         node_id = data_record.get(NODE_ID)
         try:
             # validate cross submission
-            result, duplicate_submissions = self.mongo_dao.find_node_in_other_submissions_in_status(submission_id, self.submission[STUDY_ABBREVIATION], 
-                        self.submission[DATA_COMMON_NAME], node_type, node_id, [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED])
+            result, duplicate_submissions = self.mongo_dao.find_node_in_other_submissions_in_status(submission_id, self.submission[STUDY_ID], 
+                        self.data_commons, node_type, node_id, [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED])
             if result and duplicate_submissions and len(duplicate_submissions):
                 # error = {"conflictingSubmissions": [sub[ID] for sub in duplicate_submissions]}# add submission id to errors
                 error = create_error("S001", [msg_prefix], "conflictingSubmissions", [sub[ID] for sub in duplicate_submissions])

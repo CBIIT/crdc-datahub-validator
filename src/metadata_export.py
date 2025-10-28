@@ -207,8 +207,13 @@ class ExportMetadata:
                 crdc_id = r.get(CRDC_ID) if node_type in main_nodes.keys() else None
                 row_list = self.convert_2_row(r, node_type, crdc_id)
                 rows.extend(row_list)
+                for row_dict in row_list:
+                    if row_dict:
+                        new_keys = set(row_dict.keys()) - columns
+                        if new_keys:
+                            columns.update(new_keys)
                 if r.get(ORIN_FILE_NAME) != file_name:
-                    columns.update(row_list[0].keys())
+                    #columns.update(row_list[0].keys())
                     file_name = r.get(ORIN_FILE_NAME) 
                 
                 # populate release manifest data    
@@ -423,7 +428,8 @@ class ExportMetadata:
                              PROPERTIES: data_record.get(PROPERTIES),
                              PARENTS: data_record.get(PARENTS, None)
                              }], 
-                STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
+                STUDY_ID: data_record.get(STUDY_ID) or self.submission.get(STUDY_ID),
+                GENERATED_PROPS: data_record.get(GENERATED_PROPS, None)
             }
             if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
                 crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
@@ -461,8 +467,9 @@ class ExportMetadata:
                     PARENTS: existed_crdc_record[PARENTS]
                 })
                 existed_crdc_record[SUBMISSION_HISTORY] = history
-                existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE),
+                existed_crdc_record[ENTITY_TYPE] = data_record.get(ENTITY_TYPE)
                 existed_crdc_record[STUDY_ID] = data_record.get(STUDY_ID) or self.submission.get(STUDY_ID)
+                existed_crdc_record[GENERATED_PROPS] = data_record.get(GENERATED_PROPS, None)
                 if self.submission_type != SUBMISSION_DATA_TYPE_METADATA_ONLY and data_record.get(S3_FILE_INFO) and data_record.get(S3_FILE_INFO).get(FILE_NAME):
                     existed_crdc_record[DATA_FILE_LOCATION] = self.get_file_url(data_record.get(S3_FILE_INFO))
 

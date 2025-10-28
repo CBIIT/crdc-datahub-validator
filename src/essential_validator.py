@@ -270,7 +270,7 @@ class EssentialValidator:
                 return False
             self.bucket.download_file(key, download_file)
             if os.path.isfile(download_file):
-                df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE)
+                df = pd.read_csv(download_file, sep=SEPARATOR_CHAR, header=0, dtype='str', encoding=UTF8_ENCODE, keep_default_na=False, na_values=[''])
                 self.df = (df.rename(columns=lambda x: x.strip())).apply(lambda x: x.str.strip() if x.dtype == 'object' else x) # stripe white space.
                 self.download_file_list.append(download_file)
             return True # if no exception
@@ -444,6 +444,13 @@ class EssentialValidator:
                 if not pd.isnull(row[id_field]):
                     continue
                 for prop in composition_key:
+                    # raise error if any columns required by the composite key is not present
+                    if prop not in columns:
+                        msg = f'“{file_info[FILE_NAME]}”: Column "{prop}" is required to generate composite ID.'
+                        self.log.error(msg)
+                        file_info[ERRORS].append(msg)
+                        self.batch[ERRORS].append(msg)
+                        return False
                     if not pd.isnull(row[prop]):
                         hasVal = True
                         break
