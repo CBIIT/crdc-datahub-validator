@@ -43,7 +43,6 @@ class DataLoader:
         main_node_types = [k for (k,v) in self.main_nodes.items()]
 
         for file in file_path_list:
-            records = []
             all_records = []
             file_name = os.path.basename(file)
             # 1. read file to dataframe
@@ -57,9 +56,6 @@ class DataLoader:
                 df = df.replace({np.nan: None})  # replace Nan in dataframe with None
                 df = df.reset_index()  # make sure indexes pair with number of rows
                 col_names =list(df.columns)
-                total_rows = len(df)
-                total_processed_count = 0
-                batch_processed_count = 0
                 for index, row in df.iterrows():
                     type = row[TYPE]
                     rawData = df.loc[index].to_dict()
@@ -92,7 +88,7 @@ class DataLoader:
                         submission = self.mongo_dao.get_submission(self.batch[SUBMISSION_ID])
                         crdc_id = submission.get(ORCID) if submission and submission.get(ORCID) else None
 
-                    if index == 0 or not self.process_m2m_rel(records, node_id, rawData, relation_fields):
+                    if index == 0 or not self.process_m2m_rel(all_records, node_id, rawData, relation_fields):
                         dataRecord = {
                             ID: id,
                             SUBMISSION_ID: self.batch[SUBMISSION_ID],
@@ -124,20 +120,10 @@ class DataLoader:
                             id_field = self.file_nodes.get(type, {}).get(ID_FIELD)
                             dataRecord[S3_FILE_INFO] = self.get_file_info(type, prop_names, row)
                             dataRecord[PROPERTIES][id_field] = node_id
-
-                        if batch_processed_count < (BATCH_SIZE - 1) and (total_rows - total_processed_count) > 1:
-                            records.append(dataRecord)
-                            batch_processed_count += 1
-                        else:
-                            records.append(dataRecord)
-                            all_records.extend(records)
-                            batch_processed_count = 0
-                            records = []
-                        total_processed_count += 1
+                        all_records.append(dataRecord)
 
                 # 3-1. upsert data in a tsv file into mongo DB
-                final_records = records if len(all_records) == 0 else all_records
-                result, error = self.mongo_dao.update_data_records(final_records)
+                result, error = self.mongo_dao.update_data_records(all_records)
                 if error:
                     self.errors.append(f'“{file_name}”: updating metadata failed - database error.  Please try again and contact the helpdesk if this error persists.')
                 returnVal = returnVal and result
@@ -151,7 +137,6 @@ class DataLoader:
                     return False, self.errors
             finally:
                 del df
-                del records
 
         del file_path_list
         return returnVal, self.errors
