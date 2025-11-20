@@ -136,6 +136,9 @@ class DataLoader:
                         total_processed_count += 1
 
                 # 3-1. upsert data in a tsv file into mongo DB
+                # process remaining records for many to many relationship
+                if len(records) > 0 and len(all_records) != 0:
+                    all_records.extend(records)
                 final_records = records if len(all_records) == 0 else all_records
                 result, error = self.mongo_dao.update_data_records(final_records)
                 if error:
