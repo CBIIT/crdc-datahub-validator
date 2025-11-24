@@ -1340,10 +1340,16 @@ class MongoDao:
 
         try:
             study_result = study_data_collection.find_one(study_query)
+            if not study_result:
+                self.log.error(f"No study found for study_id: {study_id}")
+                return None
             program_id = study_result.get("programID")
             program_query = {ID: program_id}
             program_result = program_data_collection.find_one(program_query)
-            return [program_result.get('name')]
+            if program_result is not None:
+                return [program_result.get('name')]
+            else:
+                return None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
