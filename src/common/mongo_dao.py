@@ -1334,11 +1334,22 @@ class MongoDao:
     """   
     def find_organization_name_by_study_id(self, study_id):
         db = self.client[self.db_name]
-        data_collection = db[ORGANIZATION_COLLECTION]
-        query = {"studies._id": study_id}
+        study_data_collection = db[STUDY_COLLECTION]
+        program_data_collection = db[ORGANIZATION_COLLECTION]
+        study_query = {ID: study_id}
+
         try:
-            result = list(data_collection.find(query))
-            return [item.get('name') for item in result]
+            study_result = study_data_collection.find_one(study_query)
+            if not study_result:
+                self.log.error(f"No study found for study_id: {study_id}")
+                return None
+            program_id = study_result.get("programID")
+            program_query = {ID: program_id}
+            program_result = program_data_collection.find_one(program_query)
+            if program_result is not None:
+                return [program_result.get('name')]
+            else:
+                return None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
@@ -1347,7 +1358,7 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
             return None
-        
+
     """
     find user name by id
     :param id
