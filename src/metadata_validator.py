@@ -630,7 +630,7 @@ class MetaDataValidator:
                 self.set_concept_code(data_record, prop_name, value, cde_code)
             if type == "string":
                 val = str(value)
-                result, error, corrected_value = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
+                result, error, corrected_value = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                 if not result:
                     errors.append(error)
                 else:
@@ -694,7 +694,7 @@ class MetaDataValidator:
                 corrected_items = []
                 for item in arr:
                     val = item.strip() if item and isinstance(item, str) else item
-                    result, error, corrected_value = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
+                    result, error, corrected_value = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                     if not result:
                         errors.append(error)
                         corrected_items.append(val)  # Keep original if invalid
@@ -784,7 +784,7 @@ class MetaDataValidator:
 
     
 """util functions"""
-def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao, data_record=None):
+def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao):
     result = True
     error = None
     corrected_value = value
