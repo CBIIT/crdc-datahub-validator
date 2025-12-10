@@ -102,6 +102,30 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to search nodes: {get_exception_msg()}")
             return None
+    
+    '''
+    search nodes by node type and submission id
+    '''
+    def search_nodes_by_type_and_submission(self, node_type, submission_id):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            result = list(data_collection.find({NODE_TYPE: node_type, SUBMISSION_ID: submission_id}))
+            node_ids = []
+            for node in result:
+                node_id = node.get(NODE_ID)
+                node_ids.append(node_id)
+            return node_ids
+
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"{submission_id}: Failed to search nodes: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"{submission_id}: Failed to search nodes: {get_exception_msg()}")
+            return None
+
         
     """
     check node exists by node name and its value
