@@ -110,11 +110,9 @@ class MongoDao:
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
-            result = list(data_collection.find({NODE_TYPE: node_type, SUBMISSION_ID: submission_id}))
-            node_ids = []
-            for node in result:
-                node_id = node.get(NODE_ID)
-                node_ids.append(node_id)
+            #result = data_collection.find({NODE_TYPE: node_type, SUBMISSION_ID: submission_id})
+            #node_ids = []
+            node_ids = data_collection.find({NODE_TYPE: node_type, SUBMISSION_ID: submission_id}).distinct(NODE_ID)
             return node_ids
 
         except errors.PyMongoError as pe:
