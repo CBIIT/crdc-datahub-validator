@@ -124,11 +124,8 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         try:
                             if delete_all:
                                 # get all node ids for the node type in the submission
-                                node_type_ids = mongo_dao.search_nodes_by_type_and_submission(node_type, submission_id)
-                                if len(exclusive_ids) > 0:
-                                    node_ids = list(set(node_type_ids) - set(exclusive_ids))
-                                else:
-                                    node_ids = node_type_ids
+                                node_type_ids = mongo_dao.search_nodes_by_type_and_submission(node_type, submission_id, exclusive_ids)
+                                node_ids = node_type_ids
                             result = validator.remove_metadata(submission_id, node_type, node_ids)
                         except Exception as e:  # catch any unhandled errors
                             error = f'{submission_id}: Failed to delete metadata, {get_exception_msg()}!'

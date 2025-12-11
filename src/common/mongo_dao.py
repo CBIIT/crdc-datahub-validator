@@ -106,13 +106,11 @@ class MongoDao:
     '''
     search nodes by node type and submission id
     '''
-    def search_nodes_by_type_and_submission(self, node_type, submission_id):
+    def search_nodes_by_type_and_submission(self, node_type, submission_id, exclusive_ids = []):
         db = self.client[self.db_name]
         data_collection = db[DATA_COLlECTION]
         try:
-            #result = data_collection.find({NODE_TYPE: node_type, SUBMISSION_ID: submission_id})
-            #node_ids = []
-            node_ids = data_collection.find({NODE_TYPE: node_type, SUBMISSION_ID: submission_id}).distinct(NODE_ID)
+            node_ids = data_collection.find({NODE_TYPE: node_type, SUBMISSION_ID: submission_id, NODE_ID: {"$nin": exclusive_ids}}).distinct(NODE_ID)
             return node_ids
 
         except errors.PyMongoError as pe:
