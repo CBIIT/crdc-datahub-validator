@@ -301,6 +301,7 @@ class MongoDao:
                                 overall_metadata_status = metadata_status
                 # check if all file nodes are deleted
                 if is_delete and (self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], S3_FILE_INFO: {"$exists": True}}) == 0):
+                    # if file nodes are all deleted, update file validation status to new if there are still data files in the bucket otherwise set to None
                     updated_submission[FILE_VALIDATION_STATUS] = STATUS_NEW if submissionHasDataFile(submission) else None
                 if is_delete:
                     updated_submission["deletingData"] = False
