@@ -14,6 +14,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     GENERATED_PROPS, FILE_ENDED, METADATA_ENDED, METADATA_STATUS, FILE_STATUS, FILE_VALIDATION, METADATA_VALIDATION,\
     CONSENT_CODE, RELEASE
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
+from common.s3_utils import S3Service
 
 MAX_SIZE = 10000
 
@@ -22,6 +23,7 @@ class MongoDao:
       self.log = get_logger("Mongo DAO")
       self.client = MongoClient(connectionStr)
       self.db_name = db_name
+      self.s3_service = S3Service()
     """
     get batch by id
     """
@@ -320,7 +322,8 @@ class MongoDao:
                                 overall_metadata_status = metadata_status
                 # check if all file nodes are deleted
                 if is_delete and (self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], S3_FILE_INFO: {"$exists": True}}) == 0):
-                    updated_submission[FILE_VALIDATION_STATUS] = None
+                    # if file nodes are all deleted, update file validation status to new if there are still data files in the bucket otherwise set to None
+                    updated_submission[FILE_VALIDATION_STATUS] = STATUS_NEW if self.s3_service.submissionHasDataFile(submission) else None
                 if is_delete:
                     updated_submission["deletingData"] = False
                 updated_submission[METADATA_VALIDATION_STATUS] = overall_metadata_status

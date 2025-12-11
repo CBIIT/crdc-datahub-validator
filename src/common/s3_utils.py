@@ -1,3 +1,4 @@
+import os
 import boto3
 from botocore.exceptions import ClientError
 
@@ -102,5 +103,42 @@ class S3Service:
         except ClientError as e:
             if e.response['Error']['Code'] == '404' or e.response['Error']['Code'] == 'NoSuchKey':
                 return None
+            else:
+                raise e
+    
+    def submissionHasDataFile(self, submission):
+        """
+        Check if a submission has any data files in its 'file' folder.
+        
+        Args:
+            submission (dict): Submission document with 'bucketName' and 'rootPath' properties
+            
+        Returns:
+            bool: True if submission has data files, False otherwise
+        """
+        if not submission:
+            return False
+            
+        bucket_name = submission.get('bucketName')
+        root_path = submission.get('rootPath')
+        
+        if not bucket_name or not root_path:
+            return False
+        
+        # Construct the prefix for the file folder
+        file_folder_prefix = os.path.join(root_path, "file") + "/"
+        
+        try:
+            paginator = self.s3_client.get_paginator('list_objects_v2')
+            # Use MaxKeys=1 to only check if at least one file exists
+            for page in paginator.paginate(Bucket=bucket_name, Prefix=file_folder_prefix, PaginationConfig={'MaxItems': 1}):
+                if "Contents" in page and len(page["Contents"]) > 0:
+                    # Found at least one file
+                    return True
+            # No files found
+            return False
+        except ClientError as e:
+            if e.response['Error']['Code'] == '404' or e.response['Error']['Code'] == 'NoSuchKey':
+                return False
             else:
                 raise e
