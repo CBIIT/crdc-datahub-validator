@@ -8,8 +8,8 @@ from datetime import datetime
 current_directory = os.getcwd()
 sys.path.insert(0, current_directory + '/src')
 
-from src.x_submission_validator import CrossSubmissionValidator
-from src.common.constants import (
+from x_submission_validator import CrossSubmissionValidator
+from common.constants import (
     STATUS_ERROR, STATUS_PASSED, FAILED, DATA_COMMON_NAME, STATUS, 
     SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED, STUDY_ID,
     NODE_TYPE, NODE_ID, ORIN_FILE_NAME, ADDITION_ERRORS, UPDATED_AT, VALIDATED_AT
@@ -267,7 +267,7 @@ class TestCrossSubmissionValidator:
         
         assert result == STATUS_PASSED
 
-    @patch('src.x_submission_validator.current_datetime')
+    @patch('x_submission_validator.current_datetime')
     def test_validate_nodes_timestamps(self, mock_datetime, validator, mock_mongo_dao, valid_submission, sample_data_records):
         """Test that validate_nodes sets proper timestamps."""
         mock_datetime.return_value = '2024-01-01T12:00:00Z'

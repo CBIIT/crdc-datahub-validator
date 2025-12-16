@@ -5,10 +5,10 @@ from unittest.mock import MagicMock
 
 current_directory = os.getcwd()
 sys.path.insert(0, current_directory + '/src')
-from src.metadata_validator import MetaDataValidator
-from src.common.constants import STATUS_ERROR, STATUS_PASSED, STATUS_WARNING, ERRORS, WARNINGS
-from src.common.error_messages import FAILED_VALIDATE_RECORDS
-from src.common.model import DataModel
+from metadata_validator import MetaDataValidator
+from common.constants import STATUS_ERROR, STATUS_PASSED, STATUS_WARNING, ERRORS, WARNINGS
+from common.error_messages import FAILED_VALIDATE_RECORDS
+from common.model import DataModel
 
 
 @pytest.fixture
