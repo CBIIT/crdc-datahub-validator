@@ -630,9 +630,13 @@ class MetaDataValidator:
                 self.set_concept_code(data_record, prop_name, value, cde_code)
             if type == "string":
                 val = str(value)
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
+                result, error, corrected_value = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                 if not result:
                     errors.append(error)
+                else:
+                    # Update with corrected case if different
+                    if corrected_value != value:
+                        data_record[PROPERTIES][prop_name] = corrected_value
             elif type == "integer":
                 try:
                     val = int(value)
@@ -640,7 +644,7 @@ class MetaDataValidator:
                     errors.append(create_error("M004",[msg_prefix, prop_name, value], prop_name, value))
                     return errors
 
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
+                result, error, corrected_value = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                 if not result:
                     errors.append(error)
 
@@ -653,7 +657,7 @@ class MetaDataValidator:
                     val = float(value)
                 except ValueError as e:
                     errors.append(create_error("M005", [msg_prefix, prop_name, value], prop_name, value))
-                result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
+                result, error, corrected_value = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                 if not result:
                     errors.append(error)
 
@@ -687,11 +691,18 @@ class MetaDataValidator:
                 val = str(value)
                 list_delimiter = self.model.get_list_delimiter()
                 arr = val.split(list_delimiter) if list_delimiter in val else [value]
+                corrected_items = []
                 for item in arr:
                     val = item.strip() if item and isinstance(item, str) else item
-                    result, error = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao, data_record)
+                    result, error, corrected_value = check_permissive(val, permissive_vals, msg_prefix, prop_name, self.mongo_dao)
                     if not result:
                         errors.append(error)
+                        corrected_items.append(val)  # Keep original if invalid
+                    else:
+                        corrected_items.append(corrected_value)
+                # Update the property with all corrected items joined back together
+                if len(errors) == 0:  # Only update if all items are valid
+                    data_record[PROPERTIES][prop_name] = list_delimiter.join([str(item) for item in corrected_items])
             else:
                 errors.append(create_error("M009", [msg_prefix, prop_name, value], prop_name, value))
 
@@ -773,12 +784,14 @@ class MetaDataValidator:
 
     
 """util functions"""
-def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao, data_record=None):
-    result = True,
+def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao):
+    result = True
     error = None
+    corrected_value = value
     # strip white space from input value
     if value and isinstance(value, str):
         value = value.strip()
+        corrected_value = value
     if permissive_vals and len(permissive_vals) > 0:
         permissive_vals.append(DELETE_COMMAND)
         if isinstance(permissive_vals[0], str):
@@ -788,9 +801,9 @@ def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao, data_re
                 result = False
             else:
                 # if found, check if value in pv list in case-sensitive
-                if value not in permissive_vals and data_record is not None:
-                    # updated the value withe correct case.
-                    data_record[PROPERTIES][prop_name] = matched_val
+                if value not in permissive_vals:
+                    # return the corrected value with correct case
+                    corrected_value = matched_val
         else:
             result = (value in permissive_vals)
 
@@ -799,12 +812,12 @@ def check_permissive(value, permissive_vals, msg_prefix, prop_name, dao, data_re
             # check synonym
             synonyms = dao.find_pvs_by_synonym(value)
             if not synonyms or len(synonyms) == 0:
-                return result, error 
+                return result, error, corrected_value 
             suggested_pvs = [item[PV_TERM] for item in synonyms]
             permissive_val = [item for item in permissive_vals if item in suggested_pvs]
             if permissive_val and len(permissive_val) > 0: 
                 error["description"] += f' It is recommended to use "{permissive_val[0]}", as it is semantically equivalent to "{value}"' 
-    return result, error
+    return result, error, corrected_value
 
 def check_boundary(value, min, max, msg_prefix, prop_name):
     errors = []

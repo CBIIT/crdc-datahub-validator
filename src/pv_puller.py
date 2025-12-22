@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 from bento.common.utils import get_logger
 from common.constants import TIER_CONFIG, CDE_API_URL, CDE_CODE, CDE_VERSION, CDE_FULL_NAME, STS_API_ALL_URL, STS_API_ONE_URL, \
-        CDE_PERMISSIVE_VALUES, STS_DATA_RESOURCE_CONFIG, STS_DATA_RESOURCE_API, STS_DATA_RESOURCE_FILE, STS_DUMP_CONFIG
+        CDE_PERMISSIVE_VALUES, STS_DATA_RESOURCE_CONFIG, STS_DATA_RESOURCE_API, STS_DATA_RESOURCE_FILE, STS_DUMP_CONFIG, DATA_COMMONS_LIST, HIDDEN_MODELS, KEY
 from common.utils import get_exception_msg
 from common.api_client import APIInvoker
 
@@ -50,6 +50,14 @@ class PVPuller:
         self.mongo_dao = mongo_dao
         self.configs = configs
         self.api_client = api_client
+        self.config_model_list = self.mongo_dao.get_configuration_by_ev_var([DATA_COMMONS_LIST, HIDDEN_MODELS])
+        if self.config_model_list is not None:
+            if len(self.config_model_list) == 2: #if both data commons list and hidden models are configured
+                self.pv_models = [x for x in self.config_model_list[0][KEY] if x not in self.config_model_list[1][KEY]]
+            else:
+                self.pv_models = []
+        else:
+            self.pv_models = []
         
     def pull_cde_pv_synonym_concept_codes(self):
         """
@@ -58,7 +66,7 @@ class PVPuller:
         resource = self.configs[STS_DATA_RESOURCE_CONFIG] if self.configs.get(STS_DATA_RESOURCE_CONFIG) else STS_DATA_RESOURCE_API
         # resource = self.configs[STS_DATA_RESOURCE_CONFIG] if self.configs.get(STS_DATA_RESOURCE_CONFIG) else STS_DATA_RESOURCE_FILE
         try:
-            cde_records, synonym_records, concept_codes_records = retrieveAllCDEViaAPI(self.configs, self.log, self.api_client) if resource == STS_DATA_RESOURCE_API \
+            cde_records, synonym_records, concept_codes_records = retrieveAllCDEViaAPI(self.configs, self.pv_models, self.log, self.api_client) if resource == STS_DATA_RESOURCE_API \
                 else retrieveAllCDEViaDumpFile(self.configs, self.log, self.api_client)
             if not cde_records or len(cde_records) == 0:
                 self.log.info("No CDE found!")
@@ -91,11 +99,14 @@ class PVPuller:
             self.log.exception(e)
             self.log.exception(f"Failed to retrieve CDE PVs.")
 
-def retrieveAllCDEViaAPI(configs, log, api_client=None):
+def retrieveAllCDEViaAPI(configs, pv_models, log, api_client=None):
     """
     extract cde from cde dump file
     """
-    sts_api_url = configs[STS_API_ALL_URL]
+    if len(pv_models) > 0:
+        sts_api_url = configs[STS_API_ALL_URL] + "&" + "&".join([f"model={model}" for model in pv_models]).replace(" ","%20")
+    else:
+        sts_api_url = configs[STS_API_ALL_URL]
     log.info(f"Retrieving cde from {sts_api_url}...")
     if not api_client:
         api_client = APIInvoker(configs)

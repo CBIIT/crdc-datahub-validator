@@ -14,6 +14,7 @@ from common.constants import BATCH_COLLECTION, SUBMISSION_COLLECTION, DATA_COLlE
     GENERATED_PROPS, FILE_ENDED, METADATA_ENDED, METADATA_STATUS, FILE_STATUS, FILE_VALIDATION, METADATA_VALIDATION,\
     CONSENT_CODE, RELEASE
 from common.utils import get_exception_msg, current_datetime, get_uuid_str
+from common.s3_utils import S3Service
 
 MAX_SIZE = 10000
 
@@ -22,6 +23,7 @@ class MongoDao:
       self.log = get_logger("Mongo DAO")
       self.client = MongoClient(connectionStr)
       self.db_name = db_name
+      self.s3_service = S3Service()
     """
     get batch by id
     """
@@ -102,6 +104,26 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to search nodes: {get_exception_msg()}")
             return None
+    
+    '''
+    search nodes by node type and submission id
+    '''
+    def search_nodes_by_type_and_submission(self, node_type, submission_id, exclusive_ids = []):
+        db = self.client[self.db_name]
+        data_collection = db[DATA_COLlECTION]
+        try:
+            node_ids = data_collection.find({NODE_TYPE: node_type, SUBMISSION_ID: submission_id, NODE_ID: {"$nin": exclusive_ids}}).distinct(NODE_ID)
+            return node_ids
+
+        except errors.PyMongoError as pe:
+            self.log.exception(pe)
+            self.log.exception(f"{submission_id}: Failed to search nodes: {get_exception_msg()}")
+            return None
+        except Exception as e:
+            self.log.exception(e)
+            self.log.exception(f"{submission_id}: Failed to search nodes: {get_exception_msg()}")
+            return None
+
         
     """
     check node exists by node name and its value
@@ -300,7 +322,8 @@ class MongoDao:
                                 overall_metadata_status = metadata_status
                 # check if all file nodes are deleted
                 if is_delete and (self.count_docs(DATA_COLlECTION, {SUBMISSION_ID: submission[ID], S3_FILE_INFO: {"$exists": True}}) == 0):
-                    updated_submission[FILE_VALIDATION_STATUS] = None
+                    # if file nodes are all deleted, update file validation status to new if there are still data files in the bucket otherwise set to None
+                    updated_submission[FILE_VALIDATION_STATUS] = STATUS_NEW if self.s3_service.submissionHasDataFile(submission) else None
                 if is_delete:
                     updated_submission["deletingData"] = False
                 updated_submission[METADATA_VALIDATION_STATUS] = overall_metadata_status
@@ -1334,11 +1357,22 @@ class MongoDao:
     """   
     def find_organization_name_by_study_id(self, study_id):
         db = self.client[self.db_name]
-        data_collection = db[ORGANIZATION_COLLECTION]
-        query = {"studies._id": study_id}
+        study_data_collection = db[STUDY_COLLECTION]
+        program_data_collection = db[ORGANIZATION_COLLECTION]
+        study_query = {ID: study_id}
+
         try:
-            result = list(data_collection.find(query))
-            return [item.get('name') for item in result]
+            study_result = study_data_collection.find_one(study_query)
+            if not study_result:
+                self.log.error(f"No study found for study_id: {study_id}")
+                return None
+            program_id = study_result.get("programID")
+            program_query = {ID: program_id}
+            program_result = program_data_collection.find_one(program_query)
+            if program_result is not None:
+                return [program_result.get('name')]
+            else:
+                return None
         except errors.PyMongoError as pe:
             self.log.exception(pe)
             self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
@@ -1347,7 +1381,7 @@ class MongoDao:
             self.log.exception(e)
             self.log.exception(f"Failed to get organization for {study_id}: {get_exception_msg()}")
             return None
-        
+
     """
     find user name by id
     :param id

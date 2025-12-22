@@ -12,7 +12,7 @@ from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, SQS_TYPE, TYPE_LOAD, STATUS_PASSED,\
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
-    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING, DCF_PREFIX
+    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING, DCF_PREFIX, NODE_IDS, DELETE_ALL, EXCLUSIVE_IDS
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows, validate_uuid_by_rex, get_date_time
 from common.model_store import ModelFactory
 from metadata_remover import MetadataRemover
@@ -110,13 +110,22 @@ def essentialValidate(configs, job_queue, mongo_dao):
                             if validator.submission and submission_meta_status == STATUS_NEW:
                                 mongo_dao.set_submission_validation_status(validator.submission, None, submission_meta_status, None, None)
                     
-                    elif data.get(SQS_TYPE) == TYPE_DELETE and data.get(SUBMISSION_ID) and data.get(NODE_TYPE) and data.get("nodeIDs"):
+                    elif data.get(SQS_TYPE) == TYPE_DELETE and data.get(SUBMISSION_ID) and data.get(NODE_TYPE):
+                        # if both nodeIDs and deleteAll are not provided, raise error
+                        if not (data.get(NODE_IDS) or data.get(DELETE_ALL)):
+                            raise ValueError(f'Invalid message: {data}!')
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         submission_id = data.get(SUBMISSION_ID)
                         node_type = data.get(NODE_TYPE)
-                        node_ids = data.get("nodeIDs")
+                        node_ids = data.get(NODE_IDS)
+                        delete_all = data.get(DELETE_ALL)
+                        exclusive_ids = data.get(EXCLUSIVE_IDS)
                         validator = MetadataRemover(mongo_dao, model_store)
                         try:
+                            if delete_all:
+                                # get all node ids for the node type in the submission
+                                node_type_ids = mongo_dao.search_nodes_by_type_and_submission(node_type, submission_id, exclusive_ids)
+                                node_ids = node_type_ids
                             result = validator.remove_metadata(submission_id, node_type, node_ids)
                         except Exception as e:  # catch any unhandled errors
                             error = f'{submission_id}: Failed to delete metadata, {get_exception_msg()}!'
