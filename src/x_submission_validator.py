@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 import json
 from bento.common.utils import get_logger
-from common.constants import  ADDITION_ERRORS, STATUS_ERROR, FAILED, STATUS_PASSED, STATUS, UPDATED_AT, DATA_COMMON_NAME, \
+from common.constants import ADDITION_ERRORS, STATUS_ERROR, STATUS_PASSED, STATUS, UPDATED_AT, DATA_COMMON_NAME, \
     NODE_TYPE, NODE_ID, VALIDATED_AT, ORIN_FILE_NAME, STUDY_ID, ID, SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED
 from common.utils import current_datetime, create_error
 
@@ -27,11 +27,11 @@ class CrossSubmissionValidator:
             submission_id (str): The ID of the submission to validate
                 
         Returns:
-            str: Validation status - either FAILED or other status constants as appropriate
+            str: Validation status - either STATUS_ERROR or other status constants as appropriate
             
         Behavior:
             - Uses the submission's dataCommons field to scope validation
-            - If submission has no dataCommons: Returns FAILED with error message
+            - If submission has no dataCommons: Returns STATUS_ERROR with error message
             - Cross-validation only compares submissions within the same study AND
               data commons scope
               
@@ -43,19 +43,19 @@ class CrossSubmissionValidator:
         if not submission:
             msg = f'Invalid submissionID, no submission found, {submission_id}!'
             self.log.error(msg)
-            return FAILED
+            return STATUS_ERROR
         
         # Get data commons from submission
         data_commons = submission.get(DATA_COMMON_NAME)
         if not data_commons:
             msg = f'Invalid submission, no dataCommons found, {submission_id}!'
             self.log.error(msg)
-            return FAILED
+            return STATUS_ERROR
         
         if submission.get(STATUS) not in [SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED]:
             msg = f'Invalid submission, wrong status, {submission_id}!'
             self.log.error(msg)
-            return FAILED
+            return STATUS_ERROR
         self.submission = submission
         self.data_commons = data_commons
         
@@ -67,7 +67,7 @@ class CrossSubmissionValidator:
             if start_index == 0 and (not data_records or len(data_records) == 0):
                 msg = f'No metadata to be validated.'
                 self.log.error(msg)
-                return FAILED
+                return STATUS_ERROR
             
             count = len(data_records) 
             validated_count += self.validate_nodes(data_records, submission_id)

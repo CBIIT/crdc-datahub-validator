@@ -1,4 +1,6 @@
-FROM python:3.14.2-alpine3.22 AS fnl_base_image
+FROM python:3.14.4-alpine3.23 AS fnl_base_image
+
+RUN apk upgrade --no-cache
  
 WORKDIR /usr/validator
 COPY . .

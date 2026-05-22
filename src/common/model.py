@@ -105,6 +105,12 @@ class DataModel:
     def get_composition_key(self, node):
         return self.model[NODES_LABEL][node].get(COMPOSITION_KEY, None)
 
+    def get_model_version(self):
+        return self.model.get("version", None)
+    
+    def get_data_commons(self):
+        return self.model.get("data_commons", None)
+
 
     
 

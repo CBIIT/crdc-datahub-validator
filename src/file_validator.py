@@ -8,7 +8,8 @@ from bento.common.s3 import S3Bucket
 from common.constants import ERRORS, WARNINGS, STATUS, S3_FILE_INFO, ID, SIZE, MD5, UPDATED_AT, \
     FILE_NAME, SQS_TYPE, SQS_NAME, FILE_ID, STATUS_ERROR, STATUS_WARNING, STATUS_PASSED, SUBMISSION_ID, \
     BATCH_BUCKET, SERVICE_TYPE_FILE, LAST_MODIFIED, CREATED_AT, TYPE, SUBMISSION_INTENTION, SUBMISSION_INTENTION_DELETE,\
-    VALIDATION_ID, VALIDATION_ENDED, QC_RESULT_ID, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, FILE_VALIDATION
+    VALIDATION_ID, VALIDATION_ENDED, QC_RESULT_ID, VALIDATION_TYPE_FILE, QC_SEVERITY, QC_VALIDATE_DATE, FILE_VALIDATION, \
+    DATA_FILE_TYPE, QC_VALIDATION_TYPE, SUBMITTED_ID, BATCH_ID, DISPLAY_ID, UPLOADED_DATE
 from common.utils import get_exception_msg, current_datetime, get_s3_file_info, get_s3_file_md5, create_error, get_uuid_str
 from service.ecs_agent import set_scale_in_protection
 from metadata_validator import get_qc_result
@@ -330,21 +331,21 @@ class FileValidator:
                 file_name = file.key.split('/')[-1]
                
                 if file_name not in manifest_file_names:
-                    file_batch = self.mongo_dao.find_batch_by_file_name(submission_id, "data file", file_name)
+                    file_batch = self.mongo_dao.find_batch_by_file_name(submission_id, DATA_FILE_TYPE, file_name)
                     batchID = file_batch[ID] if file_batch else "-"
-                    displayID = file_batch["displayID"] if file_batch else None
+                    displayID = file_batch[DISPLAY_ID] if file_batch else None
                     msg = f'Data file “{file_name}”: associated metadata not found. Please upload associated metadata (aka. manifest) file'
                     self.log.error(msg)
                     error = {
-                        TYPE: "data file",
-                        "validationType": "data file",
-                        "submittedID": file_name,
-                        "batchID": batchID,
-                        "displayID": displayID,
-                        "severity": "Error",
-                        "uploadedDate": file.last_modified,
-                        "validatedDate": current_datetime(),
-                        "errors": [create_error("F008", [file_name], "file name", file_name)]
+                        TYPE: DATA_FILE_TYPE,
+                        QC_VALIDATION_TYPE: DATA_FILE_TYPE,
+                        SUBMITTED_ID: file_name,
+                        BATCH_ID: batchID,
+                        DISPLAY_ID: displayID,
+                        QC_SEVERITY: STATUS_ERROR,
+                        UPLOADED_DATE: file.last_modified,
+                        QC_VALIDATE_DATE: current_datetime(),
+                        ERRORS: [create_error("F008", [file_name], "file name", file_name)]
                     }
                     errors.append(error)
                     missing_count += 1

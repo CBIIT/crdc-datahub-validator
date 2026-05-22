@@ -8,9 +8,9 @@ from datetime import datetime
 current_directory = os.getcwd()
 sys.path.insert(0, current_directory + '/src')
 
-from src.x_submission_validator import CrossSubmissionValidator
-from src.common.constants import (
-    STATUS_ERROR, STATUS_PASSED, FAILED, DATA_COMMON_NAME, STATUS, 
+from x_submission_validator import CrossSubmissionValidator
+from common.constants import (
+    STATUS_ERROR, STATUS_PASSED, DATA_COMMON_NAME, STATUS, 
     SUBMISSION_STATUS_SUBMITTED, SUBMISSION_REL_STATUS_RELEASED, STUDY_ID,
     NODE_TYPE, NODE_ID, ORIN_FILE_NAME, ADDITION_ERRORS, UPDATED_AT, VALIDATED_AT
 )
@@ -72,7 +72,7 @@ class TestCrossSubmissionValidator:
         
         result = validator.validate('non-existent-submission')
         
-        assert result == FAILED
+        assert result == STATUS_ERROR
         mock_mongo_dao.get_submission.assert_called_once_with('non-existent-submission')
 
     def test_validate_submission_no_data_commons(self, validator, mock_mongo_dao):
@@ -86,7 +86,7 @@ class TestCrossSubmissionValidator:
         
         result = validator.validate('test-submission')
         
-        assert result == FAILED
+        assert result == STATUS_ERROR
 
     def test_validate_submission_invalid_status(self, validator, mock_mongo_dao):
         """Test validate when submission has invalid status."""
@@ -100,7 +100,7 @@ class TestCrossSubmissionValidator:
         
         result = validator.validate('test-submission')
         
-        assert result == FAILED
+        assert result == STATUS_ERROR
 
     def test_validate_submission_no_metadata(self, validator, mock_mongo_dao, valid_submission):
         """Test validate when submission has no metadata records."""
@@ -109,7 +109,7 @@ class TestCrossSubmissionValidator:
         
         result = validator.validate('test-submission')
         
-        assert result == FAILED
+        assert result == STATUS_ERROR
         mock_mongo_dao.get_dataRecords_chunk.assert_called_once()
 
     def test_validate_success_no_conflicts(self, validator, mock_mongo_dao, valid_submission, sample_data_records):
@@ -267,7 +267,7 @@ class TestCrossSubmissionValidator:
         
         assert result == STATUS_PASSED
 
-    @patch('src.x_submission_validator.current_datetime')
+    @patch('x_submission_validator.current_datetime')
     def test_validate_nodes_timestamps(self, mock_datetime, validator, mock_mongo_dao, valid_submission, sample_data_records):
         """Test that validate_nodes sets proper timestamps."""
         mock_datetime.return_value = '2024-01-01T12:00:00Z'
@@ -297,7 +297,7 @@ class TestCrossSubmissionValidator:
         
         result = validator.validate('test-submission')
         
-        assert result == FAILED
+        assert result == STATUS_ERROR
 
     def test_validate_none_data_commons(self, validator, mock_mongo_dao):
         """Test validate when dataCommons field is None."""
@@ -311,7 +311,7 @@ class TestCrossSubmissionValidator:
         
         result = validator.validate('test-submission')
         
-        assert result == FAILED
+        assert result == STATUS_ERROR
 
     def test_validate_missing_data_commons_key(self, validator, mock_mongo_dao):
         """Test validate when dataCommons key is missing from submission."""
@@ -324,4 +324,4 @@ class TestCrossSubmissionValidator:
         
         result = validator.validate('test-submission')
         
-        assert result == FAILED
+        assert result == STATUS_ERROR

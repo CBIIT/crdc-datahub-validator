@@ -3,10 +3,10 @@ import os
 import yaml
 from common.constants import MONGO_DB, SQS_NAME, DB, MODEL_FILE_DIR, SERVICE_TYPE_PV_PULLER,\
     LOADER_QUEUE, SERVICE_TYPE, SERVICE_TYPE_ESSENTIAL, SERVICE_TYPE_FILE, SERVICE_TYPE_METADATA, \
-    SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE,\
+    SERVICE_TYPES, DB, FILE_QUEUE, METADATA_QUEUE, STS_API_ALL_URL_V2, TIER, TIER_CONFIG, SERVICE_TYPE_EXPORT, EXPORTER_QUEUE,\
     DM_BUCKET_CONFIG_NAME, PROD_BUCKET_CONFIG_NAME, DATASYNC_ROLE_ARN_CONFIG , DATASYNC_ROLE_ARN_ENV, CONFIG_TYPE, \
-    CONFIG_KEY, CDE_API_URL, SYNONYM_API_URL, DATASYNC_LOG_ARN_ENV, DATASYNC_LOG_ARN_CONFIG, STS_RESOURCE_CONFIG_TYPE,\
-    STS_DATA_RESOURCE_CONFIG, STS_DUMP_CONFIG, STS_API_ALL_URL, STS_API_ONE_URL
+    CONFIG_KEY, DATASYNC_LOG_ARN_ENV, DATASYNC_LOG_ARN_CONFIG, STS_RESOURCE_CONFIG_TYPE,\
+    STS_DATA_RESOURCE_CONFIG, STS_DUMP_CONFIG, STS_API_ALL_URL, STS_API_ONE_URL, STS_API_ONE_URL_V2
 from bento.common.utils import get_logger
 from common.utils import clean_up_key_value, get_exception_msg, load_message_config
 from common.mongo_dao import MongoDao
@@ -120,11 +120,12 @@ class Config():
                 self.log.critical(f'No sts resource is configured in both env and args!')
                 return False
             else:
-                self.data[STS_DATA_RESOURCE_CONFIG] = sts_resource[STS_DATA_RESOURCE_CONFIG] if sts_resource.get(STS_DATA_RESOURCE_CONFIG) else None
-                self.data[STS_DUMP_CONFIG] = sts_resource[STS_DUMP_CONFIG] if sts_resource.get(STS_DUMP_CONFIG) else None
-                self.data[STS_API_ALL_URL] = sts_resource[STS_API_ALL_URL] if sts_resource.get(STS_API_ALL_URL) else None
-                self.data[STS_API_ONE_URL] = sts_resource[STS_API_ONE_URL] if sts_resource.get(STS_API_ONE_URL) else None
-
+                self.data[STS_DATA_RESOURCE_CONFIG] = sts_resource.get(STS_DATA_RESOURCE_CONFIG)
+                self.data[STS_DUMP_CONFIG] = sts_resource.get(STS_DUMP_CONFIG)
+                self.data[STS_API_ALL_URL] = sts_resource.get(STS_API_ALL_URL)
+                self.data[STS_API_ONE_URL] = sts_resource.get(STS_API_ONE_URL)
+                self.data[STS_API_ALL_URL_V2] = sts_resource.get(STS_API_ALL_URL_V2)
+                self.data[STS_API_ONE_URL_V2] = sts_resource.get(STS_API_ONE_URL_V2)
             # load configured customized message to memory
             if self.data[SERVICE_TYPE] in [SERVICE_TYPE_METADATA, SERVICE_TYPE_FILE]:
                 message_config = load_message_config()

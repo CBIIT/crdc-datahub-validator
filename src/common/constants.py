@@ -59,12 +59,15 @@ S3_FILE_INFO = "s3FileInfo"
 ID = "_id"
 SIZE ="size"
 MD5 = "md5"
-DATA_COLlECTION = "dataRecords"
+DATA_COLLECTION = "dataRecords"
 FILE_NAME = "fileName"
 STATUS_ERROR = "Error"
 STATUS_WARNING = "Warning"
 STATUS_PASSED = "Passed"
 STATUS_NEW = "New"
+FAILED = "Failed"
+# For batch metadata validation, statusDetail may be a list of failure message strings.
+STATUS_DETAIL = "statusDetail"
 SUBMISSION_ID = "submissionID"
 NODE_ID = "nodeID"
 NODE_TYPE = "nodeType"
@@ -79,6 +82,9 @@ RAW_DATA = "rawData"
 NODE_IDS = "nodeIDs"
 DELETE_ALL = "deleteAll"
 EXCLUSIVE_IDS = "exclusiveIDs"
+DELETE_ORPHANED_DATA_FILES = "deleteOrphanedDataFiles"
+DATA_FILE_TYPE = "data file"
+S3_LIST_ORPHANS_PAGE_SIZE = 1000
 
 FILE_NAME_FIELD = "name-field"
 FILE_SIZE_FIELD = "size-field"
@@ -137,9 +143,25 @@ TYPE_FILE_VALIDATE_ALL = "Validate Submission Files"
 TYPE_EXPORT_METADATA = "Export Metadata"
 TYPE_COMPLETE_SUB = "Complete Submission"
 TYPE_CROSS_SUBMISSION = "Validate Cross-submission"
+TYPE_METADATA_VALIDATE_BATCH = "Validate Metadata Batch"
 DATA_COMMONS = "dataCommons"
 RESTORE_DELETED_DATA_FILES = "Restore Deleted Data Files"
-FAILED = "Failed"
+# Batch message fields
+DATA_RECORD_IDS = "dataRecordIds"
+TOTAL_BATCHES = "totalBatches"
+BATCH_INDEX = "batchIndex"
+# Validation document fields for tracking batch progress
+COMPLETED_BATCHES = "completedBatches"
+FAILED_BATCHES = "failedBatches"
+BATCH_STATUS_DETAILS = "batchStatusDetails"
+WORST_BATCH_STATUS = "worstBatchStatus"
+STATUS_PRECEDENCE = {
+    "Passed": 0,
+    "Warning": 1,
+    "Error": 2,
+    "Failed": 3,
+}
+PRECEDENCE_TO_STATUS = {v: k for k, v in STATUS_PRECEDENCE.items()}
 ADDITION_ERRORS = "additionalErrors"
 STUDY_ABBREVIATION = "studyAbbreviation"
 LIST_DELIMITER_PROP = "list-delimiter"
@@ -251,8 +273,15 @@ CONSENT_GROUP_NUMBER = "consent_group_number"
 
 STS_API_ALL_URL = "sts_api_all_url"
 STS_API_ONE_URL = "sts_api_one_url"
+STS_API_ONE_URL_V2 = "sts_api_one_url_v2"
 STS_RESOURCE_CONFIG_TYPE = "STS_RESOURCE"
 STS_DATA_RESOURCE_CONFIG = "sts_data_resource"
 STS_DATA_RESOURCE_API = "sts_api"
 STS_DATA_RESOURCE_FILE = "sts_file"
 STS_DUMP_CONFIG = "sts-dump-file-url"
+STS_API_ALL_URL_V2 = "sts_api_all_url_v2"
+
+PROPERTY = "property"
+MODEL = "model"
+PROPERTY_PERMISSIBLE_VALUES = "PermissibleValues"
+PROPERTY_TERM = "Term"

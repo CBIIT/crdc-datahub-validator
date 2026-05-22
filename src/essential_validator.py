@@ -12,7 +12,8 @@ from common.constants import STATUS, BATCH_TYPE_METADATA, DATA_COMMON_NAME, ROOT
     ERRORS, S3_DOWNLOAD_DIR, SQS_NAME, BATCH_ID, BATCH_STATUS_UPLOADED, SQS_TYPE, TYPE_LOAD, STATUS_PASSED,\
     BATCH_STATUS_FAILED, ID, FILE_NAME, TYPE, FILE_PREFIX, MODEL_VERSION, MODEL_FILE_DIR, \
     TIER_CONFIG, STATUS_ERROR, STATUS_NEW, SERVICE_TYPE_ESSENTIAL, SUBMISSION_ID, SUBMISSION_INTENTION_DELETE, NODE_TYPE, \
-    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING, DCF_PREFIX, NODE_IDS, DELETE_ALL, EXCLUSIVE_IDS
+    SUBMISSION_INTENTION, TYPE_DELETE, BATCH_BUCKET, METADATA_VALIDATION_STATUS, STATUS_WARNING, DCF_PREFIX, NODE_IDS, DELETE_ALL, EXCLUSIVE_IDS, \
+    DELETE_ORPHANED_DATA_FILES, FILE_ERRORS
 from common.utils import cleanup_s3_download_dir, get_exception_msg, dump_dict_to_json, removeTailingEmptyColumnsAndRows, validate_uuid_by_rex, get_date_time
 from common.model_store import ModelFactory
 from metadata_remover import MetadataRemover
@@ -117,26 +118,33 @@ def essentialValidate(configs, job_queue, mongo_dao):
                         extender = VisibilityExtender(msg, VISIBILITY_TIMEOUT)
                         submission_id = data.get(SUBMISSION_ID)
                         node_type = data.get(NODE_TYPE)
-                        node_ids = data.get(NODE_IDS)
+                        node_ids = data.get(NODE_IDS) or []
                         delete_all = data.get(DELETE_ALL)
-                        exclusive_ids = data.get(EXCLUSIVE_IDS)
+                        exclusive_ids = data.get(EXCLUSIVE_IDS) or []
+                        delete_orphaned_data_files = data.get(DELETE_ORPHANED_DATA_FILES, False)
                         validator = MetadataRemover(mongo_dao, model_store)
+                        orphan_errors = []
+                        result = None
                         try:
                             if delete_all:
                                 # get all node ids for the node type in the submission
                                 node_type_ids = mongo_dao.search_nodes_by_type_and_submission(node_type, submission_id, exclusive_ids)
                                 node_ids = node_type_ids
-                            result = validator.remove_metadata(submission_id, node_type, node_ids)
-                        except Exception as e:  # catch any unhandled errors
+                            result, orphan_errors = validator.remove_metadata(submission_id, node_type, node_ids, delete_orphaned_data_files)
+                        except Exception:
                             error = f'{submission_id}: Failed to delete metadata, {get_exception_msg()}!'
                             log.error(error)
+                            orphan_errors = []
                         finally:
-                            #5. update submission's metadataValidationStatus
-                            if validator.submission:
-                                status = validator.submission.get(METADATA_VALIDATION_STATUS)
-                                # only need update the status if error or warning. In the dao function will check the count of error or warning to get real time status.
-                                status = STATUS_PASSED if status in [STATUS_ERROR, STATUS_WARNING] else status 
-                                mongo_dao.set_submission_validation_status(validator.submission, None, status, None, None, True)
+                            # Only update when remove_metadata returned (result is True or False); skip if exception before return
+                            if validator.submission and result is not None:
+                                fresh_submission = mongo_dao.get_submission(submission_id)
+                                submission_for_update = fresh_submission or validator.submission
+                                existing = (fresh_submission.get(FILE_ERRORS) or []) if fresh_submission else (validator.submission.get(FILE_ERRORS) or [])
+                                combined_file_errors = existing + (orphan_errors if result and orphan_errors else [])
+                                status = submission_for_update.get(METADATA_VALIDATION_STATUS)
+                                status = STATUS_PASSED if status in [STATUS_ERROR, STATUS_WARNING] else status
+                                mongo_dao.set_submission_validation_status(submission_for_update, None, status, None, combined_file_errors, True)
                     else:
                         log.error(f'Invalid message: {data}!')
 

@@ -5,10 +5,10 @@ import os
 
 current_directory = os.getcwd()
 sys.path.insert(0, current_directory + '/src')
-from src.metadata_validator import MetaDataValidator
-from src.common.constants import STATUS_WARNING, ERRORS, WARNINGS, STATUS_PASSED, STATUS_ERROR, DB, MONGO_DB
-from src.common.error_messages import FAILED_VALIDATE_RECORDS
-from src.common.model import DataModel
+from metadata_validator import MetaDataValidator
+from common.constants import STATUS_WARNING, ERRORS, WARNINGS, STATUS_PASSED, STATUS_ERROR, DB, MONGO_DB
+from common.error_messages import FAILED_VALIDATE_RECORDS
+from common.model import DataModel
 # from src.common.mongo_dao import MongoDao
 
 # needs to modify for dev database test

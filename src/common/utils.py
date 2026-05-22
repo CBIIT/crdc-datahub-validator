@@ -12,7 +12,7 @@ import numpy as np
 from bento.common.utils import get_stream_md5
 from datetime import datetime
 import uuid
-from common.constants import QC_SEVERITY, LAST_MODIFIED
+from common.constants import QC_SEVERITY, LAST_MODIFIED, PROPERTY_PERMISSIBLE_VALUES
 
 VALIDATION_MESSAGE_CONFIG_FILE = "configs/messages_configuration.yml"
 VALIDATION_MESSAGES = "Messages"
@@ -327,7 +327,13 @@ def convert_file_size(size_bytes):
     p = np.power(1024, i)
     s = round(size_bytes / p, 2)
     return "%s %s" % (s, size_name[i])
-    
 
-
+def has_permissive_value(prop):
+    """
+    check if the property has permissive values
+    """
+    if prop.get(PROPERTY_PERMISSIBLE_VALUES) is not None:
+        if len(prop[PROPERTY_PERMISSIBLE_VALUES]) > 0: 
+            return True, prop[PROPERTY_PERMISSIBLE_VALUES]
+    return False, None
 
